@@ -301,7 +301,14 @@ jobs:
           fail_on_unmatched_files: false
           files: dist/**/*
           body: |
-            Aether is a user-space proxy client. It tunnels traffic out of a filtered network and exposes a local SOCKS5 proxy on 127.0.0.1:10808. Point a browser, terminal, or system proxy at that address and your traffic leaves through the tunnel.
+            Aether v1.0.1
+
+            Aether is a user-space proxy client. It tunnels traffic out of a filtered network and exposes a local SOCKS5 proxy on 127.0.0.1:1819. Point a browser, terminal, or system proxy at that address and your traffic leaves through the tunnel.
+
+            What's new in v1.0.1:
+
+            - Default SOCKS5 proxy port changed from 10808 to 1819 (AETHER_SOCKS env var still overrides it).
+            - Added aether.sh, a one-command Termux installer/updater that auto-detects device architecture, downloads the matching release, verifies its SHA-256 checksum, and installs the binary into $PREFIX/bin.
 
             This release includes prebuilt binaries for:
 
@@ -318,14 +325,16 @@ jobs:
 
             Each archive ships with a matching .sha256 file, and a combined SHA256SUMS.txt lists every checksum.
 
-            Quick start:
+            Quick start (Termux, one-line install):
+
+               curl -fsSL https://raw.githubusercontent.com/CluvexStudio/aether/main/aether.sh -o aether.sh && chmod +x aether.sh && ./aether.sh install
+
+            Quick start (other platforms):
 
             1. Download the archive for your platform and extract it.
             2. Run the binary and answer the prompts, or set the environment variables listed in the guides.
-            3. Point your client at socks5h://127.0.0.1:10808 and verify with:
-               curl -x socks5h://127.0.0.1:10808 https://www.cloudflare.com/cdn-cgi/trace
-
-            On Termux, extract the matching archive, run chmod +x aether, then ./aether.
+            3. Point your client at socks5h://127.0.0.1:1819 and verify with:
+               curl -x socks5h://127.0.0.1:1819 https://www.cloudflare.com/cdn-cgi/trace
 
             Verify a download (Linux/macOS):
                sha256sum -c aether-linux-x86_64.tar.gz.sha256

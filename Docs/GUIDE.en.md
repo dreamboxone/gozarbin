@@ -6,7 +6,7 @@ This document tries to gather in one place everything you need to work with Aeth
 
 Aether is a tunnel. Its job is to open an encrypted path out of a restricted network and bring up a local proxy next to you called SOCKS5. After that, any application that knows how to go through a proxy — a browser, a terminal, or your whole system — sends its traffic through this tunnel.
 
-The proxy's default address is `127.0.0.1:10808`.
+The proxy's default address is `127.0.0.1:1819`.
 
 ## Three transports, three different logics
 
@@ -108,7 +108,7 @@ Every prompt has a variable equivalent. If you set a variable beforehand, Aether
 ### General selection
 
 - `AETHER_PROTOCOL` — protocol: `masque`, `wg`, or `gool`.
-- `AETHER_SOCKS` — the proxy listen address. Default `127.0.0.1:10808`.
+- `AETHER_SOCKS` — the proxy listen address. Default `127.0.0.1:1819`.
 - `AETHER_NOIZE` — obfuscation profile (explained above).
 - `AETHER_SCAN` — scan mode: `turbo`, `balanced`, `thorough`, `stealth`.
 - `AETHER_IP` — IP version for scanning: IPv4, IPv6, or both.
@@ -165,7 +165,7 @@ AETHER_PROTOCOL=gool AETHER_SOCKS=127.0.0.1:1080 ./target/release/aether
 As soon as it says the proxy is listening, run this:
 
 ```
-curl -x socks5h://127.0.0.1:10808 https://www.cloudflare.com/cdn-cgi/trace
+curl -x socks5h://127.0.0.1:1819 https://www.cloudflare.com/cdn-cgi/trace
 ```
 
 If you got an answer and saw something like `warp=on` or connection details inside it, it means the tunnel is up and your traffic is passing through it.

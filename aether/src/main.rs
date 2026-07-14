@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     let listen: SocketAddr = std::env::var("AETHER_SOCKS")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| "127.0.0.1:10808".parse().unwrap());
+        .unwrap_or_else(|| "127.0.0.1:1819".parse().unwrap());
 
     let base_config = std::env::var("AETHER_CONFIG").unwrap_or_else(|_| DEFAULT_CONFIG.to_string());
 

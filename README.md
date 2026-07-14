@@ -29,6 +29,20 @@ Prebuilt binaries are available on the Releases page for:
 - macOS
 - Android (Termux)
 
+### Termux (Android) — one-line install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CluvexStudio/aether/main/aether.sh -o aether.sh && chmod +x aether.sh && ./aether.sh install
+```
+
+This detects your device architecture, downloads the matching release, verifies its checksum, and installs `aether` into `$PREFIX/bin`. Run it afterwards with:
+
+```bash
+aether
+```
+
+To update later, run `./aether.sh update`. To remove it, run `./aether.sh uninstall`.
+
 ## Build
 
 ### Requirements
@@ -75,13 +89,13 @@ Aether will ask you to select:
 After startup, a SOCKS5 proxy will be available at:
 
 ```
-127.0.0.1:10808
+127.0.0.1:1819
 ```
 
 Example:
 
 ```bash
-curl -x socks5h://127.0.0.1:10808 https://www.cloudflare.com/cdn-cgi/trace
+curl -x socks5h://127.0.0.1:1819 https://www.cloudflare.com/cdn-cgi/trace
 ```
 
 ## Supported Protocols
