@@ -11,13 +11,14 @@ Unlike traditional VPN clients, Aether is built for environments where Deep Pack
 
 ## Features
 
-- Automatic endpoint discovery
-- MASQUE (HTTP/3 & HTTP/2)
+- Automatic endpoint discovery, with end-to-end data-plane validation so a gateway is only trusted once it actually passes traffic, not just once it answers the handshake
+- MASQUE (HTTP/3 & HTTP/2), with optional TLS ClientHello fragmentation on HTTP/2
 - WireGuard support
 - Nested WireGuard mode (`gool`)
 - Traffic obfuscation
-- Automatic reconnection
+- Automatic reconnection, and quick-reconnect to your last known-good gateway to skip rescanning
 - Local SOCKS5 proxy
+- Command-line flags, environment variables, or interactive prompts — your choice
 - Linux, Windows, macOS and Android (Termux)
 
 ## Download
@@ -73,18 +74,21 @@ target/release/aether
 
 ## Usage
 
-Run:
+Run with no arguments and answer the prompts:
 
 ```bash
 ./target/release/aether
 ```
 
-Aether will ask you to select:
+Or skip the prompts with flags:
 
-- Protocol
-- Obfuscation profile
-- Listening port
-- Scan mode
+```bash
+./target/release/aether --masque -4 --scan turbo --noize firewall
+```
+
+On Windows, double-click `run-aether.bat` (included in the release zip) instead — it opens a terminal, runs `aether.exe`, and keeps the window open afterwards so you can read any errors.
+
+Every prompt has a flag and an environment variable equivalent. Run `./target/release/aether --help` for the full list, or see the guides linked below.
 
 After startup, a SOCKS5 proxy will be available at:
 

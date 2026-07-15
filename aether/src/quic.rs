@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -7,7 +7,7 @@ use quiche::h3;
 use quiche::h3::NameValue;
 use rand::RngCore;
 use tokio::net::UdpSocket;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::masque::{self, CapsuleParser};
 use crate::noize::{self, NoizeConfig};
@@ -53,6 +53,20 @@ pub struct TunnelConfig {
     pub key_pem: Vec<u8>,
     pub ech_config_list: Option<Vec<u8>>,
     pub noize: NoizeConfig,
+    pub local_ipv4: Ipv4Addr,
+}
+
+fn validation_timeout() -> Duration {
+    let secs = std::env::var("AETHER_MASQUE_VALIDATE_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|&v| v > 0)
+        .unwrap_or(10);
+    Duration::from_secs(secs)
+}
+
+fn data_check_enabled() -> bool {
+    std::env::var("AETHER_MASQUE_NO_DATA_CHECK").is_err()
 }
 
 pub struct Channels {
@@ -138,8 +152,14 @@ pub async fn run(
     cfg: TunnelConfig,
     mut internals: Internals,
     addr_tx: Option<mpsc::Sender<AssignedAddr>>,
+    ready_tx: Option<oneshot::Sender<()>>,
 ) -> Result<()> {
     let peer = cfg.peer;
+    let data_check = data_check_enabled();
+    let probe_packet = masque::build_dns_probe_packet(cfg.local_ipv4);
+    let mut ready_tx = ready_tx;
+    let mut ready_fired = false;
+    let mut validate_deadline: Option<Instant> = None;
 
     let init_sock = bind_udp_fast(bind_addr_for(&peer)).await?;
     let local = init_sock.local_addr()?;
@@ -186,7 +206,24 @@ pub async fn run(
     let mut keepalive_interval = tokio::time::interval(Duration::from_secs(20));
     keepalive_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+    let mut probe_interval = tokio::time::interval(Duration::from_millis(700));
+    probe_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
     loop {
+        if data_check && !ready_fired {
+            if let Some(dl) = validate_deadline {
+                if Instant::now() >= dl {
+                    log::warn!(
+                        "[-] masque data-plane validation timed out; edge {peer} accepts control but drops traffic"
+                    );
+                    let _ = conn.close(true, 0x00, b"validation-timeout");
+                    return Err(AetherError::Masque(
+                        "data-plane validation timeout (handshake ok, no traffic)".into(),
+                    ));
+                }
+            }
+        }
+
         let timeout = conn.timeout();
 
         tokio::select! {
@@ -196,6 +233,19 @@ pub async fn run(
                 if conn.is_established() {
                     if let Err(e) = conn.send_ack_eliciting() {
                         log::debug!("keepalive ping failed: {e}");
+                    }
+                }
+            }
+
+            _ = probe_interval.tick(), if data_check && !ready_fired => {
+                if let Some(sid) = req_stream {
+                    match masque::encode_ip_datagram(sid, &probe_packet) {
+                        Ok(framed) => {
+                            if let Err(e) = conn.dgram_send(&framed) {
+                                log::debug!("data-plane probe send: {e}");
+                            }
+                        }
+                        Err(e) => log::debug!("data-plane probe encode: {e}"),
                     }
                 }
             }
@@ -261,13 +311,33 @@ pub async fn run(
             log::info!("connect-ip request sent on stream {sid}");
             req_stream = Some(sid);
             h3_conn = Some(h3c);
+
+            if data_check {
+                validate_deadline = Some(Instant::now() + validation_timeout());
+                log::info!("[*] validating masque data-plane before exposing socks5");
+            } else if !ready_fired {
+                ready_fired = true;
+                if let Some(tx) = ready_tx.take() {
+                    let _ = tx.send(());
+                }
+            }
         }
 
         if let (Some(h3c), Some(sid)) = (h3_conn.as_mut(), req_stream) {
             poll_h3(&mut conn, h3c, sid, &mut capsules, &addr_tx)?;
         }
 
-        drain_datagrams(&mut conn, req_stream, &internals.inbound_tx, &mut out_buf).await;
+        let got_data =
+            drain_datagrams(&mut conn, req_stream, &internals.inbound_tx, &mut out_buf).await;
+
+        if got_data && !ready_fired {
+            ready_fired = true;
+            validate_deadline = None;
+            if let Some(tx) = ready_tx.take() {
+                let _ = tx.send(());
+            }
+            log::info!("[+] masque tunnel validated (end-to-end data confirmed); exposing socks5");
+        }
 
         flush(&mut conn, &sockets).await?;
 
@@ -417,18 +487,20 @@ async fn drain_datagrams(
     req_stream: Option<u64>,
     inbound_tx: &mpsc::Sender<Vec<u8>>,
     buf: &mut [u8],
-) {
+) -> bool {
     let sid = match req_stream {
         Some(s) => s,
-        None => return,
+        None => return false,
     };
 
+    let mut delivered = false;
     loop {
         match conn.dgram_recv(buf) {
             Ok(n) => match masque::decode_ip_datagram(&buf[..n], sid) {
                 Ok(Some(ip_packet)) => {
+                    delivered = true;
                     if inbound_tx.send(ip_packet).await.is_err() {
-                        return;
+                        return delivered;
                     }
                 }
                 Ok(None) => {}
@@ -441,6 +513,7 @@ async fn drain_datagrams(
             }
         }
     }
+    delivered
 }
 
 async fn flush(
@@ -513,6 +586,7 @@ pub struct VerifyParams {
     pub ech_config_list: Option<Vec<u8>>,
     pub noize: NoizeConfig,
     pub timeout: Duration,
+    pub local_ipv4: Ipv4Addr,
 }
 
 pub async fn verify_masque(p: &VerifyParams) -> Result<Duration> {
@@ -539,6 +613,12 @@ pub async fn verify_masque(p: &VerifyParams) -> Result<Duration> {
     let mut h3_conn: Option<h3::Connection> = None;
     let mut req_stream: Option<u64> = None;
 
+    let data_check = data_check_enabled();
+    let probe_packet = masque::build_dns_probe_packet(p.local_ipv4);
+    let mut connect_ip_ok = false;
+    let mut last_probe = Instant::now();
+    let mut dgram_buf = vec![0u8; 65535];
+
     let start = Instant::now();
     let deadline = start + p.timeout;
 
@@ -556,6 +636,11 @@ pub async fn verify_masque(p: &VerifyParams) -> Result<Duration> {
         let wait = match conn.timeout() {
             Some(t) => t.min(remaining(deadline)),
             None => remaining(deadline),
+        };
+        let wait = if connect_ip_ok {
+            wait.min(Duration::from_millis(250))
+        } else {
+            wait
         };
 
         tokio::select! {
@@ -594,12 +679,24 @@ pub async fn verify_masque(p: &VerifyParams) -> Result<Duration> {
                         for h in &list {
                             if h.name() == b":status" {
                                 if h.value() == b"200" {
-                                    return Ok(start.elapsed());
+                                    if !data_check {
+                                        return Ok(start.elapsed());
+                                    }
+                                    connect_ip_ok = true;
+                                    if let Some(sid) = req_stream {
+                                        if let Ok(framed) =
+                                            masque::encode_ip_datagram(sid, &probe_packet)
+                                        {
+                                            let _ = conn.dgram_send(&framed);
+                                        }
+                                    }
+                                    last_probe = Instant::now();
+                                } else {
+                                    return Err(AetherError::Other(format!(
+                                        "status {}",
+                                        String::from_utf8_lossy(h.value())
+                                    )));
                                 }
-                                return Err(AetherError::Other(format!(
-                                    "status {}",
-                                    String::from_utf8_lossy(h.value())
-                                )));
                             }
                         }
                     }
@@ -610,10 +707,35 @@ pub async fn verify_masque(p: &VerifyParams) -> Result<Duration> {
             }
         }
 
+        if connect_ip_ok {
+            if last_probe.elapsed() >= Duration::from_millis(700) {
+                if let Some(sid) = req_stream {
+                    if let Ok(framed) = masque::encode_ip_datagram(sid, &probe_packet) {
+                        let _ = conn.dgram_send(&framed);
+                    }
+                }
+                last_probe = Instant::now();
+            }
+
+            if let Some(sid) = req_stream {
+                loop {
+                    match conn.dgram_recv(&mut dgram_buf) {
+                        Ok(n) => {
+                            if let Ok(Some(_)) = masque::decode_ip_datagram(&dgram_buf[..n], sid) {
+                                return Ok(start.elapsed());
+                            }
+                        }
+                        Err(quiche::Error::Done) => break,
+                        Err(_) => break,
+                    }
+                }
+            }
+        }
+
         flush_connected(&mut conn, &sock).await?;
 
         if conn.is_closed() {
-            return Err(AetherError::Other("closed before 200".into()));
+            return Err(AetherError::Other("closed before data-plane confirmation".into()));
         }
     }
 }

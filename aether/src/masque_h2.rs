@@ -1,4 +1,5 @@
 use std::net::IpAddr;
+use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
@@ -8,10 +9,11 @@ use boring::x509::X509;
 use bytes::Bytes;
 use http::Method;
 use tokio::net::TcpStream;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::consts;
 use crate::error::{AetherError, Result};
+use crate::fragment::{FragmentConfig, FragmentingStream};
 use crate::masque::{self, Capsule, CapsuleParser};
 use crate::quic::{AssignedAddr, Control, Internals};
 
@@ -25,6 +27,20 @@ pub struct H2TunnelConfig {
     pub path: String,
     pub cert_pem: Vec<u8>,
     pub key_pem: Vec<u8>,
+    pub local_ipv4: Ipv4Addr,
+}
+
+fn data_check_enabled() -> bool {
+    std::env::var("AETHER_MASQUE_NO_DATA_CHECK").is_err()
+}
+
+fn validation_timeout() -> Duration {
+    let secs = std::env::var("AETHER_MASQUE_VALIDATE_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|&v| v > 0)
+        .unwrap_or(10);
+    Duration::from_secs(secs)
 }
 
 pub fn enabled() -> bool {
@@ -110,11 +126,14 @@ fn build_connect_request(cfg: &H2TunnelConfig) -> Result<http::Request<()>> {
 
 pub async fn verify_h2(cfg: &H2TunnelConfig, timeout: Duration) -> Result<Duration> {
     let start = Instant::now();
+    let data_check = data_check_enabled();
+
     let attempt = async {
         let tls_config = build_tls(cfg)?;
         let tcp = TcpStream::connect(cfg.peer).await.map_err(AetherError::Io)?;
         let _ = tcp.set_nodelay(true);
-        let tls = tokio_boring::connect(tls_config, &cfg.sni, tcp)
+        let fragment = FragmentingStream::new(tcp, FragmentConfig::from_env());
+        let tls = tokio_boring::connect(tls_config, &cfg.sni, fragment)
             .await
             .map_err(|e| AetherError::Tls(format!("h2 tls handshake: {e}")))?;
         let (h2, connection) = h2::client::handshake(tls)
@@ -128,21 +147,62 @@ pub async fn verify_h2(cfg: &H2TunnelConfig, timeout: Duration) -> Result<Durati
             .await
             .map_err(|e| AetherError::Masque(format!("h2 ready: {e}")))?;
         let req = build_connect_request(cfg)?;
-        let (resp_fut, _send_stream) = h2
+        let (resp_fut, mut send_stream) = h2
             .send_request(req, false)
             .map_err(|e| AetherError::Masque(format!("send_request: {e}")))?;
         let response = resp_fut
             .await
             .map_err(|e| AetherError::Masque(format!("await response: {e}")))?;
-        driver.abort();
         let status = response.status();
         if !status.is_success() {
+            driver.abort();
             return Err(AetherError::Masque(format!(
                 "h2 connect-ip status {}",
                 status.as_u16()
             )));
         }
-        Ok(())
+
+        if !data_check {
+            driver.abort();
+            return Ok(());
+        }
+
+        let mut recv_body = response.into_body();
+        let mut capsules = CapsuleParser::new();
+        let probe = masque::build_dns_probe_packet(cfg.local_ipv4);
+        let framed = masque::encode_datagram_capsule(&probe);
+        if let Err(e) = send_capsule(&mut send_stream, Bytes::from(framed)).await {
+            driver.abort();
+            return Err(e);
+        }
+
+        loop {
+            match futures::future::poll_fn(|cx| recv_body.poll_data(cx)).await {
+                Some(Ok(chunk)) => {
+                    let _ = recv_body.flow_control().release_capacity(chunk.len());
+                    capsules.push(&chunk);
+                    loop {
+                        match capsules.next() {
+                            Ok(Some(Capsule::Datagram(_))) => {
+                                driver.abort();
+                                return Ok(());
+                            }
+                            Ok(Some(_)) => continue,
+                            Ok(None) => break,
+                            Err(_) => break,
+                        }
+                    }
+                }
+                Some(Err(e)) => {
+                    driver.abort();
+                    return Err(AetherError::Masque(format!("h2 body: {e}")));
+                }
+                None => {
+                    driver.abort();
+                    return Err(AetherError::Masque("h2 stream closed before data".into()));
+                }
+            }
+        }
     };
 
     match tokio::time::timeout(timeout, attempt).await {
@@ -156,8 +216,13 @@ pub async fn run(
     cfg: H2TunnelConfig,
     internals: Internals,
     addr_tx: Option<mpsc::Sender<AssignedAddr>>,
+    ready_tx: Option<oneshot::Sender<()>>,
 ) -> Result<()> {
     let (mut outbound_rx, inbound_tx, mut ctrl_rx) = internals.into_parts();
+    let data_check = data_check_enabled();
+    let probe_packet = masque::build_dns_probe_packet(cfg.local_ipv4);
+    let mut ready_tx = ready_tx;
+    let mut ready_fired = false;
 
     let tls_config = build_tls(&cfg)?;
 
@@ -165,7 +230,16 @@ pub async fn run(
     let tcp = TcpStream::connect(cfg.peer).await.map_err(AetherError::Io)?;
     let _ = tcp.set_nodelay(true);
 
-    let tls = tokio_boring::connect(tls_config, &cfg.sni, tcp)
+    let frag_cfg = FragmentConfig::from_env();
+    if frag_cfg.enabled {
+        log::info!(
+            "[h2] fragmenting client hello: size={}..{} delay={}..{}ms",
+            frag_cfg.size_min, frag_cfg.size_max, frag_cfg.delay_min_ms, frag_cfg.delay_max_ms
+        );
+    }
+    let fragment = FragmentingStream::new(tcp, frag_cfg);
+
+    let tls = tokio_boring::connect(tls_config, &cfg.sni, fragment)
         .await
         .map_err(|e| AetherError::Tls(format!("h2 tls handshake: {e}")))?;
     log::info!(
@@ -209,9 +283,48 @@ pub async fn run(
     let mut recv_body = response.into_body();
     let mut capsules = CapsuleParser::new();
 
+    let mut validate_deadline: Option<Instant> = None;
+    if data_check {
+        let framed = masque::encode_datagram_capsule(&probe_packet);
+        if let Err(e) = send_capsule(&mut send_stream, Bytes::from(framed)).await {
+            log::debug!("[h2] initial data-plane probe: {e}");
+        }
+        validate_deadline = Some(Instant::now() + validation_timeout());
+        log::info!("[h2] validating data-plane (end-to-end probe) before exposing socks5");
+    } else if !ready_fired {
+        ready_fired = true;
+        if let Some(tx) = ready_tx.take() {
+            let _ = tx.send(());
+        }
+    }
+
+    let mut probe_interval = tokio::time::interval(Duration::from_millis(700));
+    probe_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
     loop {
+        if data_check && !ready_fired {
+            if let Some(dl) = validate_deadline {
+                if Instant::now() >= dl {
+                    log::warn!(
+                        "[h2] data-plane validation timed out; edge accepts control but drops traffic"
+                    );
+                    let _ = send_stream.send_data(Bytes::new(), true);
+                    return Err(AetherError::Masque(
+                        "h2 data-plane validation timeout (handshake ok, no traffic)".into(),
+                    ));
+                }
+            }
+        }
+
         tokio::select! {
             biased;
+
+            _ = probe_interval.tick(), if data_check && !ready_fired => {
+                let framed = masque::encode_datagram_capsule(&probe_packet);
+                if let Err(e) = send_capsule(&mut send_stream, Bytes::from(framed)).await {
+                    log::debug!("[h2] data-plane probe resend: {e}");
+                }
+            }
 
             ctrl = ctrl_rx.recv() => {
                 match ctrl {
@@ -245,7 +358,15 @@ pub async fn run(
                     Some(Ok(chunk)) => {
                         let _ = recv_body.flow_control().release_capacity(chunk.len());
                         capsules.push(&chunk);
-                        drain_capsules(&mut capsules, &inbound_tx, &addr_tx).await;
+                        let got_data = drain_capsules(&mut capsules, &inbound_tx, &addr_tx).await;
+                        if got_data && !ready_fired {
+                            ready_fired = true;
+                            validate_deadline = None;
+                            if let Some(tx) = ready_tx.take() {
+                                let _ = tx.send(());
+                            }
+                            log::info!("[h2] tunnel validated (end-to-end data confirmed); exposing socks5");
+                        }
                     }
                     Some(Err(e)) => {
                         log::warn!("[h2] recv body error: {e}");
@@ -289,12 +410,14 @@ async fn drain_capsules(
     capsules: &mut CapsuleParser,
     inbound_tx: &mpsc::Sender<Vec<u8>>,
     addr_tx: &Option<mpsc::Sender<AssignedAddr>>,
-) {
+) -> bool {
+    let mut delivered = false;
     loop {
         match capsules.next() {
             Ok(Some(Capsule::Datagram(pkt))) => {
+                delivered = true;
                 if inbound_tx.send(pkt).await.is_err() {
-                    return;
+                    return delivered;
                 }
             }
             Ok(Some(Capsule::AddressAssign(addrs))) => {
@@ -321,6 +444,7 @@ async fn drain_capsules(
             }
         }
     }
+    delivered
 }
 
 fn bytes_to_ip(version: u8, bytes: &[u8]) -> Option<IpAddr> {

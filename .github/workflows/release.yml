@@ -14,7 +14,10 @@ jobs:
   # macOS + Windows desktop targets, always on the latest runners.
   # macOS uses macos-latest (Apple Silicon); the Intel/x86_64 binary
   # is cross-compiled from that same runner.
-  # Windows uses windows-latest for both x86_64 and arm64.
+  # Windows uses windows-latest for x86_64. The arm64 MSVC target is not
+  # built: boringtun pulls in ring 0.16.20, whose C build fails on
+  # aarch64-pc-windows-msvc (BN_ULLONG undeclared in the bn/internal.h
+  # fallback path), and few users run arm64 Windows anyway.
   # ------------------------------------------------------------------
   desktop:
     name: Build ${{ matrix.archive }} 
@@ -32,9 +35,6 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             archive: aether-windows-x86_64.zip
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            archive: aether-windows-arm64.zip
     defaults:
       run:
         working-directory: aether
@@ -71,7 +71,7 @@ jobs:
       - name: Package archive (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path target/${{ matrix.target }}/release/aether.exe -DestinationPath ${{ matrix.archive }} 
+        run: Compress-Archive -Path target/${{ matrix.target }}/release/aether.exe,run-aether.bat -DestinationPath ${{ matrix.archive }} 
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -301,14 +301,21 @@ jobs:
           fail_on_unmatched_files: false
           files: dist/**/*
           body: |
-            Aether v1.0.1
+            Aether v1.1.1
 
             Aether is a user-space proxy client. It tunnels traffic out of a filtered network and exposes a local SOCKS5 proxy on 127.0.0.1:1819. Point a browser, terminal, or system proxy at that address and your traffic leaves through the tunnel.
 
-            What's new in v1.0.1:
+            What's new in v1.1.1:
 
-            - Default SOCKS5 proxy port changed from 10808 to 1819 (AETHER_SOCKS env var still overrides it).
-            - Added aether.sh, a one-command Termux installer/updater that auto-detects device architecture, downloads the matching release, verifies its SHA-256 checksum, and installs the binary into $PREFIX/bin.
+            - Real end-to-end data-plane validation for MASQUE (HTTP/3 and HTTP/2): a gateway is now only trusted once it has actually carried a probe packet round-trip, not just once the handshake and `:status 200` came back. This fixes gateways that looked "connected" but silently dropped all traffic.
+            - The local SOCKS5 proxy no longer opens until the tunnel has passed that validation, so applications can't start using a half-alive tunnel.
+            - Automatic reconnection for MASQUE: if the tunnel drops or fails validation, Aether rescans and reconnects on its own instead of exiting.
+            - Quick reconnect: Aether remembers the last gateway that worked and, on the next run, offers to reuse it after a single fast re-check instead of a full rescan. Controlled with --quick-reconnect / --no-quick-reconnect or AETHER_QUICK_RECONNECT.
+            - New command-line flag interface (aether --help) covering every option that was previously environment-variable-only or prompt-only: --bind, -4/-6/--dual, --peer/--wg-peer, --masque/--wg/--gool, --scan and mode shortcuts, --noize, --h2/--http2, --h2-peer, --fragment and friends, --keepalive, --config/--wg-config/--masque-config, --tls-groups, and more.
+            - Optional TLS ClientHello fragmentation for MASQUE's HTTP/2 transport (--fragment, --fragment-size, --fragment-delay), for networks that block the h2 handshake based on a single unfragmented ClientHello.
+            - Windows builds now ship with run-aether.bat: double-click it to run aether.exe in a terminal that stays open afterwards, so the window doesn't just vanish if the tunnel exits.
+            - Dropped the Windows arm64 build target: boringtun's dependency on ring 0.16 fails to compile on aarch64-pc-windows-msvc, and very few users run arm64 Windows. Windows x86_64 is unaffected.
+            - .gitignore now explicitly excludes all identity/credential files (aether*.toml, *-secondary.toml, *-lastconn.toml, *.pem, *.key) so a WireGuard private key or MASQUE certificate can never end up committed by accident.
 
             This release includes prebuilt binaries for:
 
@@ -318,7 +325,6 @@ jobs:
             - macOS arm64 / Apple Silicon (aether-macos-arm64.tar.gz)
             - macOS x86_64 / Intel (aether-macos-x86_64.tar.gz)
             - Windows x86_64 (aether-windows-x86_64.zip)
-            - Windows arm64 (aether-windows-arm64.zip)
             - Android / Termux arm64 (aether-android-arm64.tar.gz)
             - Android / Termux armv7 (aether-android-armv7.tar.gz)
             - Android / Termux x86_64 (aether-android-x86_64.tar.gz)
@@ -328,6 +334,11 @@ jobs:
             Quick start (Termux, one-line install):
 
                curl -fsSL https://raw.githubusercontent.com/CluvexStudio/aether/main/aether.sh -o aether.sh && chmod +x aether.sh && ./aether.sh install
+
+            Quick start (Windows):
+
+            1. Download aether-windows-x86_64.zip and extract it.
+            2. Double-click run-aether.bat. It opens a terminal, runs aether.exe, and stays open afterwards so you can read any errors.
 
             Quick start (other platforms):
 

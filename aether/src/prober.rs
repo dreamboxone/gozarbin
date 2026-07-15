@@ -168,6 +168,7 @@ pub struct MasqueProbe {
     pub noize: NoizeConfig,
     pub ports: Vec<u16>,
     pub ip: IpScan,
+    pub local_ipv4: Ipv4Addr,
 }
 
 pub async fn host_has_ipv6() -> bool {
@@ -300,6 +301,7 @@ async fn verify_one(
             path: probe.path.clone(),
             cert_pem: probe.cert_pem.to_vec(),
             key_pem: probe.key_pem.to_vec(),
+            local_ipv4: probe.local_ipv4,
         };
         return match crate::masque_h2::verify_h2(&cfg, timeout).await {
             Ok(rtt) => Some(ProbeResult { ip, port, rtt }),
@@ -320,6 +322,7 @@ async fn verify_one(
         ech_config_list: probe.ech_config_list.as_ref().map(|a| a.to_vec()),
         noize: probe.noize.clone(),
         timeout,
+        local_ipv4: probe.local_ipv4,
     };
 
     match quic::verify_masque(&vp).await {

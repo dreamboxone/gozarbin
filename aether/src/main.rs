@@ -1,9 +1,12 @@
 #![allow(dead_code)]
 mod account;
+mod cli;
 mod config;
 mod consts;
 mod dns;
 mod error;
+mod fragment;
+mod lastconn;
 mod masque;
 mod masque_h2;
 mod netstack;
@@ -16,9 +19,17 @@ mod aethernoize;
 mod wireguard;
 mod wg_prober;
 
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use error::{AetherError, Result};
+
+fn parse_local_v4(s: &str) -> Ipv4Addr {
+    s.split('/')
+        .next()
+        .unwrap_or(s)
+        .parse()
+        .unwrap_or(Ipv4Addr::UNSPECIFIED)
+}
 
 const TUNNEL_MTU: usize = 1280;
 const INNER_MTU: usize = 1200;
@@ -29,6 +40,8 @@ async fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp_millis()
         .init();
+
+    cli::parse_and_apply()?;
 
     install_netstack_panic_guard();
 
@@ -58,10 +71,9 @@ async fn main() -> Result<()> {
                 identity.ipv4,
                 identity.ipv6
             );
-            let peer = select_peer(&identity, protocol).await?;
-            log::info!("[+] using cloudflare edge {peer}");
             let ech = resolve_ech().await;
-            run_masque_tunnel(identity, peer, ech, listen).await
+            let lastconn_path = lastconn_path(&config_path);
+            run_masque(identity, ech, listen, lastconn_path).await
         }
         Protocol::WireGuard => {
             let config_path = warp_config_path(&base_config);
@@ -72,7 +84,8 @@ async fn main() -> Result<()> {
                 identity.ipv4,
                 identity.ipv6
             );
-            run_wireguard(identity, listen).await
+            let lastconn_path = lastconn_path(&config_path);
+            run_wireguard(identity, listen, lastconn_path).await
         }
         Protocol::WarpInWarp => {
             let primary_path = warp_config_path(&base_config);
@@ -212,6 +225,7 @@ async fn select_peer(identity: &account::Identity, protocol: Protocol) -> Result
                 noize: noize_config(),
                 ports: prober::MASQUE_PORTS.to_vec(),
                 ip,
+                local_ipv4: parse_local_v4(&identity.ipv4),
             };
 
             let best = prober::hunt_best_gateway(&probe, mode).await?;
@@ -271,8 +285,171 @@ async fn resolve_ech() -> Option<Vec<u8>> {
     }
 }
 
-async fn run_masque_tunnel(
+fn masque_reconnect_delay() -> std::time::Duration {
+    let secs = std::env::var("AETHER_MASQUE_RECONNECT_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(2);
+    std::time::Duration::from_secs(secs)
+}
+
+async fn hunt_masque_peer(
+    identity: &account::Identity,
+    mode_str: &str,
+    ip: prober::IpScan,
+) -> Result<SocketAddr> {
+    log::info!("[*] hunting for a working MASQUE gateway (deep connect-ip + data-plane verification)");
+    let mode = prober::ScanMode::parse(mode_str);
+    let probe = prober::MasqueProbe {
+        sni: consts::CONNECT_SNI.to_string(),
+        authority: quic::default_authority().to_string(),
+        path: quic::default_path().to_string(),
+        cert_pem: std::sync::Arc::from(identity.cert_pem.clone()),
+        key_pem: std::sync::Arc::from(identity.key_pem.clone()),
+        ech_config_list: None,
+        noize: noize_config(),
+        ports: prober::MASQUE_PORTS.to_vec(),
+        ip,
+        local_ipv4: parse_local_v4(&identity.ipv4),
+    };
+
+    let best = prober::hunt_best_gateway(&probe, mode).await?;
+    log::info!(
+        "[+] selected MASQUE gateway {}:{} (rtt {:?})",
+        best.ip,
+        best.port,
+        best.rtt
+    );
+    Ok(SocketAddr::new(best.ip, best.port))
+}
+
+
+fn lastconn_path(config_path: &str) -> String {
+    derive_sibling_path(config_path, "lastconn")
+}
+
+async fn quick_verify_masque_peer(identity: &account::Identity, peer: SocketAddr) -> bool {
+    let vp = quic::VerifyParams {
+        peer,
+        sni: consts::CONNECT_SNI.to_string(),
+        authority: quic::default_authority().to_string(),
+        path: quic::default_path().to_string(),
+        cert_pem: identity.cert_pem.clone(),
+        key_pem: identity.key_pem.clone(),
+        ech_config_list: None,
+        noize: noize_config(),
+        timeout: std::time::Duration::from_secs(5),
+        local_ipv4: parse_local_v4(&identity.ipv4),
+    };
+
+    if masque_h2::enabled() {
+        let cfg = masque_h2::H2TunnelConfig {
+            peer: masque_h2::h2_peer(peer),
+            sni: consts::CONNECT_SNI.to_string(),
+            authority: quic::default_authority().to_string(),
+            path: quic::default_path().to_string(),
+            cert_pem: identity.cert_pem.clone(),
+            key_pem: identity.key_pem.clone(),
+            local_ipv4: parse_local_v4(&identity.ipv4),
+        };
+        return masque_h2::verify_h2(&cfg, std::time::Duration::from_secs(5))
+            .await
+            .is_ok();
+    }
+
+    quic::verify_masque(&vp).await.is_ok()
+}
+
+async fn want_quick_reconnect(cached: &lastconn::LastConnection) -> bool {
+    match std::env::var("AETHER_QUICK_RECONNECT").as_deref() {
+        Ok("1") | Ok("true") | Ok("yes") | Ok("on") => return true,
+        Ok("0") | Ok("false") | Ok("no") | Ok("off") => return false,
+        _ => {}
+    }
+
+    let answer = prompt_line(&format!(
+        "\nLast working gateway: {} (profile '{}')\nReconnect to it now without rescanning? [Y/n]: ",
+        cached.peer, cached.profile
+    ))
+    .await;
+
+    !matches!(answer.as_deref(), Some(a) if a.eq_ignore_ascii_case("n") || a.eq_ignore_ascii_case("no"))
+}
+
+async fn run_masque(
     identity: account::Identity,
+    ech: Option<Vec<u8>>,
+    listen: SocketAddr,
+    lastconn_path: String,
+) -> Result<()> {
+    let forced = std::env::var("AETHER_PEER").ok();
+
+    let mut quick_peer: Option<SocketAddr> = None;
+    if forced.is_none() {
+        if let Some(cached) = lastconn::load(&lastconn_path) {
+            if let Ok(peer) = cached.peer.parse::<SocketAddr>() {
+                if want_quick_reconnect(&cached).await {
+                    log::info!("[*] verifying cached gateway {peer} before reuse");
+                    if quick_verify_masque_peer(&identity, peer).await {
+                        log::info!("[+] cached gateway {peer} still works; skipping scan");
+                        quick_peer = Some(peer);
+                    } else {
+                        log::warn!("[-] cached gateway {peer} no longer works; scanning fresh");
+                    }
+                }
+            }
+        }
+    }
+
+    let (mode_str, ip) = if forced.is_some() || quick_peer.is_some() {
+        (String::new(), prober::IpScan::V4)
+    } else {
+        let mode_str = select_scan_mode_str().await;
+        let ip = select_ip_version().await;
+        (mode_str, ip)
+    };
+
+    loop {
+        let peer = if let Some(p) = quick_peer.take() {
+            p
+        } else {
+            match &forced {
+                Some(p) => match p.parse::<SocketAddr>() {
+                    Ok(peer) => {
+                        log::info!("[+] using forced peer {peer} (probe skipped)");
+                        peer
+                    }
+                    Err(_) => return Err(AetherError::Other(format!("bad peer address {p}"))),
+                },
+                None => match hunt_masque_peer(&identity, &mode_str, ip).await {
+                    Ok(peer) => peer,
+                    Err(e) => {
+                        log::warn!("[-] no usable MASQUE gateway found: {e}; rescanning shortly");
+                        tokio::time::sleep(masque_reconnect_delay()).await;
+                        continue;
+                    }
+                },
+            }
+        };
+
+        log::info!("[+] using cloudflare edge {peer}");
+
+        if forced.is_none() {
+            let profile = std::env::var("AETHER_NOIZE").unwrap_or_else(|_| "firewall".to_string());
+            lastconn::save(&lastconn_path, &peer.to_string(), &profile);
+        }
+
+        match run_masque_tunnel(&identity, peer, ech.clone(), listen).await {
+            Ok(()) => log::warn!("[-] MASQUE tunnel closed; reconnecting"),
+            Err(e) => log::warn!("[-] MASQUE tunnel ended: {e}; reconnecting"),
+        }
+
+        tokio::time::sleep(masque_reconnect_delay()).await;
+    }
+}
+
+async fn run_masque_tunnel(
+    identity: &account::Identity,
     peer: SocketAddr,
     ech: Option<Vec<u8>>,
     listen: SocketAddr,
@@ -288,6 +465,7 @@ async fn run_masque_tunnel(
         key_pem: identity.key_pem.clone(),
         ech_config_list: ech,
         noize: noize_config(),
+        local_ipv4: parse_local_v4(&identity.ipv4),
     };
 
     let quic::Channels {
@@ -314,13 +492,9 @@ async fn run_masque_tunnel(
         }
     });
 
-    let socks_stack = stack.clone();
-    let socks_task = tokio::spawn(async move {
-        log::info!("[+] socks5 server listening on {listen}");
-        socks::serve(listen, socks_stack).await
-    });
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
 
-    let tunnel_result = if masque_h2::enabled() {
+    let tunnel_task = if masque_h2::enabled() {
         let h2cfg = masque_h2::H2TunnelConfig {
             peer: masque_h2::h2_peer(peer),
             sni: consts::CONNECT_SNI.to_string(),
@@ -328,19 +502,41 @@ async fn run_masque_tunnel(
             path: quic::default_path().to_string(),
             cert_pem: identity.cert_pem.clone(),
             key_pem: identity.key_pem.clone(),
+            local_ipv4: parse_local_v4(&identity.ipv4),
         };
         log::info!("[+] MASQUE transport: HTTP/2 (TCP) to {}", h2cfg.peer);
-        let _ = &cfg;
-        masque_h2::run(h2cfg, internals, Some(addr_tx)).await
+        tokio::spawn(masque_h2::run(h2cfg, internals, Some(addr_tx), Some(ready_tx)))
     } else {
         log::info!("[+] MASQUE transport: HTTP/3 (QUIC) to {}", peer);
-        quic::run(cfg, internals, Some(addr_tx)).await
+        tokio::spawn(quic::run(cfg, internals, Some(addr_tx), Some(ready_tx)))
     };
+
+    match ready_rx.await {
+        Ok(()) => {}
+        Err(_) => {
+            let joined = tunnel_task.await;
+            let msg = match joined {
+                Ok(Ok(())) => "tunnel exited before validation".to_string(),
+                Ok(Err(e)) => format!("tunnel failed before validation: {e}"),
+                Err(e) => format!("tunnel task join error: {e}"),
+            };
+            return Err(AetherError::Other(msg));
+        }
+    }
+
+    let socks_stack = stack.clone();
+    let socks_task = tokio::spawn(async move {
+        log::info!("[+] socks5 server listening on {listen}");
+        socks::serve(listen, socks_stack).await
+    });
+
+    let tunnel_result = tunnel_task.await;
     socks_task.abort();
 
     match tunnel_result {
-        Ok(()) => Ok(()),
-        Err(e) => Err(AetherError::Other(format!("tunnel exited: {e}"))),
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(AetherError::Other(format!("tunnel exited: {e}"))),
+        Err(e) => Err(AetherError::Other(format!("tunnel task join error: {e}"))),
     }
 }
 
@@ -401,7 +597,7 @@ async fn hunt_wg_peer_with_profile(
     Ok(SocketAddr::new(best.ip, best.port))
 }
 
-async fn run_wireguard(identity: account::Identity, listen: SocketAddr) -> Result<()> {
+async fn run_wireguard(identity: account::Identity, listen: SocketAddr, lastconn_path: String) -> Result<()> {
     let candidates = wg_profile_candidates();
     let multi = candidates.len() > 1;
 
@@ -416,7 +612,40 @@ async fn run_wireguard(identity: account::Identity, listen: SocketAddr) -> Resul
         .parse()
         .map_err(|_| AetherError::Other("invalid ipv4".into()))?;
 
-    let selected: Option<(SocketAddr, aethernoize::AetherNoizeConfig)> = if let Some(p) = forced {
+    let mut quick: Option<(SocketAddr, aethernoize::AetherNoizeConfig, String)> = None;
+    if forced.is_none() {
+        if let Some(cached) = lastconn::load(&lastconn_path) {
+            if let Ok(peer) = cached.peer.parse::<SocketAddr>() {
+                if want_quick_reconnect(&cached).await {
+                    let profile = aethernoize::from_profile(&cached.profile);
+                    log::info!("[*] verifying cached WireGuard endpoint {peer} before reuse");
+                    match wireguard::verify_endpoint(
+                        peer,
+                        private_key,
+                        peer_public,
+                        identity.client_id,
+                        ipv4,
+                        &profile,
+                        std::time::Duration::from_secs(6),
+                    )
+                    .await
+                    {
+                        Ok(rtt) => {
+                            log::info!("[+] cached endpoint {peer} still works (rtt {:?}); skipping scan", rtt);
+                            quick = Some((peer, profile, cached.profile.clone()));
+                        }
+                        Err(e) => {
+                            log::warn!("[-] cached endpoint {peer} no longer works ({e}); scanning fresh");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let selected: Option<(SocketAddr, aethernoize::AetherNoizeConfig, String)> = if let Some(q) = quick {
+        Some(q)
+    } else if let Some(ref p) = forced {
         let peer: SocketAddr = p
             .parse()
             .map_err(|_| AetherError::Other(format!("bad peer address {p}")))?;
@@ -438,7 +667,7 @@ async fn run_wireguard(identity: account::Identity, listen: SocketAddr) -> Resul
             {
                 Ok(rtt) => {
                     log::info!("[+] profile '{}' passed handshake + data-plane (rtt {:?})", name, rtt);
-                    chosen = Some((peer, profile.clone()));
+                    chosen = Some((peer, profile.clone(), name.clone()));
                     break;
                 }
                 Err(e) => {
@@ -459,7 +688,7 @@ async fn run_wireguard(identity: account::Identity, listen: SocketAddr) -> Resul
             match hunt_wg_peer_with_profile(&identity, &mode_str, ip, profile.clone()).await {
                 Ok(peer) => {
                     log::info!("[+] selected WireGuard endpoint {peer} using aethernoize profile '{name}'");
-                    chosen = Some((peer, profile.clone()));
+                    chosen = Some((peer, profile.clone(), name.clone()));
                     break;
                 }
                 Err(e) => {
@@ -474,8 +703,13 @@ async fn run_wireguard(identity: account::Identity, listen: SocketAddr) -> Resul
         chosen
     };
 
-    let (peer, profile) = selected.ok_or(AetherError::NoCleanEndpoint)?;
+    let (peer, profile, profile_name) = selected.ok_or(AetherError::NoCleanEndpoint)?;
     log::info!("[+] using cloudflare edge {peer}");
+
+    if forced.is_none() {
+        lastconn::save(&lastconn_path, &peer.to_string(), &profile_name);
+    }
+
     run_wireguard_tunnel(identity, peer, profile, listen).await
 }
 
