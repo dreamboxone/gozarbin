@@ -261,6 +261,19 @@ AETHER_PROTOCOL=gool AETHER_SOCKS=127.0.0.1:1080 ./target/release/aether
 AETHER_QUICK_RECONNECT=1 ./target/release/aether --masque
 ```
 
+### اجرا با داکر (Docker)
+
+داکر یه محیط ایزوله بهت می‌ده و نیازی به نصب Rust یا ابزارهای C++ روی سیستم خودت نداری.
+
+```bash
+docker build -t aether .
+docker run -it -p 1819:1819 \
+  -e AETHER_PROTOCOL=masque \
+  -e AETHER_SCAN=balanced \
+  aether
+```
+*(پرچم `-it` برای وقتی که متغیرهای محیطی رو از قبل ندادی و نیاز به پاسخ دادن به سؤالات تعاملی داری، ضروریه.)*
+
 ## تست اینکه واقعاً کار می‌کنه یا نه
 
 همین که برنامه گفت پراکسی در حال گوش‌دادنه، این دستور رو بزن:
