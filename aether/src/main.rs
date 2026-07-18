@@ -41,6 +41,8 @@ async fn main() -> Result<()> {
         .format_timestamp_millis()
         .init();
 
+    log::info!("Aether v{}", env!("CARGO_PKG_VERSION"));
+
     cli::parse_and_apply()?;
 
     install_netstack_panic_guard();
