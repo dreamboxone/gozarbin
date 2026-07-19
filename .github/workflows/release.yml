@@ -215,6 +215,12 @@ jobs:
   # bindings. Without BINDGEN_EXTRA_CLANG_ARGS pointing it at the musl
   # sysroot, clang falls back to the host's glibc headers, which don't
   # exist in the same layout musl expects (missing bits/libc-header-start.h).
+  #
+  # RUST_LIBC_UNSTABLE_MUSL_V1_2_3 tells the libc crate that this is a
+  # modern musl (1.2.x, 64-bit time_t on 32-bit targets). Without it,
+  # libc assumes the old 32-bit time_t, which doesn't match what
+  # bindgen sees in the real (1.2.x) sysroot headers, and boring fails
+  # to build with type mismatches on ASN1_TIME_set/X509_VERIFY_PARAM_set_time.
   # ------------------------------------------------------------------
   linux-armv7-musl:
     name: Build aether-linux-armv7-musl.tar.gz
@@ -228,6 +234,7 @@ jobs:
       CXX_armv7_unknown_linux_musleabihf: /opt/musl-cross/bin/armv7-unknown-linux-musleabihf-g++
       AR_armv7_unknown_linux_musleabihf: /opt/musl-cross/bin/armv7-unknown-linux-musleabihf-ar
       BINDGEN_EXTRA_CLANG_ARGS_armv7_unknown_linux_musleabihf: --target=armv7-unknown-linux-musleabihf --sysroot=/opt/musl-cross/armv7-unknown-linux-musleabihf
+      RUST_LIBC_UNSTABLE_MUSL_V1_2_3: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
