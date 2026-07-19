@@ -197,11 +197,9 @@ jobs:
 
   # ------------------------------------------------------------------
   # 32-bit ARM musl, fully static (OpenWrt routers and other musl-based
-  # Linux systems). Cross-compiled on Ubuntu with the musl.cc toolchain.
-  # A tiny fopen64 compatibility shim is linked in as a precaution:
-  # glibc's _FILE_OFFSET_BITS=64 renames fopen to fopen64 at the header
-  # level, musl doesn't, so this is normally a no-op, but costs nothing
-  # to keep around if some transitive dependency ever expects it.
+  # Linux systems). Built with `cross`, using cross-rs's prebuilt
+  # ghcr.io image for this target instead of musl.cc, which blocks
+  # requests from GitHub Actions runners entirely.
   # ------------------------------------------------------------------
   linux-armv7-musl:
     name: Build aether-linux-armv7-musl.tar.gz
@@ -209,11 +207,6 @@ jobs:
     defaults:
       run:
         working-directory: aether
-    env:
-      CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER: armv7l-linux-musleabihf-gcc
-      CC_armv7_unknown_linux_musleabihf: armv7l-linux-musleabihf-gcc
-      CXX_armv7_unknown_linux_musleabihf: armv7l-linux-musleabihf-g++
-      AR_armv7_unknown_linux_musleabihf: armv7l-linux-musleabihf-ar
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -223,33 +216,11 @@ jobs:
         with:
           targets: armv7-unknown-linux-musleabihf
 
-      - name: Install Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Install CMake and Ninja
-        uses: lukka/get-cmake@latest
-
-      - name: Install musl cross toolchain
-        run: |
-          curl -fsSL https://musl.cc/armv7l-linux-musleabihf-cross.tgz -o /tmp/musl-cross.tgz
-          sudo mkdir -p /opt/musl-cross
-          sudo tar -C /opt/musl-cross --strip-components=1 -xzf /tmp/musl-cross.tgz
-          echo "/opt/musl-cross/bin" >> "$GITHUB_PATH"
-
-      - name: Build fopen64 compatibility shim
-        run: |
-          cat > /tmp/musl_compat.c << 'EOF'
-          #include <stdio.h>
-          FILE *fopen64(const char *path, const char *mode) { return fopen(path, mode); }
-          EOF
-          armv7l-linux-musleabihf-gcc -c -o /tmp/musl_compat.o /tmp/musl_compat.c
-          armv7l-linux-musleabihf-ar rcs /tmp/musl_compat.a /tmp/musl_compat.o
-          echo "CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS=-C link-arg=/tmp/musl_compat.a" >> "$GITHUB_ENV"
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
 
       - name: Build release binary
-        run: cargo build --release --target armv7-unknown-linux-musleabihf
+        run: cross build --release --target armv7-unknown-linux-musleabihf
 
       - name: Package archive
         run: |
