@@ -197,9 +197,16 @@ jobs:
 
   # ------------------------------------------------------------------
   # 32-bit ARM musl, fully static (OpenWrt routers and other musl-based
-  # Linux systems). Built with `cross`, using cross-rs's prebuilt
-  # ghcr.io image for this target instead of musl.cc, which blocks
-  # requests from GitHub Actions runners entirely.
+  # Linux systems). Built directly on the runner rather than with
+  # `cross`/Docker: this repo isn't a single cargo workspace (aether
+  # depends on ../quiche via path deps, and quiche has its own
+  # [workspace]), and cross's container only mounts the crate being
+  # built, so it can't see the referenced workspace root. Building on
+  # the runner avoids that entirely.
+  #
+  # The musl toolchain comes from AmanoTeam/musl-gcc-cross's GitHub
+  # release, not musl.cc, which blocks all requests from GitHub
+  # Actions runners.
   # ------------------------------------------------------------------
   linux-armv7-musl:
     name: Build aether-linux-armv7-musl.tar.gz
@@ -207,6 +214,11 @@ jobs:
     defaults:
       run:
         working-directory: aether
+    env:
+      CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER: /opt/musl-cross/bin/armv7-unknown-linux-musleabihf-gcc
+      CC_armv7_unknown_linux_musleabihf: /opt/musl-cross/bin/armv7-unknown-linux-musleabihf-gcc
+      CXX_armv7_unknown_linux_musleabihf: /opt/musl-cross/bin/armv7-unknown-linux-musleabihf-g++
+      AR_armv7_unknown_linux_musleabihf: /opt/musl-cross/bin/armv7-unknown-linux-musleabihf-ar
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -216,11 +228,22 @@ jobs:
         with:
           targets: armv7-unknown-linux-musleabihf
 
-      - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Install musl cross toolchain
+        run: |
+          curl -fsSL https://github.com/AmanoTeam/musl-gcc-cross/releases/download/gcc-15/armv7-unknown-linux-musleabihf.tar.xz -o /tmp/musl-cross.tar.xz
+          sudo mkdir -p /opt/musl-cross
+          sudo tar -C /opt/musl-cross --strip-components=1 -xJf /tmp/musl-cross.tar.xz
 
       - name: Build release binary
-        run: cross build --release --target armv7-unknown-linux-musleabihf
+        run: cargo build --release --target armv7-unknown-linux-musleabihf
 
       - name: Package archive
         run: |
