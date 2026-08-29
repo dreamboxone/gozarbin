@@ -654,6 +654,7 @@ fn masque_reconnect_delay() -> std::time::Duration {
     let secs = std::env::var("AETHER_MASQUE_RECONNECT_SECS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
+        .filter(|&v| v > 0)
         .unwrap_or(2);
     std::time::Duration::from_secs(secs)
 }
@@ -1045,6 +1046,7 @@ fn wg_reconnect_delay() -> std::time::Duration {
     let secs = std::env::var("AETHER_WG_RECONNECT_SECS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
+        .filter(|&v| v > 0)
         .unwrap_or(2);
     std::time::Duration::from_secs(secs)
 }
