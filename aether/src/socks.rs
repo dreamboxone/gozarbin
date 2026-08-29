@@ -114,9 +114,21 @@ pub(crate) fn proxy_connect_succeeded(head: &[u8]) -> Option<bool> {
     Some((200..300).contains(&status))
 }
 
+pub(crate) fn warn_if_world_reachable(kind: &str, listen: SocketAddr) {
+    if listen.ip().is_loopback() {
+        return;
+    }
+    log::warn!(
+        "[!] the {kind} listener is bound to {listen}, which is reachable from outside this machine. \
+         It accepts every client without authentication, so anyone who can reach {listen} can send \
+         traffic through your tunnel. Bind it to 127.0.0.1 unless you intend to share it."
+    );
+}
+
 pub async fn serve(listen: SocketAddr, stack: StackHandle) -> Result<()> {
     let listener = TcpListener::bind(listen).await?;
     log::info!("socks5 listening on {listen}");
+    warn_if_world_reachable("socks5", listen);
     let bind_ip = listen.ip();
 
     let mut clients = tokio::task::JoinSet::new();
@@ -1286,6 +1298,7 @@ const HTTP_HEAD_LIMIT: usize = 16 * 1024;
 pub async fn serve_http(listen: SocketAddr, stack: StackHandle) -> Result<()> {
     let listener = TcpListener::bind(listen).await?;
     log::info!("http proxy listening on {listen}");
+    warn_if_world_reachable("http proxy", listen);
 
     loop {
         let (sock, peer) = match listener.accept().await {
