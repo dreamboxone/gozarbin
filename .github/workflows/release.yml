@@ -234,7 +234,7 @@ jobs:
       CXX_armv7_unknown_linux_musleabihf: /opt/musl-cross/bin/armv7-unknown-linux-musleabihf-g++
       AR_armv7_unknown_linux_musleabihf: /opt/musl-cross/bin/armv7-unknown-linux-musleabihf-ar
       BINDGEN_EXTRA_CLANG_ARGS_armv7_unknown_linux_musleabihf: --target=armv7-unknown-linux-musleabihf --sysroot=/opt/musl-cross/armv7-unknown-linux-musleabihf
-      RUST_LIBC_UNSTABLE_MUSL_V1_2_3: "1"
+      RUSTFLAGS: --cfg libc_unstable_musl_v1_2_3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
