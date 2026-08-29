@@ -452,26 +452,25 @@ jobs:
           fail_on_unmatched_files: false
           files: dist/**/*
           body: |
-            Aether v1.6.0
+            Aether v1.8.0
 
             Aether is a user-space proxy client. It tunnels traffic out of a filtered network and exposes a local SOCKS5 proxy on 127.0.0.1:1819. Point a browser, terminal, or system proxy at that address and your traffic leaves through the tunnel.
 
-            What's new in v1.6.0:
-
-            New
-
-            - `--http-proxy <addr>` exposes an HTTP CONNECT proxy next to the SOCKS5 one, for clients that cannot speak SOCKS.
-            - `--noize light` is a gentler obfuscation profile for networks that only need a nudge.
-            - Aether also builds as a library now (`libaether.a`, `libaether.so`) with a C API, so it can be linked into an app instead of being spawned as a separate process. The CLI is unchanged.
+            What's new in v1.8.0:
 
             Fixes
 
-            - The SOCKS5 listener could shut down for good after a single transient accept error, and every connection after that was refused until Aether was restarted.
-            - A Zero Trust email code could only be typed into a terminal, so a graphical client could never finish signing in. The code can now be answered on standard input, and Aether says when it is waiting for one.
-            - The WireGuard scan gave up on an endpoint when the first handshake packet was lost. It retransmits now, so a lossy network no longer looks like a dead endpoint.
-            - The scan only tried one port per address, so most of the documented fallback ports were never reached. Each candidate covers the priority ports before the sweep widens.
-            - An endpoint that just failed is put on a cooldown instead of being picked again straight away, including when a saved endpoint is reused on a quick reconnect. `AETHER_WG_ENDPOINT_COOLDOWN_SECS` sets the window, five minutes by default. From #76.
-            - `--startup-secs` bounds how long a MASQUE tunnel may take to come up instead of waiting forever.
+            - Gool no longer crashes. Picking it brought the app down as soon as either tunnel or the SOCKS server stopped, and reconnecting after that never came back up. Reported and fixed by @amir-reza-bijandi in #91.
+            - A WireGuard tunnel stayed down if one of its tasks panicked, because the shared lock was left poisoned and every other task then failed on it.
+            - Setting `AETHER_WG_RECONNECT_SECS` or `AETHER_MASQUE_RECONNECT_SECS` to 0 reconnected in a tight loop instead of using the default delay.
+            - An upstream SOCKS5 proxy could answer the greeting with "no authentication" and Aether would carry on without ever sending the username and password it was configured with. It now treats that as a failure, and checks the version byte on the password reply.
+            - The HTTP proxy read request headers one byte per syscall, up to 16384 of them for a single request.
+
+            Changes
+
+            - The SOCKS5 and HTTP listeners now warn when they are bound to an address other than loopback. Neither asks clients for authentication, so anyone who can reach that address can use the tunnel.
+            - Dependencies moved up to boringtun 0.7, smoltcp 0.14, rand 0.10, toml 1 and tokio 1.53. This drops ring 0.16, which is no longer maintained and carries RUSTSEC-2025-0009.
+            - x25519-dalek and curve25519-dalek are off release candidates and on stable releases.
 
             Every archive ships with a matching .sha256 file, and SHA256SUMS.txt lists them all.
 
