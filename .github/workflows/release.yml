@@ -469,7 +469,7 @@ jobs:
             Changes
 
             - The SOCKS5 and HTTP listeners now warn when they are bound to an address other than loopback. Neither asks clients for authentication, so anyone who can reach that address can use the tunnel.
-            - Dependencies moved up to boringtun 0.7, smoltcp 0.14, rand 0.10, toml 1 and tokio 1.53. This drops ring 0.16, which is no longer maintained and carries RUSTSEC-2025-0009.
+            - Dependencies moved up to boringtun 0.7, rand 0.10, toml 1 and tokio 1.53. This drops ring 0.16, which is no longer maintained and carries RUSTSEC-2025-0009.
             - x25519-dalek and curve25519-dalek are off release candidates and on stable releases.
 
             Every archive ships with a matching .sha256 file, and SHA256SUMS.txt lists them all.
