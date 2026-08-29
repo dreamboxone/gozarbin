@@ -1,5 +1,6 @@
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::Arc;
+use parking_lot::Mutex as StdMutex;
 use std::time::{Duration, Instant};
 
 use boringtun::noise::{Tunn, TunnResult};
@@ -175,20 +176,20 @@ impl WgTunnel {
                         let mut tunn = tunn_r.lock().await;
                         match tunn.decapsulate(None, &buf[..n], &mut tmp) {
                             TunnResult::Done => {
-                                *last_valid_rx_r.lock().unwrap() = Instant::now();
+                                *last_valid_rx_r.lock() = Instant::now();
                             }
                             TunnResult::Err(e) => {
                                 log::trace!("decapsulate error: {e:?}");
                             }
                             TunnResult::WriteToNetwork(pkt) => {
-                                *last_valid_rx_r.lock().unwrap() = Instant::now();
+                                *last_valid_rx_r.lock() = Instant::now();
                                 let mut pkt_vec = pkt.to_vec();
                                 inject_client_id(&mut pkt_vec, &client_id);
                                 drop(tunn);
                                 let _ = sock_r.send(&pkt_vec).await;
                             }
                             TunnResult::WriteToTunnelV4(pkt, _) | TunnResult::WriteToTunnelV6(pkt, _) => {
-                                *last_valid_rx_r.lock().unwrap() = Instant::now();
+                                *last_valid_rx_r.lock() = Instant::now();
                                 let pkt_vec = pkt.to_vec();
                                 drop(tunn);
                                 let _ = inbound_tx.send(pkt_vec).await;
@@ -282,7 +283,7 @@ impl WgTunnel {
             loop {
                 interval.tick().await;
 
-                let idle = last_valid_rx_h.lock().unwrap().elapsed();
+                let idle = last_valid_rx_h.lock().elapsed();
                 if idle >= stale_timeout {
                     log::warn!(
                         "[wg] no valid data from peer {} in {:?}; tunnel considered dead",
