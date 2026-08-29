@@ -129,7 +129,10 @@ fn parse_range(data: &str) -> usize {
 pub fn parse_cps(spec: &str) -> Vec<u8> {
     let mut out = Vec::new();
 
-    let tag_regex = Regex::new(r"<([a-z]+)\s*([^>]*)>").unwrap();
+    let tag_regex = {
+        static TAG_REGEX: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+        TAG_REGEX.get_or_init(|| Regex::new(r"<([a-z]+)\s*([^>]*)>").expect("static tag pattern"))
+    };
 
     for cap in tag_regex.captures_iter(spec) {
         let tag_type = cap.get(1).map_or("", |m| m.as_str());
