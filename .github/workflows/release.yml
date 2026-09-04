@@ -15,9 +15,7 @@ jobs:
   # macOS uses macos-latest (Apple Silicon); the Intel/x86_64 binary
   # is cross-compiled from that same runner.
   # Windows uses windows-latest for x86_64. The arm64 MSVC target is not
-  # built: boringtun pulls in ring 0.16.20, whose C build fails on
-  # aarch64-pc-windows-msvc (BN_ULLONG undeclared in the bn/internal.h
-  # fallback path), and few users run arm64 Windows anyway.
+  # built: it has never been verified on a real arm64 Windows machine.
   # ------------------------------------------------------------------
   desktop:
     name: Build ${{ matrix.archive }} 
@@ -85,7 +83,7 @@ jobs:
   # x86_64 builds on an x86_64 runner and arm64 on a native arm64
   # runner, both using fedora:latest so binaries link against a fresh
   # Fedora toolchain. Rust is installed via rustup to guarantee the
-  # latest stable (>= 1.88 required by the crate).
+  # latest stable (>= 1.91 required by the crate).
   # ------------------------------------------------------------------
   linux:
     name: Build ${{ matrix.archive }} 
@@ -452,25 +450,28 @@ jobs:
           fail_on_unmatched_files: false
           files: dist/**/*
           body: |
-            Aether v1.8.0
+            Aether v1.9.0
 
             Aether is a user-space proxy client. It tunnels traffic out of a filtered network and exposes a local SOCKS5 proxy on 127.0.0.1:1819. Point a browser, terminal, or system proxy at that address and your traffic leaves through the tunnel.
 
-            What's new in v1.8.0:
+            What's new in v1.9.0:
 
             Fixes
 
-            - Gool no longer crashes. Picking it brought the app down as soon as either tunnel or the SOCKS server stopped, and reconnecting after that never came back up. Reported and fixed by @amir-reza-bijandi in #91.
-            - A WireGuard tunnel stayed down if one of its tasks panicked, because the shared lock was left poisoned and every other task then failed on it.
-            - Setting `AETHER_WG_RECONNECT_SECS` or `AETHER_MASQUE_RECONNECT_SECS` to 0 reconnected in a tight loop instead of using the default delay.
-            - An upstream SOCKS5 proxy could answer the greeting with "no authentication" and Aether would carry on without ever sending the username and password it was configured with. It now treats that as a failure, and checks the version byte on the password reply.
-            - The HTTP proxy read request headers one byte per syscall, up to 16384 of them for a single request.
+            - MASQUE over HTTP/2 was slow. The flow-control window, the send path, the packet framing and the inner MTU are all fixed.
+            - Every transport was capped by the netstack's TCP receive buffer. It is larger now, and `AETHER_NETSTACK_TCP_RX` and `AETHER_NETSTACK_TCP_TX` set it by hand.
+            - `--gool --wg-peer <ip:port>` was documented but ignored. It works.
+
+            Features
+
+            - WARP-in-WARP endpoints can be given by hand: `--wiw-outer`, `--wiw-inner`, `--wiw-peers`, `--wiw-scan`, and the matching `AETHER_WIW_*` variables. Give one hop and the scan finds the other. The port is required. Scanning stays the default.
+            - `aether help` works alongside `--help` and `-h`, and covers every flag and every environment variable.
+            - `AETHER_MASQUE_MTU` sets the inner MTU of the MASQUE tunnel.
+            - The startup line and the HTTP/2 tunnel report the flow-control windows in use.
 
             Changes
 
-            - The SOCKS5 and HTTP listeners now warn when they are bound to an address other than loopback. Neither asks clients for authentication, so anyone who can reach that address can use the tunnel.
-            - Dependencies moved up to boringtun 0.7, rand 0.10, toml 1 and tokio 1.53. This drops ring 0.16, which is no longer maintained and carries RUSTSEC-2025-0009.
-            - x25519-dalek and curve25519-dalek are off release candidates and on stable releases.
+            - smoltcp 0.14. The crate now needs Rust 1.91.
 
             Every archive ships with a matching .sha256 file, and SHA256SUMS.txt lists them all.
 
