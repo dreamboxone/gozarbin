@@ -358,12 +358,10 @@ The other way round: Tor is bootstrapped first, and the tunnel is then dialled
 through it, so the WARP edge is reached from a Tor exit and the network you are on
 never sees WARP at all. The proxy on `127.0.0.1:1819` comes out of WARP as usual.
 Tor carries TCP only, and WARP's WireGuard endpoints answer on UDP alone, so this
-mode runs MASQUE over HTTP/2 and refuses WireGuard and `gool`. Those two facts
-together are why: a UDP-only endpoint cannot be reached across a TCP-only
-network, whatever sits in between. If you want WireGuard in the path, put Tor
-inside the tunnel with `--tor` instead, where the WireGuard tunnel carries Tor
-directly. This mode also needs Tor reachable before anything else works, so on a
-network that blocks Tor, give it bridges.
+mode runs MASQUE over HTTP/2 and refuses WireGuard and `gool`. If you want
+WireGuard in the path, put Tor inside the tunnel with `--tor` instead, where the
+WireGuard tunnel carries Tor directly. This mode also needs Tor reachable before
+anything else works, so on a network that blocks Tor, give it bridges.
 
 ### Tor alone
 
@@ -383,19 +381,19 @@ they turn to bridges on their own:
 aether --tor-only
 ```
 
-That is the whole command. Aether tries Tor plainly for a moment, and when that
-gets nowhere it asks bridgedb which bridges suit the country it appears to be
-in, then works through them one transport at a time: obfs4 first, then
-webtunnel, then snowflake. Whichever gets through is remembered for next time.
+Aether tries Tor plainly for a moment, and when that gets nowhere it asks
+bridgedb which bridges suit the country it appears to be in, then works through
+them one transport at a time: obfs4 first, then webtunnel, then snowflake.
+Whichever gets through is remembered for next time.
 
 The release archives carry the transport binaries in a `pt/` folder beside
 `aether`, and that folder is the first place Aether looks, so a release needs no
 setting up. Failing that it searches `PATH`, the usual system directories, and
 Tor Browser's own bundled transports.
 
-A bridge counts as working only once a stream has actually opened through it. A
-client that reaches 100% but cannot carry traffic is dropped and the next bridge
-is tried, rather than being handed over as though it worked.
+A bridge counts as working only once a stream has actually opened through it, so
+a client that reaches 100% but cannot carry traffic is dropped and the next
+bridge is tried.
 
 To pin everything down by hand instead:
 
