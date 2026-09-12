@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
 use std::net::SocketAddr;
@@ -262,7 +264,7 @@ pub extern "C" fn aether_version() -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn aether_string_free(raw: *mut c_char) {
+pub unsafe extern "C" fn aether_string_free(raw: *mut c_char) {
     if raw.is_null() {
         return;
     }
@@ -313,7 +315,7 @@ pub extern "C" fn aether_job_free(id: u64) -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn aether_identity_open(payload: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn aether_identity_open(payload: *const c_char) -> *mut c_char {
     respond(|| {
         let payload: OpenPayload = unsafe { read_json(payload) }?;
         let transport = transport_of(&payload.transport);
@@ -336,7 +338,9 @@ pub extern "C" fn aether_identity_open(payload: *const c_char) -> *mut c_char {
         let path = api::identity_path(&payload.path, transport, team_name.as_deref());
 
         spawn_job(move |_| async move {
-            let identity = api::open_identity(&path, &request).await.map_err(describe)?;
+            let identity = api::open_identity(&path, &request)
+                .await
+                .map_err(describe)?;
             let mut reply = keep_identity(identity);
             if let Value::Object(fields) = &mut reply {
                 fields.insert("path".to_string(), Value::String(path.clone()));
@@ -367,7 +371,7 @@ pub extern "C" fn aether_identity_free(id: u64) -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn aether_scan_start(identity: u64, payload: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn aether_scan_start(identity: u64, payload: *const c_char) -> *mut c_char {
     respond(|| {
         let payload: ScanPayload = unsafe { read_json(payload) }?;
         let identity = identity_of(identity)?;
@@ -431,7 +435,7 @@ fn tunnel_spec_of(payload: &TunnelPayload) -> std::result::Result<api::TunnelSpe
 }
 
 #[no_mangle]
-pub extern "C" fn aether_verify_start(identity: u64, payload: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn aether_verify_start(identity: u64, payload: *const c_char) -> *mut c_char {
     respond(|| {
         let payload: TunnelPayload = unsafe { read_json(payload) }?;
         let identity = identity_of(identity)?;
@@ -448,7 +452,7 @@ pub extern "C" fn aether_verify_start(identity: u64, payload: *const c_char) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn aether_tunnel_start(identity: u64, payload: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn aether_tunnel_start(identity: u64, payload: *const c_char) -> *mut c_char {
     respond(|| {
         let payload: TunnelPayload = unsafe { read_json(payload) }?;
         let identity = identity_of(identity)?;
@@ -472,7 +476,7 @@ pub extern "C" fn aether_tunnel_start(identity: u64, payload: *const c_char) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn aether_core_start(arguments: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn aether_core_start(arguments: *const c_char) -> *mut c_char {
     respond(|| {
         let arguments: Vec<String> = if arguments.is_null() {
             Vec::new()
@@ -480,8 +484,9 @@ pub extern "C" fn aether_core_start(arguments: *const c_char) -> *mut c_char {
             let text = unsafe { read_str(arguments) }?;
             match text.trim().is_empty() {
                 true => Vec::new(),
-                false => serde_json::from_str(&text)
-                    .map_err(|e| format!("the argument list is not a json array of strings: {e}"))?,
+                false => serde_json::from_str(&text).map_err(|e| {
+                    format!("the argument list is not a json array of strings: {e}")
+                })?,
             }
         };
 
@@ -500,7 +505,7 @@ pub extern "C" fn aether_core_start(arguments: *const c_char) -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn aether_team_sign_in(payload: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn aether_team_sign_in(payload: *const c_char) -> *mut c_char {
     respond(|| {
         let payload: TeamPayload = unsafe { read_json(payload) }?;
         let credentials = payload.credentials()?;
@@ -513,7 +518,7 @@ pub extern "C" fn aether_team_sign_in(payload: *const c_char) -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn aether_team_code_request(payload: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn aether_team_code_request(payload: *const c_char) -> *mut c_char {
     respond(|| {
         let payload: TeamPayload = unsafe { read_json(payload) }?;
         let email = payload
@@ -552,7 +557,7 @@ pub extern "C" fn aether_team_code_resend(session: u64) -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn aether_team_code_submit(session: u64, code: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn aether_team_code_submit(session: u64, code: *const c_char) -> *mut c_char {
     respond(|| {
         let code = unsafe { read_str(code) }?;
         let session = session_of(session)?;
@@ -579,7 +584,7 @@ pub extern "C" fn aether_team_session_free(id: u64) -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn aether_team_token_set(token: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn aether_team_token_set(token: *const c_char) -> *mut c_char {
     respond(|| {
         let token = unsafe { read_str(token) }?;
         let runtime = runtime().ok_or_else(|| "could not start the async runtime".to_string())?;
@@ -609,7 +614,7 @@ mod tests {
             .to_str()
             .expect("utf-8 reply")
             .to_string();
-        aether_string_free(raw);
+        unsafe { aether_string_free(raw) };
         serde_json::from_str(&text).expect("the reply must be json")
     }
 
@@ -626,12 +631,12 @@ mod tests {
 
     #[test]
     fn freeing_a_null_string_is_harmless() {
-        aether_string_free(std::ptr::null_mut());
+        unsafe { aether_string_free(std::ptr::null_mut()) };
     }
 
     #[test]
     fn a_null_payload_is_reported_instead_of_crashing() {
-        let reply = take(aether_identity_open(std::ptr::null()));
+        let reply = take(unsafe { aether_identity_open(std::ptr::null()) });
         assert_eq!(reply["ok"], json!(false));
         assert!(reply["error"].as_str().unwrap().contains("null"));
     }
@@ -639,7 +644,7 @@ mod tests {
     #[test]
     fn a_payload_that_is_not_json_is_reported() {
         let payload = text_of("not json at all");
-        let reply = take(aether_identity_open(payload.as_ptr()));
+        let reply = take(unsafe { aether_identity_open(payload.as_ptr()) });
         assert_eq!(reply["ok"], json!(false));
         assert!(reply["error"].as_str().unwrap().contains("usable json"));
     }
@@ -671,7 +676,7 @@ mod tests {
     #[test]
     fn a_bad_team_name_is_rejected_before_any_request_is_made() {
         let payload = text_of("{\"team\":\"bad name!\"}");
-        let reply = take(aether_team_sign_in(payload.as_ptr()));
+        let reply = take(unsafe { aether_team_sign_in(payload.as_ptr()) });
         assert_eq!(reply["ok"], json!(false));
         assert!(reply["error"].as_str().unwrap().contains("not a usable"));
     }
@@ -679,7 +684,7 @@ mod tests {
     #[test]
     fn requesting_a_code_without_an_email_is_rejected() {
         let payload = text_of("{\"team\":\"acme\"}");
-        let reply = take(aether_team_code_request(payload.as_ptr()));
+        let reply = take(unsafe { aether_team_code_request(payload.as_ptr()) });
         assert_eq!(reply["ok"], json!(false));
         assert!(reply["error"].as_str().unwrap().contains("email"));
     }
@@ -687,7 +692,7 @@ mod tests {
     #[test]
     fn a_token_that_is_not_a_jwt_is_refused() {
         let token = text_of("not-a-jwt");
-        let reply = take(aether_team_token_set(token.as_ptr()));
+        let reply = take(unsafe { aether_team_token_set(token.as_ptr()) });
         assert_eq!(reply["ok"], json!(false));
         assert!(reply["error"].as_str().unwrap().contains("jwt"));
     }
@@ -766,7 +771,7 @@ mod tests {
     #[test]
     fn the_core_refuses_an_argument_list_that_is_not_a_json_array() {
         let payload = text_of("--socks 127.0.0.1:1819");
-        let reply = take(aether_core_start(payload.as_ptr()));
+        let reply = take(unsafe { aether_core_start(payload.as_ptr()) });
         assert_eq!(reply["ok"], json!(false));
         assert!(reply["error"].as_str().unwrap().contains("json array"));
     }
@@ -774,14 +779,14 @@ mod tests {
     #[test]
     fn an_unparsable_socks_address_is_reported() {
         let payload = text_of("{\"peer\":\"1.2.3.4:443\",\"socks\":\"not-an-address\"}");
-        let reply = take(aether_tunnel_start(1, payload.as_ptr()));
+        let reply = take(unsafe { aether_tunnel_start(1, payload.as_ptr()) });
         assert_eq!(reply["ok"], json!(false));
     }
 
     #[test]
     fn an_unparsable_peer_is_reported() {
         let payload = text_of("{\"peer\":\"nonsense\"}");
-        let reply = take(aether_verify_start(1, payload.as_ptr()));
+        let reply = take(unsafe { aether_verify_start(1, payload.as_ptr()) });
         assert_eq!(reply["ok"], json!(false));
     }
 }

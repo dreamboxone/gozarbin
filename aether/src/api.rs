@@ -5,7 +5,9 @@ use std::time::Duration;
 
 use crate::account::{self, Identity};
 use crate::error::{AetherError, Result};
-use crate::{aethernoize, config, consts, dns, noize, prober, quic, wg_prober, wireguard, zerotrust};
+use crate::{
+    aethernoize, config, consts, dns, noize, prober, quic, wg_prober, wireguard, zerotrust,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Transport {
@@ -300,7 +302,8 @@ pub async fn refresh_identity(identity: Identity) -> Identity {
 }
 
 pub async fn attach_masque_cert(identity: Identity) -> Result<Identity> {
-    if identity.has_masque_credentials() && !account::masque_cert_expiring(identity.cert_issued_at) {
+    if identity.has_masque_credentials() && !account::masque_cert_expiring(identity.cert_issued_at)
+    {
         return Ok(identity);
     }
 
@@ -390,11 +393,7 @@ impl ScanRequest {
     }
 }
 
-pub async fn scan(
-    identity: &Identity,
-    request: &ScanRequest,
-    cancel: &Cancel,
-) -> Result<Endpoint> {
+pub async fn scan(identity: &Identity, request: &ScanRequest, cancel: &Cancel) -> Result<Endpoint> {
     match request.transport {
         Transport::Masque => {
             let probe = prober::MasqueProbe {
@@ -626,7 +625,11 @@ mod tests {
             "aether-team-acme.toml"
         );
         assert_eq!(
-            identity_path("/var/lib/aether/aether.toml", Transport::WireGuard, Some("acme")),
+            identity_path(
+                "/var/lib/aether/aether.toml",
+                Transport::WireGuard,
+                Some("acme")
+            ),
             "/var/lib/aether/aether-team-acme.toml"
         );
     }

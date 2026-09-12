@@ -308,6 +308,7 @@ aether --masque --h2 --upstream http://proxy.example:8080
 می‌تواند از راه cgo از ایتر استفاده کند.
 
 ```sh
+cd aether
 cargo build --release                # باینری و هر دو کتابخانه
 cargo build --release --bin aether   # فقط باینری
 ```
