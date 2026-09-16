@@ -15,38 +15,20 @@ permissions:
 
 jobs:
   # ------------------------------------------------------------------
-  # macOS + Windows desktop targets, always on the latest runners.
-  # macOS uses macos-latest (Apple Silicon); the Intel/x86_64 binary
-  # is cross-compiled from that same runner.
-  # Windows uses windows-latest for x86_64. The arm64 MSVC target is not
-  # built: it has never been verified on a real arm64 Windows machine.
+  # The Windows desktop target, on the latest runner. x86_64 only: the
+  # arm64 MSVC target has never been verified on a real arm64 Windows
+  # machine. macOS is not built here.
   #
-  # Every leg builds the pluggable transports first and ships them in a
+  # This leg builds the pluggable transports first and ships them in a
   # pt/ folder beside the binary, so tor works out of the box with
   # nothing for anyone to install by hand.
   # ------------------------------------------------------------------
   desktop:
-    name: Build ${{ matrix.archive }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            goos: darwin
-            goarch: arm64
-            archive: aether-macos-arm64.tar.gz
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            goos: darwin
-            goarch: amd64
-            archive: aether-macos-x86_64.tar.gz
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            goos: windows
-            goarch: amd64
-            archive: aether-windows-x86_64.zip
+    name: Build aether-windows-x86_64.zip
+    runs-on: windows-latest
+    env:
+      TARGET: x86_64-pc-windows-msvc
+      ARCHIVE: aether-windows-x86_64.zip
     defaults:
       run:
         working-directory: aether
@@ -59,7 +41,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: x86_64-pc-windows-msvc
 
       # cache: false because there is no Go module here to key a cache on —
       # the transports are fetched by `go install`, so setup-go looks for a
@@ -74,35 +56,26 @@ jobs:
         uses: lukka/get-cmake@latest
 
       - name: Install NASM
-        if: runner.os == 'Windows'
         uses: ilammy/setup-nasm@v1
 
       - name: Build pluggable transports
         shell: bash
-        run: bash ../pt-build.sh ${{ matrix.goos }} ${{ matrix.goarch }} "$PWD/pt"
+        run: bash ../pt-build.sh windows amd64 "$PWD/pt"
 
       - name: Build release binary
-        run: cargo build --release --features tor --target ${{ matrix.target }}
+        run: cargo build --release --features tor --target $env:TARGET
 
-      - name: Package archive (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          cp -R pt target/${{ matrix.target }}/release/pt
-          cd target/${{ matrix.target }}/release
-          tar -czf ../../../${{ matrix.archive }}  aether pt
-
-      - name: Package archive (Windows)
-        if: runner.os == 'Windows'
+      - name: Package archive
         shell: pwsh
         run: |
-          Copy-Item -Recurse -Force pt target/${{ matrix.target }}/release/pt
-          Compress-Archive -Path target/${{ matrix.target }}/release/aether.exe,target/${{ matrix.target }}/release/pt,run-aether.bat -DestinationPath ${{ matrix.archive }}
+          Copy-Item -Recurse -Force pt target/$env:TARGET/release/pt
+          Compress-Archive -Path target/$env:TARGET/release/aether.exe,target/$env:TARGET/release/pt,run-aether.bat -DestinationPath $env:ARCHIVE
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ matrix.archive }}
-          path: aether/${{ matrix.archive }}
+          name: aether-windows-x86_64.zip
+          path: aether/aether-windows-x86_64.zip
           if-no-files-found: error
 
   # ------------------------------------------------------------------
@@ -618,7 +591,7 @@ jobs:
             ### Desktop
 
             The `aether-<platform>-<arch>` archives are the upstream standalone
-            client for Linux, macOS and Windows. Run one and point a browser,
+            client for Linux and Windows. Run one and point a browser,
             terminal or system proxy at `127.0.0.1:1819`.
 
             Every archive ships with a matching `.sha256`, and `SHA256SUMS.txt`
