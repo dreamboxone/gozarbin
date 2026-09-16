@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 CluvexStudio contributors
+# Copyright (C) 2026 dreamboxone
+
 name: release
 
 on:
@@ -480,13 +484,122 @@ jobs:
           if-no-files-found: error
 
   # ------------------------------------------------------------------
+  # OpenWrt packages. The musl legs above already produced a static
+  # binary for every architecture a supported router runs, so this leg
+  # only downloads the matching one, drops it into the package tree and
+  # lets the OpenWrt SDK build aether and luci-app-aether around it.
+  #
+  # The SDK file name carries the gcc version, which changes between
+  # point releases. It is read out of the target's sha256sums index
+  # instead of being spelled out here, so a new OpenWrt release needs
+  # nothing but the OPENWRT_RELEASE bump.
+  # ------------------------------------------------------------------
+  openwrt:
+    name: Build ${{ matrix.archive }}
+    needs: [linux-armv7-musl, linux-musl]
+    runs-on: ubuntu-latest
+    env:
+      OPENWRT_RELEASE: "25.12.5"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: ipq40xx
+            subtarget: chromium
+            artifact: aether-linux-armv7-musl.tar.gz
+            archive: aether-openwrt-ipq40xx.tar.gz
+          - target: mediatek
+            subtarget: filogic
+            artifact: aether-linux-aarch64-musl.tar.gz
+            archive: aether-openwrt-mediatek-filogic.tar.gz
+          - target: x86
+            subtarget: "64"
+            artifact: aether-linux-x86_64-musl.tar.gz
+            archive: aether-openwrt-x86-64.tar.gz
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install SDK dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk \
+            gettext git libncurses-dev libssl-dev python3-setuptools rsync \
+            unzip zlib1g-dev file wget zstd
+
+      - name: Download the Aether binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: binary
+
+      - name: Unpack the Aether binary
+        run: |
+          tar -xzf "binary/${{ matrix.artifact }}" -C binary
+          chmod +x binary/aether
+          file binary/aether
+
+      - name: Download the OpenWrt SDK
+        run: |
+          base="https://downloads.openwrt.org/releases/${OPENWRT_RELEASE}/targets/${{ matrix.target }}/${{ matrix.subtarget }}"
+          name=$(curl -fsSL "$base/sha256sums" | sed -n 's/.*\(openwrt-sdk-[^ ]*\.tar\.zst\)$/\1/p' | head -n 1)
+          test -n "$name"
+          echo "Using $name"
+          curl -fsSL "$base/$name" -o /tmp/sdk.tar.zst
+          mkdir -p /tmp/sdk
+          tar --zstd -C /tmp/sdk --strip-components=1 -xf /tmp/sdk.tar.zst
+
+      - name: Build the packages
+        run: |
+          set -eux
+          sdk=/tmp/sdk
+          cp -a openwrt "$sdk/package/aether"
+          cp -a luci-app-aether "$sdk/package/luci-app-aether"
+          cd "$sdk"
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          make defconfig
+          arch=$(awk -F= '/^CONFIG_TARGET_ARCH_PACKAGES=/{gsub(/"/, "", $2); print $2}' .config)
+          mkdir -p "package/aether/prebuilt/$arch"
+          cp "$GITHUB_WORKSPACE/binary/aether" "package/aether/prebuilt/$arch/aether"
+          # The SDK selects every package by default. Clearing the selection and
+          # asking for these two lets Kconfig pull in exactly their dependencies.
+          sed -i 's/^CONFIG_ALL=y/# CONFIG_ALL is not set/' .config
+          sed -i 's/^CONFIG_ALL_KMODS=y/# CONFIG_ALL_KMODS is not set/' .config
+          sed -i 's/^CONFIG_ALL_NONSHARED=y/# CONFIG_ALL_NONSHARED is not set/' .config
+          sed -i -E 's/^CONFIG_PACKAGE_([^=]+)=[ym]/# CONFIG_PACKAGE_\1 is not set/' .config
+          printf '\nCONFIG_PACKAGE_aether=m\nCONFIG_PACKAGE_luci-app-aether=m\n' >> .config
+          make defconfig
+          make package/aether/compile -j"$(nproc)" V=s
+          make package/luci-app-aether/compile -j"$(nproc)" V=s
+
+      - name: Collect the packages
+        run: |
+          mkdir -p out
+          find /tmp/sdk/bin/packages -type f \
+            \( -name 'aether-*.apk' -o -name 'luci-app-aether-*.apk' \
+               -o -name 'aether_*.ipk' -o -name 'luci-app-aether_*.ipk' \) \
+            -exec cp -f {} out/ \;
+          ls -l out
+          tar -czf "${{ matrix.archive }}" -C out .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------
   # Collect every artifact, generate SHA-256 checksums and publish.
   # Runs even if some build legs failed, so one broken target never
   # blocks shipping the ones that succeeded.
   # ------------------------------------------------------------------
   release:
     name: Publish release
-    needs: [desktop, linux, linux-armv7, linux-armv7-musl, linux-musl, android]
+    needs: [desktop, linux, linux-armv7, linux-armv7-musl, linux-musl, android, openwrt]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -519,38 +632,38 @@ jobs:
           fail_on_unmatched_files: false
           files: dist/**/*
           body: |
-            Aether v2.0.0
+            ## Aether for OpenWrt
 
-            Aether is a user-space proxy client. It tunnels traffic out of a filtered network and exposes a local SOCKS5 proxy on 127.0.0.1:1819. Point a browser, terminal, or system proxy at that address and your traffic leaves through the tunnel.
+            Aether tunnels traffic out of a filtered network and serves it as a
+            local SOCKS5 proxy. This release adds the OpenWrt packages: the
+            service, and a Persian right-to-left LuCI page for it.
 
-            Tor is built in
+            ### OpenWrt
 
-            - Three ways to use it. `--tor` carries Tor inside the tunnel, `--tor-reverse` dials the tunnel through Tor so WARP is reached from a Tor exit, and `--tor-only` is plain Tor on the usual proxy port.
-            - Bridges are fetched from bridgedb on their own, picked for the country you appear to be in. No CAPTCHA, nothing to paste in.
-            - The pluggable transports ship in the `pt/` folder beside the binary, so obfs4, snowflake, webtunnel and meek work on a fresh machine. Transports already installed are found too, Tor Browser's included.
-            - A bridge only counts as working once a stream has actually opened through it. One that reports 100% but carries nothing is dropped, and the next is tried.
-            - `--tor` takes any transport, so `--wg --tor` has the WireGuard tunnel carry Tor with nothing in between.
+            Grab the `aether-openwrt-*.tar.gz` for your target and install both
+            packages inside it:
 
-            New ways out
+            ```sh
+            apk add --allow-untrusted ./aether-*.apk ./luci-app-aether-*.apk
+            ```
 
-            - MASQUE-in-MASQUE, `--mim`: two MASQUE hops, for an exit address in a different range than a single hop gives you.
-            - The QUIC opener sends a version-negotiation probe first, which gets QUIC through networks that drop v1 on every port but leave v2 alone.
+            Then open **Services -> Aether** in LuCI. `apk` pulls in sing-box,
+            the nftables TProxy and socket modules, the TUN module and full
+            iproute2, so a fresh router needs nothing installed by hand.
 
-            Fixes
+            - Three ways to run: transparent TProxy, a TUN interface, or SOCKS5 only.
+            - Live upload and download accounting, read from real nftables counters.
+            - Iran IP ranges and sing-box GeoIP/GeoSite rule sets, from any URL you choose.
+            - Stays out of the way when Passwall2 is running, unless told otherwise.
 
-            - A busy proxy ran out of file descriptors and stopped answering. The limit is raised at startup, the client count is capped, and the leaks behind it are closed. (#101, #106)
-            - Sockets can carry a firewall mark, so a Linux router can route Aether's own traffic without it looping back through the tunnel. (#106)
-            - Idle and half-closed connections were kept forever. They time out now, and a dead one is reset instead of lingering.
-            - The relay never flushed what it wrote, which stalled any transport that buffers.
-            - The build commands in the docs left out the directory they have to be run from. (#83)
+            ### Desktop and mobile
 
-            Changes
+            The `aether-<platform>-<arch>` archives are the standalone client.
+            Run it and point a browser, terminal or system proxy at
+            `127.0.0.1:1819`.
 
-            - The crate needs Rust 1.98.
-
-            Every archive ships with a matching .sha256 file, and SHA256SUMS.txt lists them all.
-
-            See README.md and the Docs directory for install steps, transport selection, obfuscation profiles, and the full environment-variable reference.
+            Every archive ships with a matching `.sha256`, and `SHA256SUMS.txt`
+            lists them all. See README.md for the full Persian guide.
 
   # ------------------------------------------------------------------
   # Build and push the Docker image to GitHub Container Registry (GHCR)
