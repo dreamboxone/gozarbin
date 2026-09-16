@@ -1,0 +1,93 @@
+{
+  "luci-app-gozarbin": {
+    "description": "Grant access to Gozarbin configuration",
+    "read": {
+      "cgi-io": [
+        "exec"
+      ],
+      "uci": [
+        "gozarbin"
+      ],
+      "ubus": {
+        "service": [
+          "list"
+        ],
+        "file": [
+          "exec",
+          "read",
+          "stat"
+        ]
+      },
+      "file": {
+        "/usr/libexec/gozarbin/passwall2-detect.sh --json": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/system-info.sh": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/deps.sh --json": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/traffic.sh": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/singbox.sh --state": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/tunnel.sh": [
+          "exec"
+        ]
+      }
+    },
+    "write": {
+      "cgi-io": [
+        "exec"
+      ],
+      "uci": [
+        "gozarbin"
+      ],
+      "ubus": {
+        "service": [
+          "set",
+          "delete",
+          "signal"
+        ],
+        "file": [
+          "exec"
+        ]
+      },
+      "file": {
+        "/etc/init.d/gozarbin start": [
+          "exec"
+        ],
+        "/etc/init.d/gozarbin stop": [
+          "exec"
+        ],
+        "/etc/init.d/gozarbin restart": [
+          "exec"
+        ],
+        "/etc/init.d/gozarbin reload": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl update-iran": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl update-geo": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl install-deps": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl install-singbox": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl rescan": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl fix-mark": [
+          "exec"
+        ]
+      }
+    }
+  }
+}

@@ -1,8 +1,0 @@
-{
-  "admin/services/aether": {
-    "title": "Aether",
-    "order": 45,
-    "action": { "type": "view", "path": "aether/settings" },
-    "depends": { "acl": [ "luci-app-aether" ] }
-  }
-}

@@ -1,21 +1,22 @@
-Aether for OpenWrt
+Gozarbin (گذربین)
 SPDX-License-Identifier: AGPL-3.0-only
 
-This is a MODIFIED version of Aether by CluvexStudio.
+Gozarbin is a MODIFIED version of Aether by CluvexStudio.
 
 Modified during 2026 by dreamboxone, which added the OpenWrt packaging, the
 service and its firewall rules, a sing-box core of its own, and a Persian
-right-to-left LuCI interface. The upstream project is unchanged and unaffected;
-what it is and what was added are set out below.
+right-to-left LuCI interface, and renamed the result to Gozarbin. The upstream
+project is unchanged and unaffected; what it is and what was added are set out
+below.
 
 Copyright (C) 2025-2026 CluvexStudio contributors
     The Aether core (aether/, quiche/, and the root build scripts).
     Upstream: https://github.com/CluvexStudio/Aether
 
 Copyright (C) 2026 dreamboxone
-    The OpenWrt integration: openwrt/, luci-app-aether/, scripts/, and the
-    OpenWrt leg of .github/workflows/release.yml.
-    Upstream: https://github.com/dreamboxone/aether
+    Gozarbin: the OpenWrt integration in openwrt/, luci-app-gozarbin/,
+    scripts/, and the OpenWrt leg of .github/workflows/release.yml.
+    Upstream: https://github.com/dreamboxone/gozarbin
 
 Everything here is licensed under the GNU Affero General Public License,
 version 3 only. The full text is in LICENSE.
@@ -29,9 +30,12 @@ What that means for anyone redistributing this work, in short:
   - Running a modified version as a network service counts as distribution:
     its users must be able to get its source.
 
-The name "Aether" and its logo are covered separately by TRADEMARK.md and are
-not licensed for use by a modified version.
+On names: "Aether" and its logo are trademarks of CluvexStudio, covered by
+TRADEMARK.md, and are not licensed for use by a modified version. That policy
+is why this project is called Gozarbin and not a variation on Aether. Saying
+that Gozarbin is built on the Aether core, as this file and the README do, is a
+statement of fact about its origin and not a use of the mark as branding.
 
 Third-party components keep their own licences. sing-box, which this package
 depends on at runtime, is GPL-3.0-or-later and is neither bundled nor modified
-here; it is installed by the OpenWrt package manager from its own feed.
+here; it is installed by the package itself from SagerNet's releases.

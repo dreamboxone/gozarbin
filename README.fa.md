@@ -1,3 +1,3 @@
-# Aether برای OpenWrt
+# گذربین برای OpenWrt
 
 راهنمای نصب، استفاده و حذف در فایل [README.md](README.md) قرار دارد.

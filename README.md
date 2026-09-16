@@ -1,20 +1,21 @@
 <div dir="rtl">
 
-# Aether برای OpenWrt
+# گذربین — پراکسی و تفکیک ترافیک برای OpenWrt
 
-> **این یک نسخهٔ تغییر‌یافته است.**
-> هستهٔ Aether کار [CluvexStudio](https://github.com/CluvexStudio/Aether) است و تحت AGPL-3.0 منتشر شده.
+> **گذربین نسخه‌ای تغییر‌یافته از [Aether](https://github.com/CluvexStudio/Aether) است.**
+> هستهٔ تونل کار CluvexStudio است و تحت AGPL-3.0 منتشر شده.
 > این مخزن آن را در سال ۲۰۲۶ تغییر داده و برایش بسته‌بندی OpenWrt، سرویس، قواعد فایروال،
-> هستهٔ اختصاصی sing-box و یک رابط کاربری فارسی اضافه کرده است.
-> فهرست دقیق اینکه کدام بخش کار چه کسی است در [NOTICE](NOTICE) آمده.
+> هستهٔ اختصاصی sing-box و یک رابط کاربری فارسی اضافه کرده و نامش را گذربین گذاشته است.
+> نام Aether علامت تجاری CluvexStudio است و برای نسخهٔ تغییر‌یافته مجوز ندارد؛ نام متفاوت
+> به همین دلیل است. فهرست دقیق اینکه کدام بخش کار چه کسی است در [NOTICE](NOTICE) آمده.
 
 راهنمای کامل نصب و استفاده. اگر فقط می‌خواهید شروع کنید، [نصب سریع](#نصب-سریع) کافی است؛ باقی متن توضیح تک‌تک امکانات است.
 
 ---
 
-## Aether چه کار می‌کند؟
+## گذربین چه کار می‌کند؟
 
-‏Aether یک کلاینت عبور از فیلترینگ است که روی خود روتر اجرا می‌شود. یک تونل رمزنگاری‌شده به بیرون باز می‌کند و آن را به سه شکل در اختیار شما می‌گذارد:
+‏گذربین یک کلاینت عبور از فیلترینگ است که روی خود روتر اجرا می‌شود. یک تونل رمزنگاری‌شده به بیرون باز می‌کند و آن را به سه شکل در اختیار شما می‌گذارد:
 
 | حالت | چه اتفاقی می‌افتد | مناسب چه کسی |
 | --- | --- | --- |
@@ -22,7 +23,7 @@
 | **کارت شبکهٔ مجازی (TUN)**‏ | یک اینترفیس مجازی ساخته می‌شود و مسیریابی از آن عبور می‌کند | روترهایی که TProxy در آن‌ها مشکل دارد |
 | **فقط SOCKS5**‏ | تنها یک پراکسی محلی باز می‌شود و ترافیک شبکه دست‌نخورده می‌ماند | وقتی می‌خواهید فقط بعضی برنامه‌ها از تونل رد شوند |
 
-بخش SOCKS5 داخل خود هستهٔ Aether پیاده‌سازی شده است. حالت شفاف و حالت TUN با کمک **sing-box** انجام می‌شود؛ Aether هستهٔ sing-box خودش را دارد و به هستهٔ Passwall2 دست نمی‌زند — توضیحش [پایین‌تر](#هستهٔ-sing-box) آمده.
+بخش SOCKS5 داخل خود هستهٔ تونل پیاده‌سازی شده است. حالت شفاف و حالت TUN با کمک **sing-box** انجام می‌شود؛ گذربین هستهٔ sing-box خودش را دارد و به هستهٔ Passwall2 دست نمی‌زند — توضیحش [پایین‌تر](#هستهٔ-sing-box) آمده.
 
 ---
 
@@ -44,8 +45,8 @@
 </div>
 
 ```sh
-aetherctl deps          # گزارش وضعیت
-aetherctl install-deps  # نصب موارد جا افتاده
+gozarbinctl deps          # گزارش وضعیت
+gozarbinctl install-deps  # نصب موارد جا افتاده
 ```
 
 <div dir="rtl">
@@ -56,13 +57,13 @@ aetherctl install-deps  # نصب موارد جا افتاده
 
 ## هستهٔ sing-box
 
-حالت شفاف و حالت TUN به sing-box نیاز دارند، ولی **Aether هستهٔ خودش را دارد** و در `/usr/libexec/aether/sing-box` نگه می‌دارد. دلیلش ساده است: روی روترهایی که Passwall2 نصب است، بستهٔ `sing-box` معمولاً از فید خود Passwall می‌آید و **همان موتوری است که Passwall2 در همین لحظه رویش کار می‌کند**. Aether نه از آن استفاده می‌کند و نه به‌روزرسانی‌اش می‌کند، تا چیزی که کار می‌کند از زیر پای شما کشیده نشود.
+حالت شفاف و حالت TUN به sing-box نیاز دارند، ولی **گذربین هستهٔ خودش را دارد** و در `/usr/libexec/gozarbin/sing-box` نگه می‌دارد. دلیلش ساده است: روی روترهایی که Passwall2 نصب است، بستهٔ `sing-box` معمولاً از فید خود Passwall می‌آید و **همان موتوری است که Passwall2 در همین لحظه رویش کار می‌کند**. گذربین نه از آن استفاده می‌کند و نه به‌روزرسانی‌اش می‌کند، تا چیزی که کار می‌کند از زیر پای شما کشیده نشود.
 
 قاعده‌اش این است:
 
-| روی روتر چه هست | ‏Aether چه می‌کند |
+| روی روتر چه هست | ‏گذربین چه می‌کند |
 | --- | --- |
-| هستهٔ اختصاصی Aether نصب است | از همان استفاده می‌کند |
+| هستهٔ اختصاصی گذربین نصب است | از همان استفاده می‌کند |
 | فقط `sing-box` از فید Passwall‏ | استفاده نمی‌کند؛ هستهٔ خودش را می‌خواهد |
 | ‏`sing-box` از فید معمولی OpenWrt‏ | از آن استفاده می‌کند (مال کسی نیست)‏ |
 | هیچ‌کدام | حالت شفاف بالا نمی‌آید و دکمهٔ «نصب هسته» در صفحه ظاهر می‌شود |
@@ -72,18 +73,18 @@ aetherctl install-deps  # نصب موارد جا افتاده
 </div>
 
 ```sh
-aetherctl install-singbox     # آخرین نسخهٔ پایدار از SagerNet
-aetherctl singbox --state     # وضعیت هسته
-aetherctl singbox --origin    # own | system | passwall | none
+gozarbinctl install-singbox     # آخرین نسخهٔ پایدار از SagerNet
+gozarbinctl singbox --state     # وضعیت هسته
+gozarbinctl singbox --origin    # own | system | passwall | none
 ```
 
 <div dir="rtl">
 
-> ⚠️ فایل رسمی SagerNet حدود **۷۰ مگابایت** است و برای باز کردنش حدود ۱۵۰ مگابایت فضای خالی لازم است. روی روترهای با فلش ۱۶ یا ۳۲ مگابایتی این کار شدنی نیست؛ آنجا بستهٔ `sing-box` فید رسمی OpenWrt را نصب کنید تا Aether از آن استفاده کند.
+> ⚠️ فایل رسمی SagerNet حدود **۷۰ مگابایت** است و برای باز کردنش حدود ۱۵۰ مگابایت فضای خالی لازم است. روی روترهای با فلش ۱۶ یا ۳۲ مگابایتی این کار شدنی نیست؛ آنجا بستهٔ `sing-box` فید رسمی OpenWrt را نصب کنید تا گذربین از آن استفاده کند.
 
 ### بررسی خودکار نسخهٔ جدید
 
-‏Aether روزی یک بار صفحهٔ انتشار SagerNet را نگاه می‌کند و اگر نسخهٔ **پایدار** تازه‌ای آمده باشد، بالای صفحهٔ تنظیمات پیامی با دکمهٔ «به‌روزرسانی» نشان می‌دهد. سه قید دارد:
+‏گذربین روزی یک بار صفحهٔ انتشار SagerNet را نگاه می‌کند و اگر نسخهٔ **پایدار** تازه‌ای آمده باشد، بالای صفحهٔ تنظیمات پیامی با دکمهٔ «به‌روزرسانی» نشان می‌دهد. سه قید دارد:
 
 - فقط وقتی انجام می‌شود که تا آن لحظه **بیش از ۱۰۰ مگابایت** از تونل دانلود شده باشد.
 - حداکثر روزی یک بار.
@@ -93,14 +94,14 @@ aetherctl singbox --origin    # own | system | passwall | none
 
 ## نصب سریع
 
-۱. فایل‌های `aether` و `luci-app-aether` متناسب با معماری روتر را از بخش Releases دانلود و روی روتر کپی کنید.
+۱. فایل‌های `gozarbin` و `luci-app-gozarbin` متناسب با معماری روتر را از بخش Releases دانلود و روی روتر کپی کنید.
 
 ۲. روی OpenWrt 24.10 به بعد (که از `apk` استفاده می‌کند):
 
 </div>
 
 ```sh
-apk add --allow-untrusted ./aether-*.apk ./luci-app-aether-*.apk
+apk add --allow-untrusted ./gozarbin-*.apk ./luci-app-gozarbin-*.apk
 ```
 
 <div dir="rtl">
@@ -110,12 +111,12 @@ apk add --allow-untrusted ./aether-*.apk ./luci-app-aether-*.apk
 </div>
 
 ```sh
-opkg install ./aether_*.ipk ./luci-app-aether_*.ipk
+opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
 ```
 
 <div dir="rtl">
 
-۳. در LuCI به **خدمات ← Aether** بروید.
+۳. در LuCI به **خدمات ← گذربین** بروید.
 
 ۴. یک بار دکمهٔ **«به‌روزرسانی فهرست IP ایران»** را بزنید تا ترافیک داخلی از تونل رد نشود.
 
@@ -146,7 +147,7 @@ opkg install ./aether_*.ipk ./luci-app-aether_*.ipk
 
 ### دکمه‌های عملیات
 
-- **راه‌اندازی سرویس** — معادل `/etc/init.d/aether restart`؛ سرویس خاموش را روشن می‌کند و روشن را دوباره راه می‌اندازد
+- **راه‌اندازی سرویس** — معادل `/etc/init.d/gozarbin restart`؛ سرویس خاموش را روشن می‌کند و روشن را دوباره راه می‌اندازد
 - **توقف سرویس** — سرویس را خاموش می‌کند بدون آنکه گزینهٔ «فعال بودن» تغییر کند
 - **به‌روزرسانی فهرست IP ایران** — محدوده‌های IPv4 و IPv6 ایران را دوباره دانلود می‌کند
 - **به‌روزرسانی GeoIP و GeoSite** — فایل‌های قواعد sing-box را دانلود می‌کند
@@ -156,7 +157,7 @@ opkg install ./aether_*.ipk ./luci-app-aether_*.ipk
 
 | گزینه | توضیح |
 | --- | --- |
-| **فعال کردن برنامه** | روشن و خاموش کردن Aether. |
+| **فعال کردن برنامه** | روشن و خاموش کردن گذربین. |
 | **حالت کار** | پراکسی شفاف (TProxy)، کارت شبکهٔ مجازی (TUN)، یا فقط پراکسی SOCKS5. |
 | **عبور دادن ترافیک شبکه از تونل** | اگر خاموش باشد فقط پراکسی محلی بالا می‌آید. |
 | **اجرا هم‌زمان با Passwall2‏** | پیش‌فرض خاموش؛ پایین‌تر توضیح داده شده. |
@@ -182,7 +183,7 @@ opkg install ./aether_*.ipk ./luci-app-aether_*.ipk
 | **منبع GeoSite‏** | همان، برای فهرست دامنه‌ها. |
 | **مسدود کردن تبلیغات و ردیاب‌ها** | ترافیک مقصدهای فهرست تبلیغات مسدود می‌شود. |
 | **منبع فهرست تبلیغات** | نشانی فهرست تبلیغات؛ فقط وقتی مسدودسازی روشن باشد دانلود می‌شود. |
-| **فایل پیکربندی Aether‏** | مسیر فایل هویت و قواعد مسیریابی اختصاصی هستهٔ Aether. |
+| **فایل پیکربندی گذربین‏** | مسیر فایل هویت و قواعد مسیریابی اختصاصی هستهٔ تونل. |
 
 ### برگهٔ «پیشرفته»
 
@@ -193,7 +194,7 @@ opkg install ./aether_*.ipk ./luci-app-aether_*.ipk
 | **پروفایل مصرف منابع** | روی روتر `low` بگذارید. |
 | **اتصال سریع با آخرین سرور موفق** | از اسکن دوباره در هر بار راه‌اندازی جلوگیری می‌کند. |
 | **شمارش مصرف آپلود و دانلود** | شمارنده‌های nftables؛ خاموش کردنش نمایش مصرف را غیرفعال می‌کند. |
-| **سطح گزارش Aether‏** | برای عیب‌یابی `debug`. |
+| **سطح گزارش گذربین‏** | برای عیب‌یابی `debug`. |
 | **سطح گزارش sing-box‏** | گزارش موتور حالت شفاف و TUN. |
 | **رابط‌های شبکهٔ داخلی** | ترافیک این رابط‌ها به تونل هدایت می‌شود؛ معمولاً `br-lan`. |
 | **پورت TProxy‏** | فقط اگر با برنامهٔ دیگری تداخل داشت تغییر دهید. |
@@ -222,21 +223,21 @@ opkg install ./aether_*.ipk ./luci-app-aether_*.ipk
 </div>
 
 ```sh
-aetherctl update-iran
+gozarbinctl update-iran
 ```
 
 <div dir="rtl">
 
-فایل‌ها در `/etc/aether/iran4.txt` و `/etc/aether/iran6.txt` نگهداری می‌شوند و هنگام ارتقای بسته پاک نمی‌شوند. منبع پیش‌فرض `ipdeny.com` است و از همان صفحهٔ تنظیمات قابل تعویض است.
+فایل‌ها در `/etc/gozarbin/iran4.txt` و `/etc/gozarbin/iran6.txt` نگهداری می‌شوند و هنگام ارتقای بسته پاک نمی‌شوند. منبع پیش‌فرض `ipdeny.com` است و از همان صفحهٔ تنظیمات قابل تعویض است.
 
 ### ۲. قواعد GeoIP و GeoSite
 
-دقیق‌تر، چون علاوه بر IP نام دامنه را هم می‌شناسد. فایل‌های `rule-set` سینگ‌باکس دانلود می‌شوند و در `/etc/aether/geo/` می‌نشینند.
+دقیق‌تر، چون علاوه بر IP نام دامنه را هم می‌شناسد. فایل‌های `rule-set` سینگ‌باکس دانلود می‌شوند و در `/etc/gozarbin/geo/` می‌نشینند.
 
 </div>
 
 ```sh
-aetherctl update-geo
+gozarbinctl update-geo
 ```
 
 <div dir="rtl">
@@ -251,9 +252,9 @@ aetherctl update-geo
 
 هر سه نشانی در صفحهٔ تنظیمات قابل ویرایش‌اند. اگر GitHub در دسترس نبود، نشانی یک آینه را بگذارید. هم فایل `.srs` (فرمت باینری سینگ‌باکس) و هم `.json` (فرمت متنی) پذیرفته می‌شود؛ تشخیص از روی پسوند نشانی انجام می‌شود و فایل فقط وقتی جایگزین می‌شود که واقعاً یک rule-set معتبر باشد.
 
-### ۳. قواعد دستی خود Aether
+### ۳. قواعد دستی خود گذربین
 
-هستهٔ Aether مسیریابی مستقل خودش را هم دارد که با فایل پیکربندی کار می‌کند. در فایلی که در «فایل پیکربندی Aether» معرفی کرده‌اید می‌توانید بنویسید:
+هستهٔ تونل مسیریابی مستقل خودش را هم دارد که با فایل پیکربندی کار می‌کند. در فایلی که در «فایل پیکربندی گذربین» معرفی کرده‌اید می‌توانید بنویسید:
 
 </div>
 
@@ -290,14 +291,14 @@ meta mark & 0x000000ff == 0x000000ff  return
 
 <div dir="rtl">
 
-پس اگر علامت Aether به `ff` ختم نشود، ترافیک خودِ تونل هم دزدیده می‌شود. نتیجه بدترین حالت ممکن است: تونل **وصل می‌شود**، صفحه می‌گوید «متصل»، ولی هیچ ترافیکی از آن رد نمی‌شود و هیچ خطایی هم داده نمی‌شود.
+پس اگر علامت گذربین به `ff` ختم نشود، ترافیک خودِ تونل هم دزدیده می‌شود. نتیجه بدترین حالت ممکن است: تونل **وصل می‌شود**، صفحه می‌گوید «متصل»، ولی هیچ ترافیکی از آن رد نمی‌شود و هیچ خطایی هم داده نمی‌شود.
 
 پیش‌فرض `0x0aff` است و درست است. اگر دستی عوضش کردید، بایت آخر را `ff` نگه دارید. صفحه ناسازگاری را تشخیص می‌دهد و دکمهٔ «اصلاح علامت» نشان می‌دهد. از خط فرمان:
 
 </div>
 
 ```sh
-aetherctl fix-mark
+gozarbinctl fix-mark
 ```
 
 <div dir="rtl">
@@ -305,7 +306,7 @@ aetherctl fix-mark
 
 اگر Passwall2 روی روتر فعال باشد، دو برنامه سر قواعد `nftables` و جدول مسیریابی با هم تداخل می‌کنند. به همین دلیل:
 
-- ‏Aether وضعیت Passwall2 را می‌خواند و اگر فعال بود، **حالت شفاف را بالا نمی‌آورد** و در `logread` دلیلش را می‌نویسد.
+- ‏گذربین وضعیت Passwall2 را می‌خواند و اگر فعال بود، **حالت شفاف را بالا نمی‌آورد** و در `logread` دلیلش را می‌نویسد.
 - پراکسی SOCKS5 در هر حال بالا می‌آید، پس می‌توانید همچنان از آن استفاده کنید.
 - اگر می‌دانید چه می‌کنید و آن‌ها را روی پورت‌ها و مارک‌های جدا تنظیم کرده‌اید، گزینهٔ **«اجرا هم‌زمان با Passwall2»** این محافظ را برمی‌دارد.
 
@@ -316,39 +317,39 @@ aetherctl fix-mark
 </div>
 
 ```sh
-aetherctl on              # روشن کردن و راه‌اندازی
-aetherctl off             # خاموش کردن
-aetherctl restart         # راه‌اندازی مجدد
-aetherctl status          # گزارش کامل: سرویس، Passwall2، پیش‌نیازها و مصرف
-aetherctl version         # نسخهٔ بسته و نسخهٔ هسته
-aetherctl traffic         # یک خط JSON از شمارنده‌های زنده
-aetherctl deps            # گزارش پیش‌نیازها
-aetherctl install-deps    # نصب پیش‌نیازهای جا افتاده
-aetherctl update-iran     # به‌روزرسانی فهرست IP ایران
-aetherctl update-geo      # به‌روزرسانی GeoIP و GeoSite
-aetherctl singbox         # وضعیت هستهٔ sing-box
-aetherctl install-singbox # نصب یا به‌روزرسانی هستهٔ اختصاصی
-aetherctl mode tun        # تغییر حالت کار: tproxy | tun | socks
+gozarbinctl on              # روشن کردن و راه‌اندازی
+gozarbinctl off             # خاموش کردن
+gozarbinctl restart         # راه‌اندازی مجدد
+gozarbinctl status          # گزارش کامل: سرویس، Passwall2، پیش‌نیازها و مصرف
+gozarbinctl version         # نسخهٔ بسته و نسخهٔ هسته
+gozarbinctl traffic         # یک خط JSON از شمارنده‌های زنده
+gozarbinctl deps            # گزارش پیش‌نیازها
+gozarbinctl install-deps    # نصب پیش‌نیازهای جا افتاده
+gozarbinctl update-iran     # به‌روزرسانی فهرست IP ایران
+gozarbinctl update-geo      # به‌روزرسانی GeoIP و GeoSite
+gozarbinctl singbox         # وضعیت هستهٔ sing-box
+gozarbinctl install-singbox # نصب یا به‌روزرسانی هستهٔ اختصاصی
+gozarbinctl mode tun        # تغییر حالت کار: tproxy | tun | socks
 ```
 
 <div dir="rtl">
 
-خود هستهٔ Aether هم ده‌ها گزینهٔ دیگر دارد که با `aether --help` فهرست می‌شوند (Tor، Zero Trust، ECH، تکه‌تکه کردن ClientHello و…).
+خود هستهٔ تونل هم ده‌ها گزینهٔ دیگر دارد که با `gozarbin --help` فهرست می‌شوند (Tor، Zero Trust، ECH، تکه‌تکه کردن ClientHello و…).
 
 ---
 
 ## تنظیمات در UCI
 
-همهٔ گزینه‌های صفحهٔ تنظیمات در `/etc/config/aether` ذخیره می‌شوند و مستقیماً هم قابل ویرایش‌اند:
+همهٔ گزینه‌های صفحهٔ تنظیمات در `/etc/config/gozarbin` ذخیره می‌شوند و مستقیماً هم قابل ویرایش‌اند:
 
 </div>
 
 ```sh
-uci set aether.main.mode=tun
-uci set aether.main.protocol=wg
-uci set aether.main.geo_enabled=1
-uci commit aether
-/etc/init.d/aether restart
+uci set gozarbin.main.mode=tun
+uci set gozarbin.main.protocol=wg
+uci set gozarbin.main.geo_enabled=1
+uci commit gozarbin
+/etc/init.d/gozarbin restart
 ```
 
 <div dir="rtl">
@@ -364,12 +365,12 @@ uci commit aether
 </div>
 
 ```sh
-logread -e aether | tail -50
+logread -e gozarbin | tail -50
 ```
 
 <div dir="rtl">
 
-اگر پیام مربوط به Passwall2 دیدید، یکی از دو برنامه را خاموش کنید. اگر پیام کمبود پیش‌نیاز دیدید، `aetherctl install-deps` را بزنید.
+اگر پیام مربوط به Passwall2 دیدید، یکی از دو برنامه را خاموش کنید. اگر پیام کمبود پیش‌نیاز دیدید، `gozarbinctl install-deps` را بزنید.
 
 **کارت مصرف صفر می‌ماند**
 
@@ -388,9 +389,9 @@ logread -e aether | tail -50
 </div>
 
 ```sh
-nft list table inet aether_proxy
+nft list table inet gozarbin_proxy
 ip rule list
-cat /var/run/aether/sing-box.json
+cat /var/run/gozarbin/sing-box.json
 ```
 
 <div dir="rtl">
@@ -402,9 +403,9 @@ cat /var/run/aether/sing-box.json
 </div>
 
 ```sh
-aetherctl off
-apk del luci-app-aether aether      # OpenWrt 24.10 به بعد
-opkg remove luci-app-aether aether  # نسخه‌های قدیمی‌تر
+gozarbinctl off
+apk del luci-app-gozarbin gozarbin      # OpenWrt 24.10 به بعد
+opkg remove luci-app-gozarbin gozarbin  # نسخه‌های قدیمی‌تر
 ```
 
 <div dir="rtl">
@@ -419,12 +420,12 @@ opkg remove luci-app-aether aether  # نسخه‌های قدیمی‌تر
 
 ```sh
 cargo build --release --manifest-path aether/Cargo.toml
-./scripts/build-openwrt-packages.sh <sdk-directory> <aether-binary> <output-directory>
+./scripts/build-openwrt-packages.sh <sdk-directory> <core-binary> <output-directory>
 ```
 
 <div dir="rtl">
 
-اسکریپت بالا هر دو بستهٔ `aether` و `luci-app-aether` را با OpenWrt SDK می‌سازد و در پوشهٔ خروجی می‌گذارد.
+اسکریپت بالا هر دو بستهٔ `gozarbin` و `luci-app-gozarbin` را با OpenWrt SDK می‌سازد و در پوشهٔ خروجی می‌گذارد.
 
 ---
 
@@ -435,7 +436,7 @@ cargo build --release --manifest-path aether/Cargo.toml
 </div>
 
 ```sh
-AETHER_OBFUSCATE=1 ./scripts/build-openwrt-packages.sh <sdk> <binary> <output>
+GOZARBIN_OBFUSCATE=1 ./scripts/build-openwrt-packages.sh <sdk> <binary> <output>
 ```
 
 <div dir="rtl">
@@ -445,18 +446,18 @@ AETHER_OBFUSCATE=1 ./scripts/build-openwrt-packages.sh <sdk> <binary> <output>
 </div>
 
 ```sh
-python3 openwrt/tools/obfuscate.py --check openwrt/files luci-app-aether/htdocs
+python3 openwrt/tools/obfuscate.py --check openwrt/files luci-app-gozarbin/htdocs
 ```
 
 <div dir="rtl">
 
 این کار محافظه‌کارانه است: هیچ نامی تغییر نمی‌کند و هیچ چیزی دوباره کدگذاری نمی‌شود، پس برنامه دقیقاً همان برنامه می‌ماند.
 
-**اما صریح بگویم:** این کار فقط کپی‌برداری را پرزحمت‌تر می‌کند و جلوی آن را نمی‌گیرد. هستهٔ Aether تحت AGPL-3.0 منتشر شده و هر اثر مشتق‌شده‌ای هم باید AGPL-3.0 بماند؛ یعنی هر کسی که بسته را می‌گیرد، قانوناً حق دارد سورس واقعی را هم داشته باشد. چیزی که واقعاً جلوی انتشار مجدد به نام شخص دیگر را می‌گیرد این‌هاست:
+**اما صریح بگویم:** این کار فقط کپی‌برداری را پرزحمت‌تر می‌کند و جلوی آن را نمی‌گیرد. هستهٔ تونل تحت AGPL-3.0 منتشر شده و هر اثر مشتق‌شده‌ای هم باید AGPL-3.0 بماند؛ یعنی هر کسی که بسته را می‌گیرد، قانوناً حق دارد سورس واقعی را هم داشته باشد. چیزی که واقعاً جلوی انتشار مجدد به نام شخص دیگر را می‌گیرد این‌هاست:
 
 - **لایسنس** — AGPL-3.0 استفادهٔ تجاری بدون انتشار سورس و بدون حفظ همین لایسنس را ممنوع می‌کند.
 - **هدر کپی‌رایت** — روی تک‌تک فایل‌ها هست و حذف یا تغییر آن نقض لایسنس است.
-- **نشان تجاری** — نام و لوگوی Aether طبق [TRADEMARK.md](TRADEMARK.md) قابل استفاده در فورک تغییر داده‌شده نیست.
+- **نشان تجاری** — نام و لوگوی گذربین طبق [TRADEMARK.md](TRADEMARK.md) قابل استفاده در فورک تغییر داده‌شده نیست.
 - **تاریخچهٔ عمومی مخزن** — کامیت‌های زمان‌دار و Releaseهای امضاشده مدرک تقدم شما هستند.
 
 ---
@@ -465,6 +466,6 @@ python3 openwrt/tools/obfuscate.py --check openwrt/files luci-app-aether/htdocs
 
 این پروژه تحت **AGPL-3.0-only** منتشر شده است. متن کامل در [LICENSE](LICENSE) و نشان تجاری در [TRADEMARK.md](TRADEMARK.md).
 
-هستهٔ Aether کار [CluvexStudio](https://github.com/CluvexStudio/Aether) است. بسته‌بندی OpenWrt و رابط کاربری فارسی در این مخزن نگهداری می‌شود. جزئیات در [NOTICE](NOTICE).
+هستهٔ تونل کار [CluvexStudio](https://github.com/CluvexStudio/Aether) است. بسته‌بندی OpenWrt و رابط کاربری فارسی در این مخزن نگهداری می‌شود. جزئیات در [NOTICE](NOTICE).
 
 </div>

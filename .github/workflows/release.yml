@@ -575,34 +575,34 @@ jobs:
         run: |
           set -eux
           sdk=/tmp/sdk
-          cp -a openwrt "$sdk/package/aether"
-          cp -a luci-app-aether "$sdk/package/luci-app-aether"
+          cp -a openwrt "$sdk/package/gozarbin"
+          cp -a luci-app-gozarbin "$sdk/package/luci-app-gozarbin"
           cd "$sdk"
           make defconfig >/dev/null
           arch=$(awk -F= '/^CONFIG_TARGET_ARCH_PACKAGES=/{gsub(/"/, "", $2); print $2}' .config)
           # The SDK must agree with the matrix, or the wrong binary ships.
           test "$arch" = "${{ matrix.arch }}"
-          mkdir -p "package/aether/prebuilt/$arch"
-          cp "$GITHUB_WORKSPACE/binary/aether" "package/aether/prebuilt/$arch/aether"
+          mkdir -p "package/gozarbin/prebuilt/$arch"
+          cp "$GITHUB_WORKSPACE/binary/aether" "package/gozarbin/prebuilt/$arch/aether"
           # The SDK selects every package by default. Clearing the selection and
           # asking for these two lets Kconfig pull in exactly their dependencies.
           sed -i 's/^CONFIG_ALL=y/# CONFIG_ALL is not set/' .config
           sed -i 's/^CONFIG_ALL_KMODS=y/# CONFIG_ALL_KMODS is not set/' .config
           sed -i 's/^CONFIG_ALL_NONSHARED=y/# CONFIG_ALL_NONSHARED is not set/' .config
           sed -i -E 's/^CONFIG_PACKAGE_([^=]+)=[ym]/# CONFIG_PACKAGE_\1 is not set/' .config
-          printf '\nCONFIG_PACKAGE_aether=m\nCONFIG_PACKAGE_luci-app-aether=m\n' >> .config
+          printf '\nCONFIG_PACKAGE_gozarbin=m\nCONFIG_PACKAGE_luci-app-gozarbin=m\n' >> .config
           make defconfig >/dev/null
-          make package/aether/compile -j"$(nproc)" V=s
-          make package/luci-app-aether/compile -j"$(nproc)" V=s
+          make package/gozarbin/compile -j"$(nproc)" V=s
+          make package/luci-app-gozarbin/compile -j"$(nproc)" V=s
 
       - name: Collect the packages
         id: collect
         run: |
-          out="aether-openwrt-${{ matrix.release }}-${{ matrix.arch }}"
+          out="gozarbin-openwrt-${{ matrix.release }}-${{ matrix.arch }}"
           mkdir -p "$out"
           find /tmp/sdk/bin/packages -type f \
-            \( -name 'aether-*.apk' -o -name 'luci-app-aether-*.apk' \
-               -o -name 'aether_*.ipk' -o -name 'luci-app-aether_*.ipk' \) \
+            \( -name 'gozarbin-*.apk' -o -name 'luci-app-gozarbin-*.apk' \
+               -o -name 'gozarbin_*.ipk' -o -name 'luci-app-gozarbin_*.ipk' \) \
             -exec cp -f {} "$out/" \;
           ls -l "$out"
           # Two packages or the leg has not produced what it claims to.
@@ -657,23 +657,24 @@ jobs:
           fail_on_unmatched_files: false
           files: dist/**/*
           body: |
-            ## Aether for OpenWrt
+            ## Gozarbin for OpenWrt
 
-            Aether tunnels traffic out of a filtered network and serves it as a
-            local SOCKS5 proxy. This release adds the OpenWrt packages: the
-            service, and a Persian right-to-left LuCI page for it.
+            Gozarbin finds a way out of a filtered network and hands it to the
+            whole router: transparently, as a TUN interface, or as a plain
+            SOCKS5 proxy. It is built on the Aether core by CluvexStudio, and
+            comes with a Persian right-to-left LuCI page.
 
             ### OpenWrt
 
-            Grab the `aether-openwrt-<release>-<arch>.tar.gz` that matches your
+            Grab the `gozarbin-openwrt-<release>-<arch>.tar.gz` that matches your
             router and install both packages inside it. Twelve architectures,
             each in both formats: `24.10.x` is opkg, `25.12.x` is apk.
 
             ```sh
             # OpenWrt 25.12.x
-            apk add --allow-untrusted ./aether-*.apk ./luci-app-aether-*.apk
+            apk add --allow-untrusted ./gozarbin-*.apk ./luci-app-gozarbin-*.apk
             # OpenWrt 24.10.x
-            opkg install ./aether_*.ipk ./luci-app-aether_*.ipk
+            opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
             ```
 
             `aarch64_cortex-a53/a72/a76`, `aarch64_generic`,
@@ -681,19 +682,20 @@ jobs:
             MIPS, PowerPC and big-endian ARM are not built: Rust carries them
             as tier 3, so the core cannot be produced for them.
 
-            Then open **Services -> Aether** in LuCI. `apk` pulls in sing-box,
+            Then open **Services -> Gozarbin** in LuCI. The packages pull in
             the nftables TProxy and socket modules, the TUN module and full
             iproute2, so a fresh router needs nothing installed by hand.
 
             - Three ways to run: transparent TProxy, a TUN interface, or SOCKS5 only.
+            - Scans for a gateway that answers from inside Iran, and remembers the one that worked.
             - Live upload and download accounting, read from real nftables counters.
             - Iran IP ranges and sing-box GeoIP/GeoSite rule sets, from any URL you choose.
-            - Stays out of the way when Passwall2 is running, unless told otherwise.
+            - Never touches Passwall2: not its firewall rules, not its sing-box.
 
             ### Desktop and mobile
 
-            The `aether-<platform>-<arch>` archives are the standalone client.
-            Run it and point a browser, terminal or system proxy at
+            The `aether-<platform>-<arch>` archives are the upstream standalone
+            client. Run one and point a browser, terminal or system proxy at
             `127.0.0.1:1819`.
 
             Every archive ships with a matching `.sha256`, and `SHA256SUMS.txt`

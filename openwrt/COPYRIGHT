@@ -1,6 +1,6 @@
 SPDX-License-Identifier: AGPL-3.0-only
 Copyright (C) 2026 dreamboxone
 
-This directory contains the OpenWrt integration for Aether.
-The Aether program remains covered by the copyright and license notices in
-the repository root. Third-party packages retain their own licenses.
+This directory is the OpenWrt service of Gozarbin. It packages and runs the
+Aether core by CluvexStudio, which remains covered by the copyright and licence
+notices in the repository root. Third-party packages retain their own licences.

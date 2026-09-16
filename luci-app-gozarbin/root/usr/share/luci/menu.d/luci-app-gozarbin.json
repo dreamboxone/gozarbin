@@ -1,0 +1,15 @@
+{
+  "admin/services/gozarbin": {
+    "title": "گذربین",
+    "order": 45,
+    "action": {
+      "type": "view",
+      "path": "gozarbin/settings"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-gozarbin"
+      ]
+    }
+  }
+}
