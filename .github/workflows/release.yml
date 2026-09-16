@@ -52,7 +52,7 @@ jobs:
         working-directory: aether
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -61,10 +61,14 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # cache: false because there is no Go module here to key a cache on —
+      # the transports are fetched by `go install`, so setup-go looks for a
+      # go.sum that does not exist and warns on every run.
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.22"
+          cache: false
 
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@latest
@@ -95,7 +99,7 @@ jobs:
           Compress-Archive -Path target/${{ matrix.target }}/release/aether.exe,target/${{ matrix.target }}/release/pt,run-aether.bat -DestinationPath ${{ matrix.archive }}
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.archive }}
           path: aether/${{ matrix.archive }}
@@ -140,7 +144,7 @@ jobs:
             curl git tar gzip xz unzip findutils which
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -166,7 +170,7 @@ jobs:
           tar -czf ../../../${{ matrix.archive }}  aether pt
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.archive }}
           path: aether/${{ matrix.archive }}
@@ -191,7 +195,7 @@ jobs:
       AR_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-ar
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -201,9 +205,10 @@ jobs:
           targets: armv7-unknown-linux-gnueabihf
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.22"
+          cache: false
 
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@latest
@@ -226,7 +231,7 @@ jobs:
           tar -czf ../../../aether-linux-armv7.tar.gz aether pt
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: aether-linux-armv7.tar.gz
           path: aether/aether-linux-armv7.tar.gz
@@ -274,7 +279,7 @@ jobs:
       RUSTFLAGS: --cfg libc_unstable_musl_v1_2_3
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -284,9 +289,10 @@ jobs:
           targets: armv7-unknown-linux-musleabihf
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.22"
+          cache: false
 
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@latest
@@ -310,7 +316,7 @@ jobs:
           tar -czf ../../../aether-linux-armv7-musl.tar.gz aether pt
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: aether-linux-armv7-musl.tar.gz
           path: aether/aether-linux-armv7-musl.tar.gz
@@ -347,7 +353,7 @@ jobs:
       RUST_LIBC_UNSTABLE_MUSL_V1_2_3: "1"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -357,9 +363,10 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.22"
+          cache: false
 
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@latest
@@ -393,91 +400,7 @@ jobs:
           tar -czf ../../../${{ matrix.archive }} aether pt
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.archive }}
-          path: aether/${{ matrix.archive }}
-          if-no-files-found: error
-
-  # ------------------------------------------------------------------
-  # Android / Termux targets, built with the NDK via cargo-ndk on the
-  # latest Ubuntu runner (the NDK cross toolchain, not the host libc,
-  # determines the output).
-  #
-  # The transports are built as static GOOS=linux binaries rather than
-  # GOOS=android: android needs cgo, while a CGO_ENABLED=0 linux ELF
-  # runs as-is under Android and Termux.
-  # ------------------------------------------------------------------
-  android:
-    name: Build ${{ matrix.archive }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - abi: arm64-v8a
-            target: aarch64-linux-android
-            goarch: arm64
-            goarm: ""
-            archive: aether-android-arm64.tar.gz
-          - abi: armeabi-v7a
-            target: armv7-linux-androideabi
-            goarch: arm
-            goarm: "7"
-            archive: aether-android-armv7.tar.gz
-          - abi: x86_64
-            target: x86_64-linux-android
-            goarch: amd64
-            goarm: ""
-            archive: aether-android-x86_64.tar.gz
-    defaults:
-      run:
-        working-directory: aether
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Install Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Install CMake and Ninja
-        uses: lukka/get-cmake@latest
-
-      - name: Install Android NDK
-        id: ndk
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26d
-
-      - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
-
-      - name: Build pluggable transports
-        run: bash ../pt-build.sh linux ${{ matrix.goarch }} "$PWD/pt" "${{ matrix.goarm }}"
-
-      - name: Build release binary
-        env:
-          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
-          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
-        run: cargo ndk -t ${{ matrix.abi }}  --platform 24 build --release --features tor
-
-      - name: Package archive
-        run: |
-          cp -R pt target/${{ matrix.target }}/release/pt
-          cd target/${{ matrix.target }}/release
-          tar -czf ../../../${{ matrix.archive }}  aether pt
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.archive }}
           path: aether/${{ matrix.archive }}
@@ -532,7 +455,7 @@ jobs:
           - { release: "25.12.5", format: apk, arch: x86_64, target: x86, subtarget: "64", artifact: aether-linux-x86_64-musl.tar.gz }
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -544,7 +467,7 @@ jobs:
             unzip zlib1g-dev file wget zstd
 
       - name: Download the Aether binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           path: binary
@@ -611,7 +534,7 @@ jobs:
           echo "archive=$out.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.collect.outputs.archive }}
           path: ${{ steps.collect.outputs.archive }}
@@ -624,14 +547,14 @@ jobs:
   # ------------------------------------------------------------------
   release:
     name: Publish release
-    needs: [desktop, linux, linux-armv7, linux-armv7-musl, linux-musl, android, openwrt]
+    needs: [desktop, linux, linux-armv7, linux-armv7-musl, linux-musl, openwrt]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     if: ${{ always() && startsWith(github.ref, 'refs/tags/') }}
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: dist
           merge-multiple: true
@@ -692,11 +615,11 @@ jobs:
             - Iran IP ranges and sing-box GeoIP/GeoSite rule sets, from any URL you choose.
             - Never touches Passwall2: not its firewall rules, not its sing-box.
 
-            ### Desktop and mobile
+            ### Desktop
 
             The `aether-<platform>-<arch>` archives are the upstream standalone
-            client. Run one and point a browser, terminal or system proxy at
-            `127.0.0.1:1819`.
+            client for Linux, macOS and Windows. Run one and point a browser,
+            terminal or system proxy at `127.0.0.1:1819`.
 
             Every archive ships with a matching `.sha256`, and `SHA256SUMS.txt`
             lists them all. See README.md for the full Persian guide.
@@ -712,7 +635,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
