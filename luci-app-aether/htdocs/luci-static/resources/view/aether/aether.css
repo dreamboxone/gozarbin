@@ -72,6 +72,10 @@ body.aether-page .cbi-button {
 .aether-rtl .cbi-value,
 .aether-rtl .cbi-section .cbi-value {
 	display: flex !important;
+	/* Both halves of the answer, stated rather than inherited: the axis runs
+	 * right to left, and it is not reversed again on top of that. */
+	direction: rtl !important;
+	flex-direction: row !important;
 	flex-wrap: wrap;
 	align-items: flex-start;
 	gap: 1rem;
@@ -158,6 +162,7 @@ body.aether-page .cbi-button {
  * of a right-to-left line. */
 .aether-rtl .cbi-tabmenu {
 	display: flex !important;
+	direction: rtl !important;
 	flex-direction: row !important;
 	justify-content: flex-start !important;
 	padding: 0;

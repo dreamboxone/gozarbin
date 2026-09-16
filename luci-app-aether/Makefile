@@ -40,6 +40,21 @@ endef
 define Build/Compile
 endef
 
+# uhttpd serves /www with an ETag and a Last-Modified and no Cache-Control at
+# all, so a browser falls back to heuristic freshness: roughly a tenth of the
+# file's age. OpenWrt installs package files with the build timestamp for
+# reproducibility, which on a release image is months old, and a tenth of months
+# is days. The result is a browser that keeps serving the previous version of
+# this page long after the package was upgraded, and is correct to. Stamping the
+# installed files with the install time brings that heuristic back to nearly
+# nothing, so the next load revalidates.
+define Package/luci-app-aether/postinst
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
+touch /www/luci-static/resources/view/aether/settings.js 	/www/luci-static/resources/view/aether/aether.css 2>/dev/null
+exit 0
+endef
+
 define Package/luci-app-aether/install
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/aether
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/aether/settings.js $(1)/www/luci-static/resources/view/aether/settings.js
