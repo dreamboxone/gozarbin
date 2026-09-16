@@ -22,6 +22,23 @@ var REASONS = {
 	singbox: _('حالت شفاف اجرا نشده چون هستهٔ sing-box نصب نیست')
 };
 
+/* Written by singbox.sh into /var/run/gozarbin/install.json. */
+var INSTALL_STEPS = {
+	starting: _('در حال آماده‌سازی…'),
+	version: _('در حال یافتن آخرین نسخهٔ پایدار…'),
+	downloading: _('در حال دریافت هسته… (حدود ۷۰ مگابایت)'),
+	unpacking: _('در حال باز کردن بسته…'),
+	installing: _('در حال نصب…')
+};
+
+var INSTALL_FAILURES = {
+	version: _('نشد فهمید آخرین نسخهٔ پایدار کدام است؛ GitHub از این روتر در دسترس نبود.'),
+	download: _('هیچ نسخه‌ای از هسته برای این معماری دریافت نشد.'),
+	space: _('فضای کافی نیست؛ برای باز کردن هسته ۱۵۰ مگابایت لازم است.'),
+	workdir: _('پوشهٔ موقت ساخته نشد.'),
+	crashed: _('نصب نیمه‌کاره متوقف شد.')
+};
+
 var MEGABYTE = 1024 * 1024;
 
 function ltr(text) {
@@ -340,16 +357,65 @@ return view.extend({
 	 * behind a blocked GitHub, or simply has not passed enough traffic for the
 	 * check to have run, has nothing to be told about. */
 	renderCoreNotice: function(system, core) {
+		/* The core is a seventy-megabyte download. Waiting for it inside the one
+		 * request that starts it times that request out and reports a failure
+		 * over an install that is still running, which is what it used to do. So
+		 * the router detaches the work and this asks it how far along it is. */
+		var progress = E('div', { 'class': 'ae-notice-progress' });
+		progress.style.display = 'none';
+
+		var status = function(job) {
+			var text = INSTALL_STEPS[job.step] || INSTALL_STEPS.starting;
+			/* The script only fills in a detail here when the direct download
+			 * failed and it went out through the tunnel instead. */
+			if (job.step === 'downloading' && job.detail)
+				text = _('دریافت مستقیم جواب نداد؛ از تونل خود گذربین ادامه می‌دهد…');
+			progress.style.display = '';
+			progress.textContent = text;
+		};
+
+		var poll = function(left) {
+			return fs.exec('/usr/libexec/gozarbin/singbox.sh', [ '--install-status' ]).then(function(result) {
+				var job = {};
+				try { job = JSON.parse(result.stdout || '{}'); } catch (e) { job = {}; }
+
+				if (job.state === 'running' && left > 0) {
+					status(job);
+					return new Promise(function(resolve) {
+						window.setTimeout(resolve, 3000);
+					}).then(function() { return poll(left - 1); });
+				}
+
+				progress.style.display = 'none';
+				if (job.state === 'done') {
+					notify(_('هستهٔ sing-box نصب شد') + (job.detail ? ' — ' + job.detail : '') +
+						_('. صفحه تازه می‌شود.'));
+					window.setTimeout(function() { window.location.reload(); }, 2000);
+					return;
+				}
+				if (job.state === 'running') {
+					notify(_('نصب هنوز ادامه دارد. صفحه را بعداً تازه کنید.'));
+					return;
+				}
+				notify(_('نصب هسته ناموفق بود: ') +
+					(INSTALL_FAILURES[job.step] || job.detail || _('دلیل نامشخص')), 'error');
+			});
+		};
+
 		/* No version argument: the ACL matches on the whole command line, and the
 		 * script looks up the current stable itself anyway. */
 		var install = function() {
 			notify(_('دریافت هستهٔ sing-box آغاز شد؛ بسته به سرعت اینترنت روتر ممکن است چند دقیقه طول بکشد.'));
-			return fs.exec('/usr/bin/gozarbinctl', [ 'install-singbox' ])
+			return fs.exec('/usr/bin/gozarbinctl', [ 'install-singbox', '--background' ])
 				.then(function(result) {
-					if (result.code === 0)
-						notify(_('هستهٔ sing-box نصب شد. صفحه را تازه کنید.'));
-					else
-						notify(_('نصب هسته ناموفق بود: ') + (result.stderr || result.stdout || result.code), 'error');
+					if (result.code !== 0) {
+						notify(_('نصب هسته شروع نشد: ') + (result.stderr || result.stdout || result.code), 'error');
+						return;
+					}
+					/* Twenty minutes of three-second polls: longer than any
+					 * install that is going to finish, short enough that a dead
+					 * page does not poll this router forever. */
+					return poll(400);
 				})
 				.catch(function(error) { notify(_('اجرا نشد: ') + error.message, 'error'); });
 		};
@@ -361,7 +427,8 @@ return view.extend({
 			return E('div', { 'class': 'ae-notice ae-notice-bad' }, [
 				E('div', { 'class': 'ae-notice-text' }, [
 					E('strong', {}, _('هستهٔ sing-box برای گذربین نصب نیست')),
-					E('div', {}, why)
+					E('div', {}, why),
+					progress
 				]),
 				this.action(_('نصب هسته'), 'apply', install)
 			]);
@@ -374,7 +441,8 @@ return view.extend({
 					E('div', {}, [
 						_('نصب‌شده: '), ltr(core.installed || '—'),
 						' — ', _('جدید: '), ltr(core.latest)
-					])
+					]),
+					progress
 				]),
 				this.action(_('به‌روزرسانی'), 'apply', install)
 			]);

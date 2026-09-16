@@ -368,6 +368,14 @@ body.gozarbin-page .alert-message p {
 	line-height: 1.9;
 }
 
+/* How far along the core download is. Only visible while one is running, so it
+ * never takes up a line in the notice it belongs to. */
+.ae-notice-progress {
+	margin-top: 0.45rem;
+	font-size: 13.5px;
+	color: var(--ae-accent);
+}
+
 .ae-notice .cbi-button,
 .ae-notice button {
 	border-radius: 999px;

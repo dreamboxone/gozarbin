@@ -45,7 +45,13 @@ case "$1" in
 			"$(/usr/libexec/gozarbin/singbox.sh --origin 2>/dev/null)"
 		;;
 	singbox) exec /usr/libexec/gozarbin/singbox.sh "${2:---state}" "$3" ;;
-	install-singbox) exec /usr/libexec/gozarbin/singbox.sh --install "$2" ;;
+	install-singbox)
+		# --background returns as soon as the work is detached. The settings page
+		# cannot hold one request open for a seventy-megabyte download, and a
+		# terminal has no reason to: from here, watching it is the point.
+		[ "$2" = --background ] && exec /usr/libexec/gozarbin/singbox.sh --install-async "$3"
+		exec /usr/libexec/gozarbin/singbox.sh --install "$2"
+		;;
 	traffic) exec /usr/libexec/gozarbin/traffic.sh ;;
 	deps) exec /usr/libexec/gozarbin/deps.sh "${2:---json}" ;;
 	install-deps) exec /usr/libexec/gozarbin/deps.sh --install ;;
@@ -78,8 +84,9 @@ Usage: gozarbinctl <command>
   update-iran      refresh the Iran IP ranges
   update-geo       refresh the geoip/geosite rule sets
   singbox [op]     Gozarbin's sing-box core: --state, --version, --origin, --check
-  install-singbox [version]
-                   install or update Gozarbin's own sing-box core
+  install-singbox [version|--background]
+                   install or update Gozarbin's own sing-box core;
+                   --background detaches it and prints the job state
   mode [name]      show, or set: tproxy | tun | socks
 USAGE
 		exit 2

@@ -36,6 +36,9 @@
         ],
         "/usr/libexec/gozarbin/tunnel.sh": [
           "exec"
+        ],
+        "/usr/libexec/gozarbin/singbox.sh --install-status": [
+          "exec"
         ]
       }
     },
@@ -85,6 +88,9 @@
           "exec"
         ],
         "/usr/bin/gozarbinctl fix-mark": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl install-singbox --background": [
           "exec"
         ]
       }

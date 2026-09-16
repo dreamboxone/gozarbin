@@ -47,7 +47,7 @@ start_service() {
 	config_get config_file main config_file /etc/gozarbin/gozarbin.toml
 
 	mkdir -p /var/run/gozarbin
-	rm -f "$reason_file"
+	rm -f "$reason_file" /var/run/gozarbin/wanted
 
 	# Another transparent proxy on this router will swallow Gozarbin's own traffic
 	# unless the mark says otherwise, and the symptom is a tunnel that connects
@@ -110,7 +110,15 @@ start_service() {
 		/usr/libexec/gozarbin/firewall.sh accounting || true
 		return 0
 	fi
-	/usr/libexec/gozarbin/firewall.sh start || return 1
+	# The counters can go in now. The redirect cannot, and this is the part that
+	# was wrong: sing-box dials the core's SOCKS port for every connection it
+	# accepts, and that port does not exist until the core has found a gateway —
+	# seconds on a good day, minutes when it has to scan for one. A LAN pointed
+	# at it before then has every single connection refused, which is a worse
+	# failure than not being proxied yet. monitor.sh puts the redirect in once
+	# both ends are really listening, and takes it out again if either stops.
+	/usr/libexec/gozarbin/firewall.sh accounting || true
+	echo transparent > /var/run/gozarbin/wanted
 	procd_open_instance transparent
 	procd_set_param command "$singbox" run -c /var/run/gozarbin/sing-box.json
 	procd_set_param respawn 3600 5 5
@@ -121,7 +129,7 @@ start_service() {
 
 stop_service() {
 	/usr/libexec/gozarbin/firewall.sh stop
-	rm -f "$reason_file"
+	rm -f "$reason_file" /var/run/gozarbin/wanted
 }
 
 reload_service() {

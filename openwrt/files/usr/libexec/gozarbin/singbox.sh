@@ -18,6 +18,10 @@
 # Offline, blocked, between tunnels — all normal here, and none of it is news.
 
 own=/usr/libexec/gozarbin/sing-box
+run_dir=/var/run/gozarbin
+job_file="$run_dir/install.json"
+job_pid="$run_dir/install.pid"
+job_log="$run_dir/install.log"
 state_dir=/etc/gozarbin/state
 state_file="$state_dir/singbox.json"
 counter_file="$state_dir/counter"
@@ -101,12 +105,120 @@ go_arches() {
 
 free_kb() { df -k "$1" 2>/dev/null | awk 'NR == 2 { print $4 }'; }
 
+# Where the bytes come from. GitHub answers directly on some Iranian networks
+# and not on others, and on a third kind it answers and then delivers at a
+# trickle. So: try direct, abandon it the moment it stalls, and go out through
+# the tunnel this router already has. The tunnel is the slower road and the one
+# that works, which is the right order to try them in.
+socks_endpoint() {
+	local port
+	port=$(uci -q get gozarbin.main.socks_port)
+	[ -n "$port" ] || port=1819
+	netstat -ln 2>/dev/null | grep -q "127\.0\.0\.1:$port[[:space:]]" || return 1
+	printf '127.0.0.1:%s' "$port"
+}
+
+# fetch <url> <destination|-> <seconds>
+fetch() {
+	local url="$1" dest="$2" timeout="$3" socks
+	if ! command -v curl >/dev/null 2>&1; then
+		# No curl means no SOCKS, so there is only the direct road.
+		if [ "$dest" = - ]; then
+			uclient-fetch -q -T "$timeout" -O - "$url" 2>/dev/null
+		else
+			uclient-fetch -q -T "$timeout" -O "$dest" "$url" 2>/dev/null
+		fi
+		return
+	fi
+	# Under 5 kB/s for half a minute is throttling, not a slow link, and waiting
+	# it out is not a plan.
+	if [ "$dest" = - ]; then
+		curl -fsSL --max-time "$timeout" --speed-limit 5000 --speed-time 30 "$url" && return 0
+	else
+		curl -fsSL --max-time "$timeout" --speed-limit 5000 --speed-time 30 -o "$dest" "$url" && return 0
+	fi
+	socks=$(socks_endpoint) || return 1
+	job_step downloading "$socks"
+	echo "  direct fetch failed; going through the tunnel at $socks"
+	if [ "$dest" = - ]; then
+		curl -fsSL --max-time "$timeout" -x "socks5h://$socks" "$url"
+	else
+		curl -fsSL --max-time "$timeout" -x "socks5h://$socks" -o "$dest" "$url"
+	fi
+}
+
+# ------------------------------------------------------------- the install
+
+# Seventy megabytes over whatever link this router has is minutes, not seconds.
+# A settings page that waits for that inside one request times the request out
+# and then reports a failure over an install that is still running — which is
+# exactly what it did. So the work is detached and the page reads this file.
+
+job_write() {
+	mkdir -p "$run_dir"
+	local detail
+	detail=$(printf %s "${3:-}" | tr -d '"\\' | tr '\n' ' ')
+	printf '{"state":"%s","step":"%s","detail":"%s","time":%s}\n' \
+		"$1" "$2" "$detail" "$(date +%s)" > "$job_file"
+}
+
+# Only a detached run keeps a job file; a foreground --install from the command
+# line has a terminal to report to and should not overwrite one.
+job_step() { [ -n "${JOB:-}" ] && job_write running "$1" "${2:-}"; }
+job_end() { [ -n "${JOB:-}" ] && job_write "$1" "$2" "${3:-}"; }
+
+job_running() {
+	local pid
+	pid=$(read_number "$job_pid")
+	[ "$pid" -gt 0 ] && [ -d "/proc/$pid" ]
+}
+
+install_status() {
+	local stamp
+	if [ -r "$job_file" ]; then
+		# A job file still saying "running" with no process behind it is a run
+		# that died without saying so, and the page would poll it forever. But a
+		# run that started a second ago may not have recorded its pid yet, so a
+		# missing process only counts once the file has had time to be stale.
+		if ! job_running && grep -q '"state":"running"' "$job_file"; then
+			stamp=$(read_json_number time "$job_file")
+			if [ $(( $(date +%s) - stamp )) -ge 15 ]; then
+				job_write failed crashed "$(tail -n 2 "$job_log" 2>/dev/null)"
+			fi
+		fi
+		cat "$job_file"
+		return 0
+	fi
+	printf '{"state":"idle","step":"","detail":"","time":0}\n'
+}
+
+install_async() {
+	job_running && { install_status; return 0; }
+	mkdir -p "$run_dir"
+	job_write running starting
+	# setsid: rpcd kills the process group when the request that started this
+	# returns, and returning immediately is the entire point.
+	setsid /usr/libexec/gozarbin/singbox.sh --install-detached "$1" >"$job_log" 2>&1 &
+	echo $! > "$job_pid"
+	install_status
+}
+
 install_version() {
 	local wanted work asset url goarch found extracted
 	wanted="$1"
+	job_step version
 	[ -n "$wanted" ] || wanted=$(latest_stable) || {
-		echo 'Could not find out which version is current.' >&2; return 1; }
+		echo 'Could not find out which version is current.' >&2
+		job_end failed version; return 1; }
 	wanted=${wanted#v}
+
+	# Already there. Seventy megabytes is too much to spend on finding that out
+	# the long way, which is what pressing the button twice used to do.
+	if [ "$(version_of "$own" 2>/dev/null)" = "$wanted" ]; then
+		echo "sing-box $wanted is already installed at $own"
+		job_end done installed "$wanted"
+		return 0
+	fi
 
 	# SagerNet's own build is unstripped and around seventy megabytes, and the
 	# tarball sits beside it while it is unpacked. Unpacking happens next to the
@@ -115,20 +227,22 @@ install_version() {
 	# directory across. Same filesystem also makes that move a rename.
 	work="$(dirname "$own")/.work"
 	rm -rf "$work"
-	mkdir -p "$work" || return 1
+	mkdir -p "$work" || { job_end failed workdir; return 1; }
 	# shellcheck disable=SC2064
 	trap "rm -rf '$work'" EXIT
 	[ "$(free_kb "$work")" -ge 153600 ] 2>/dev/null || {
 		echo 'Not enough free space for a sing-box core: 150 MB is needed to unpack one.' >&2
 		echo 'On a router this small, install the sing-box package from the OpenWrt feed instead.' >&2
-		return 1; }
+		job_end failed space; return 1; }
 	found=
 	for goarch in $(go_arches); do
 		asset="sing-box-$wanted-linux-$goarch.tar.gz"
 		url="$downloads/v$wanted/$asset"
 		echo "Trying $asset"
-		uclient-fetch -q -T 120 -O "$work/core.tar.gz" "$url" 2>/dev/null || continue
+		job_step downloading
+		fetch "$url" "$work/core.tar.gz" 900 || continue
 		[ -s "$work/core.tar.gz" ] || continue
+		job_step unpacking
 		tar -xzf "$work/core.tar.gz" -C "$work" 2>/dev/null || continue
 		extracted=$(find "$work" -type f -name sing-box | head -n 1)
 		[ -n "$extracted" ] || continue
@@ -139,8 +253,11 @@ install_version() {
 		found="$extracted"
 		break
 	done
-	[ -n "$found" ] || { echo "No sing-box $wanted build fits this router." >&2; return 1; }
+	[ -n "$found" ] || {
+		echo "No sing-box $wanted build fits this router." >&2
+		job_end failed download; return 1; }
 
+	job_step installing
 	mv "$found" "$own.new"
 	# The tarball carries SagerNet's build uid; on this router it is just a number.
 	chown 0:0 "$own.new" 2>/dev/null || true
@@ -149,6 +266,7 @@ install_version() {
 	rm -rf "$work"
 	rm -f "$state_file" "$checked_file"
 	echo "Installed sing-box $(version_of "$own") for Gozarbin at $own ($(( $(wc -c < "$own") / 1048576 )) MB)"
+	job_end done installed "$(version_of "$own")"
 	[ "$(uci -q get gozarbin.main.enabled)" = 1 ] && /etc/init.d/gozarbin restart >/dev/null 2>&1
 	return 0
 }
@@ -156,6 +274,13 @@ install_version() {
 # --------------------------------------------------------- the daily check
 
 read_number() { [ -r "$1" ] && head -n 1 "$1" 2>/dev/null | grep -E '^[0-9]+$' || echo 0; }
+
+read_json_number() {
+	local found
+	found=$(sed -n 's/.*"'"$1"'":\([0-9]*\).*/\1/p' "$2" 2>/dev/null | head -n 1)
+	[ -n "$found" ] || found=0
+	echo "$found"
+}
 
 # The nftables counters start again from zero whenever the firewall rules are
 # rebuilt, so a reading below the last one is a restart, not a negative delta.
@@ -201,7 +326,7 @@ older_than() {
 # the "stable" being offered to the user.
 latest_stable() {
 	local body found
-	body=$(uclient-fetch -q -T 20 -O - "$api" 2>/dev/null) || return 1
+	body=$(fetch "$api" - 25) || return 1
 	found=$(printf '%s' "$body" |
 		sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v\{0,1\}\([0-9][0-9.]*\)".*/\1/p' | head -n 1)
 	printf '%s' "$found" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$' || return 1
@@ -248,9 +373,20 @@ case "${1:-}" in
 	--check) check ;;
 	--state) state ;;
 	--install) install_version "$2" ;;
+	--install-detached)
+		JOB=1
+		echo $$ > "$job_pid"
+		# install_version names the step it failed at; only a failure it did not
+		# account for needs one written here.
+		install_version "$2" ||
+			grep -q '"state":"failed"' "$job_file" 2>/dev/null ||
+			job_end failed unknown
+		;;
+	--install-async) install_async "$2" ;;
+	--install-status) install_status ;;
 	--reset) rm -f "$state_file" "$checked_file" "$counter_file" "$total_file" ;;
 	*)
-		echo 'Usage: singbox.sh {--path|--origin|--version|--state|--check|--sample|--install [version]|--reset}' >&2
+		echo 'Usage: singbox.sh {--path|--origin|--version|--state|--check|--sample|--install [version]|--install-async|--install-status|--reset}' >&2
 		exit 2
 		;;
 esac
