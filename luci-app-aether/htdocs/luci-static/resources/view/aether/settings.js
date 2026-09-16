@@ -252,6 +252,8 @@ return view.extend({
 		 * card beside it. */
 		if (running && REASONS[traffic.transparent_off])
 			note.push(REASONS[traffic.transparent_off]);
+		else if (running && traffic.mode !== 'socks' && traffic.transparent === false)
+			note.push(_('عبور دادن ترافیک شبکه از تونل خاموش است؛ فقط پراکسی محلی بالاست'));
 		cards.service.note.textContent = note.join(' • ');
 
 		var upload = Number(traffic.upload) || 0, download = Number(traffic.download) || 0;

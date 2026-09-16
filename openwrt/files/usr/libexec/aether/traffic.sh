@@ -78,9 +78,14 @@ enabled=$(uci -q get aether.main.enabled)
 # Unset means on: that is the default the firewall script builds its rules with.
 accounting=$(uci -q get aether.main.accounting)
 [ "$accounting" = 0 ] || accounting=1
+# Transparent mode switched off is a choice, not a stand-down, and the two read
+# very differently on a page that otherwise says the mode is TProxy.
+transparent=$(uci -q get aether.main.transparent)
+[ "$transparent" = 0 ] || transparent=1
 
-printf '{"enabled":%s,"running":%s,"singbox":%s,"mode":"%s","transparent_off":"%s","uptime":%s,"accounting":%s,"counters":%s,"upload":%s,"download":%s,"upload_packets":%s,"download_packets":%s,"time":%s}\n' \
-	"$(json_bool "$enabled")" "$(json_bool "$running")" "$(json_bool "$singbox")" "$mode" "$reason" \
+printf '{"enabled":%s,"running":%s,"singbox":%s,"mode":"%s","transparent":%s,"transparent_off":"%s","uptime":%s,"accounting":%s,"counters":%s,"upload":%s,"download":%s,"upload_packets":%s,"download_packets":%s,"time":%s}\n' \
+	"$(json_bool "$enabled")" "$(json_bool "$running")" "$(json_bool "$singbox")" \
+	"$mode" "$(json_bool "$transparent")" "$reason" \
 	"$(process_uptime "$aether_pid")" "$(json_bool "$accounting")" "$(json_bool "$counters_live")" \
 	"$upload_bytes" "$download_bytes" "$upload_packets" "$download_packets" \
 	"$(date +%s)"

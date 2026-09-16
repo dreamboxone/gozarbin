@@ -484,38 +484,52 @@ jobs:
           if-no-files-found: error
 
   # ------------------------------------------------------------------
-  # OpenWrt packages. The musl legs above already produced a static
-  # binary for every architecture a supported router runs, so this leg
-  # only downloads the matching one, drops it into the package tree and
-  # lets the OpenWrt SDK build aether and luci-app-aether around it.
+  # OpenWrt packages, every architecture the musl legs above produce a
+  # binary for, in both package formats: 24.10 is opkg and gives .ipk,
+  # 25.12 is apk and gives .apk.
   #
-  # The SDK file name carries the gcc version, which changes between
-  # point releases. It is read out of the target's sha256sums index
-  # instead of being spelled out here, so a new OpenWrt release needs
-  # nothing but the OPENWRT_RELEASE bump.
+  # One entry per (release, package architecture). The target/subtarget
+  # is only there to name an SDK — a package is built for an
+  # architecture, but SDKs are published per target — and each was read
+  # from that target's own profiles.json rather than remembered.
+  #
+  # The architectures absent from this list are MIPS, PowerPC and
+  # big-endian ARM. Rust carries those as tier 3, so the core cannot be
+  # built for them on a stable toolchain, and a router of that vintage
+  # has nowhere near the flash for it anyway.
   # ------------------------------------------------------------------
   openwrt:
-    name: Build ${{ matrix.archive }}
+    name: ${{ matrix.format }} ${{ matrix.arch }}
     needs: [linux-armv7-musl, linux-musl]
     runs-on: ubuntu-latest
-    env:
-      OPENWRT_RELEASE: "25.12.5"
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: ipq40xx
-            subtarget: chromium
-            artifact: aether-linux-armv7-musl.tar.gz
-            archive: aether-openwrt-ipq40xx.tar.gz
-          - target: mediatek
-            subtarget: filogic
-            artifact: aether-linux-aarch64-musl.tar.gz
-            archive: aether-openwrt-mediatek-filogic.tar.gz
-          - target: x86
-            subtarget: "64"
-            artifact: aether-linux-x86_64-musl.tar.gz
-            archive: aether-openwrt-x86-64.tar.gz
+          - { release: "24.10.8", format: ipk, arch: aarch64_cortex-a53, target: bcm27xx, subtarget: bcm2710, artifact: aether-linux-aarch64-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: aarch64_cortex-a72, target: bcm27xx, subtarget: bcm2711, artifact: aether-linux-aarch64-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: aarch64_cortex-a76, target: bcm27xx, subtarget: bcm2712, artifact: aether-linux-aarch64-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: aarch64_generic, target: armsr, subtarget: armv8, artifact: aether-linux-aarch64-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: arm_cortex-a15_neon-vfpv4, target: armsr, subtarget: armv7, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: arm_cortex-a5_vfpv4, target: at91, subtarget: sama5, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: arm_cortex-a7_neon-vfpv4, target: bcm27xx, subtarget: bcm2709, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: arm_cortex-a7_vfpv4, target: at91, subtarget: sama7, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: arm_cortex-a8_vfpv3, target: omap, subtarget: generic, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: arm_cortex-a9_neon, target: imx, subtarget: cortexa9, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: arm_cortex-a9_vfpv3-d16, target: mvebu, subtarget: cortexa9, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "24.10.8", format: ipk, arch: x86_64, target: x86, subtarget: "64", artifact: aether-linux-x86_64-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: aarch64_cortex-a53, target: bcm27xx, subtarget: bcm2710, artifact: aether-linux-aarch64-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: aarch64_cortex-a72, target: bcm27xx, subtarget: bcm2711, artifact: aether-linux-aarch64-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: aarch64_cortex-a76, target: bcm27xx, subtarget: bcm2712, artifact: aether-linux-aarch64-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: aarch64_generic, target: armsr, subtarget: armv8, artifact: aether-linux-aarch64-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: arm_cortex-a15_neon-vfpv4, target: armsr, subtarget: armv7, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: arm_cortex-a5_vfpv4, target: at91, subtarget: sama5, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: arm_cortex-a7_neon-vfpv4, target: bcm27xx, subtarget: bcm2709, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: arm_cortex-a7_vfpv4, target: at91, subtarget: sama7, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: arm_cortex-a8_vfpv3, target: omap, subtarget: generic, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: arm_cortex-a9_neon, target: imx, subtarget: cortexa9, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: arm_cortex-a9_vfpv3-d16, target: mvebu, subtarget: cortexa9, artifact: aether-linux-armv7-musl.tar.gz }
+          - { release: "25.12.5", format: apk, arch: x86_64, target: x86, subtarget: "64", artifact: aether-linux-x86_64-musl.tar.gz }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -543,13 +557,19 @@ jobs:
 
       - name: Download the OpenWrt SDK
         run: |
-          base="https://downloads.openwrt.org/releases/${OPENWRT_RELEASE}/targets/${{ matrix.target }}/${{ matrix.subtarget }}"
-          name=$(curl -fsSL "$base/sha256sums" | sed -n 's/.*\(openwrt-sdk-[^ ]*\.tar\.zst\)$/\1/p' | head -n 1)
+          base="https://downloads.openwrt.org/releases/${{ matrix.release }}/targets/${{ matrix.target }}/${{ matrix.subtarget }}"
+          # The SDK file name carries a gcc version that moves between point
+          # releases, so it is read out of the target's index rather than spelt
+          # out here. 24.10 publishes .tar.xz, 25.12 .tar.zst.
+          name=$(curl -fsSL "$base/sha256sums" | sed -n 's/.*\(openwrt-sdk-[^ ]*\.tar\.\(xz\|zst\)\)$/\1/p' | head -n 1)
           test -n "$name"
           echo "Using $name"
-          curl -fsSL "$base/$name" -o /tmp/sdk.tar.zst
+          curl -fsSL "$base/$name" -o /tmp/sdk.tar
           mkdir -p /tmp/sdk
-          tar --zstd -C /tmp/sdk --strip-components=1 -xf /tmp/sdk.tar.zst
+          case "$name" in
+            *.zst) tar --zstd -C /tmp/sdk --strip-components=1 -xf /tmp/sdk.tar ;;
+            *)     tar -C /tmp/sdk --strip-components=1 -xJf /tmp/sdk.tar ;;
+          esac
 
       - name: Build the packages
         run: |
@@ -558,10 +578,10 @@ jobs:
           cp -a openwrt "$sdk/package/aether"
           cp -a luci-app-aether "$sdk/package/luci-app-aether"
           cd "$sdk"
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-          make defconfig
+          make defconfig >/dev/null
           arch=$(awk -F= '/^CONFIG_TARGET_ARCH_PACKAGES=/{gsub(/"/, "", $2); print $2}' .config)
+          # The SDK must agree with the matrix, or the wrong binary ships.
+          test "$arch" = "${{ matrix.arch }}"
           mkdir -p "package/aether/prebuilt/$arch"
           cp "$GITHUB_WORKSPACE/binary/aether" "package/aether/prebuilt/$arch/aether"
           # The SDK selects every package by default. Clearing the selection and
@@ -571,25 +591,30 @@ jobs:
           sed -i 's/^CONFIG_ALL_NONSHARED=y/# CONFIG_ALL_NONSHARED is not set/' .config
           sed -i -E 's/^CONFIG_PACKAGE_([^=]+)=[ym]/# CONFIG_PACKAGE_\1 is not set/' .config
           printf '\nCONFIG_PACKAGE_aether=m\nCONFIG_PACKAGE_luci-app-aether=m\n' >> .config
-          make defconfig
+          make defconfig >/dev/null
           make package/aether/compile -j"$(nproc)" V=s
           make package/luci-app-aether/compile -j"$(nproc)" V=s
 
       - name: Collect the packages
+        id: collect
         run: |
-          mkdir -p out
+          out="aether-openwrt-${{ matrix.release }}-${{ matrix.arch }}"
+          mkdir -p "$out"
           find /tmp/sdk/bin/packages -type f \
             \( -name 'aether-*.apk' -o -name 'luci-app-aether-*.apk' \
                -o -name 'aether_*.ipk' -o -name 'luci-app-aether_*.ipk' \) \
-            -exec cp -f {} out/ \;
-          ls -l out
-          tar -czf "${{ matrix.archive }}" -C out .
+            -exec cp -f {} "$out/" \;
+          ls -l "$out"
+          # Two packages or the leg has not produced what it claims to.
+          test "$(ls -1 "$out" | wc -l)" -ge 2
+          tar -czf "$out.tar.gz" "$out"
+          echo "archive=$out.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.archive }}
-          path: ${{ matrix.archive }}
+          name: ${{ steps.collect.outputs.archive }}
+          path: ${{ steps.collect.outputs.archive }}
           if-no-files-found: error
 
   # ------------------------------------------------------------------
@@ -640,12 +665,21 @@ jobs:
 
             ### OpenWrt
 
-            Grab the `aether-openwrt-*.tar.gz` for your target and install both
-            packages inside it:
+            Grab the `aether-openwrt-<release>-<arch>.tar.gz` that matches your
+            router and install both packages inside it. Twelve architectures,
+            each in both formats: `24.10.x` is opkg, `25.12.x` is apk.
 
             ```sh
+            # OpenWrt 25.12.x
             apk add --allow-untrusted ./aether-*.apk ./luci-app-aether-*.apk
+            # OpenWrt 24.10.x
+            opkg install ./aether_*.ipk ./luci-app-aether_*.ipk
             ```
+
+            `aarch64_cortex-a53/a72/a76`, `aarch64_generic`,
+            `arm_cortex-a5/a7/a8/a9/a15` (the vfp variants) and `x86_64`.
+            MIPS, PowerPC and big-endian ARM are not built: Rust carries them
+            as tier 3, so the core cannot be produced for them.
 
             Then open **Services -> Aether** in LuCI. `apk` pulls in sing-box,
             the nftables TProxy and socket modules, the TUN module and full
