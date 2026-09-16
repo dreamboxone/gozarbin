@@ -34,7 +34,7 @@ jobs:
         working-directory: aether
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -47,7 +47,7 @@ jobs:
       # the transports are fetched by `go install`, so setup-go looks for a
       # go.sum that does not exist and warns on every run.
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: "1.22"
           cache: false
@@ -72,7 +72,7 @@ jobs:
           Compress-Archive -Path target/$env:TARGET/release/aether.exe,target/$env:TARGET/release/pt,run-aether.bat -DestinationPath $env:ARCHIVE
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: aether-windows-x86_64.zip
           path: aether/aether-windows-x86_64.zip
@@ -117,7 +117,7 @@ jobs:
             curl git tar gzip xz unzip findutils which
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -143,7 +143,7 @@ jobs:
           tar -czf ../../../${{ matrix.archive }}  aether pt
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.archive }}
           path: aether/${{ matrix.archive }}
@@ -168,7 +168,7 @@ jobs:
       AR_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-ar
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -178,7 +178,7 @@ jobs:
           targets: armv7-unknown-linux-gnueabihf
 
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: "1.22"
           cache: false
@@ -204,7 +204,7 @@ jobs:
           tar -czf ../../../aether-linux-armv7.tar.gz aether pt
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: aether-linux-armv7.tar.gz
           path: aether/aether-linux-armv7.tar.gz
@@ -252,7 +252,7 @@ jobs:
       RUSTFLAGS: --cfg libc_unstable_musl_v1_2_3
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -262,7 +262,7 @@ jobs:
           targets: armv7-unknown-linux-musleabihf
 
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: "1.22"
           cache: false
@@ -289,7 +289,7 @@ jobs:
           tar -czf ../../../aether-linux-armv7-musl.tar.gz aether pt
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: aether-linux-armv7-musl.tar.gz
           path: aether/aether-linux-armv7-musl.tar.gz
@@ -326,7 +326,7 @@ jobs:
       RUST_LIBC_UNSTABLE_MUSL_V1_2_3: "1"
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -336,7 +336,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: "1.22"
           cache: false
@@ -373,7 +373,7 @@ jobs:
           tar -czf ../../../${{ matrix.archive }} aether pt
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.archive }}
           path: aether/${{ matrix.archive }}
@@ -428,7 +428,7 @@ jobs:
           - { release: "25.12.5", format: apk, arch: x86_64, target: x86, subtarget: "64", artifact: aether-linux-x86_64-musl.tar.gz }
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -440,7 +440,7 @@ jobs:
             unzip zlib1g-dev file wget zstd
 
       - name: Download the Aether binary
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.artifact }}
           path: binary
@@ -507,7 +507,7 @@ jobs:
           echo "archive=$out.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.collect.outputs.archive }}
           path: ${{ steps.collect.outputs.archive }}
@@ -517,6 +517,11 @@ jobs:
   # Collect every artifact, generate SHA-256 checksums and publish.
   # Runs even if some build legs failed, so one broken target never
   # blocks shipping the ones that succeeded.
+  #
+  # !cancelled() and not always(): always() also fires when the run was
+  # cancelled, and cancelling is how a release that should not ship gets
+  # stopped. It published one anyway once, out of whatever legs happened
+  # to have finished by then.
   # ------------------------------------------------------------------
   release:
     name: Publish release
@@ -524,10 +529,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    if: ${{ always() && startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/') }}
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -608,7 +613,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
