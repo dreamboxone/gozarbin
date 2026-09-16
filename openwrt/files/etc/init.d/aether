@@ -1,0 +1,80 @@
+#!/bin/sh /etc/rc.common
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 dreamboxone
+
+START=95
+STOP=10
+USE_PROCD=1
+
+. /lib/functions.sh
+
+service_triggers() {
+	procd_add_reload_trigger aether
+	procd_add_reload_trigger firewall
+}
+
+start_service() {
+	local enabled mode transparent force socks_address socks_port http_port mark
+	local protocol scan ip_mode noize perf log_level quick config_file
+	config_load aether
+	config_get_bool enabled main enabled 0
+	[ "$enabled" = 1 ] || return 0
+	config_get mode main mode tproxy
+	config_get_bool transparent main transparent 1
+	config_get_bool force main force_with_passwall2 0
+	config_get socks_address main socks_address 127.0.0.1
+	config_get socks_port main socks_port 1819
+	config_get http_port main http_port 0
+	config_get mark main mark 0x0a37
+	config_get protocol main protocol masque
+	config_get scan main scan balanced
+	config_get ip_mode main ip_mode v4
+	config_get noize main noize firewall
+	config_get perf main perf low
+	config_get log_level main log_level info
+	config_get_bool quick main quick_reconnect 1
+	config_get config_file main config_file /etc/aether/aether.toml
+
+	# SOCKS5-only is a mode of its own, not a broken transparent setup.
+	[ "$mode" = socks ] && transparent=0
+
+	if [ "$transparent" = 1 ] && /usr/libexec/aether/passwall2-detect.sh --active >/dev/null 2>&1 && [ "$force" != 1 ]; then
+		logger -t aether 'Passwall2 is active; transparent mode was not started'
+		transparent=0
+	fi
+
+	if [ "$transparent" = 1 ] && ! /usr/libexec/aether/deps.sh --check; then
+		logger -t aether "missing dependencies for transparent mode:$(/usr/libexec/aether/deps.sh --missing)"
+		transparent=0
+	fi
+
+	procd_open_instance aether
+	procd_set_param command /usr/bin/aether --bind "${socks_address}:${socks_port}" --mark "$mark" --protocol "$protocol" --scan "$scan" --ip "$ip_mode" --noize "$noize" --perf "$perf" --log-level "$log_level" --config "$config_file"
+	[ "$quick" = 1 ] && procd_append_param command --quick-reconnect
+	[ "$http_port" -gt 0 ] 2>/dev/null && procd_append_param command --http-proxy "${socks_address}:${http_port}"
+	procd_set_param env HOME=/etc/aether
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param limits nofile="65535 65535"
+	procd_close_instance
+
+	[ "$transparent" = 1 ] || return 0
+	/usr/libexec/aether/firewall.sh singbox-config
+	/usr/libexec/aether/firewall.sh start || return 1
+	procd_open_instance transparent
+	procd_set_param command /usr/bin/sing-box run -c /var/run/aether/sing-box.json
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+stop_service() {
+	/usr/libexec/aether/firewall.sh stop
+}
+
+reload_service() {
+	stop
+	start
+}

@@ -1,0 +1,56 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 dreamboxone
+#
+# Everything the settings page shows once, at load: versions, kernel support and
+# which transparent modes this router can actually run.
+
+version_file=/usr/share/aether/version
+
+package_version() {
+	if command -v apk >/dev/null 2>&1; then
+		apk list --installed "$1" 2>/dev/null | sed -n "s/^$1-\([^ ]*\).*/\1/p" | head -n 1
+	elif command -v opkg >/dev/null 2>&1; then
+		opkg status "$1" 2>/dev/null | sed -n 's/^Version: //p' | head -n 1
+	fi
+}
+
+installed() {
+	if command -v apk >/dev/null 2>&1; then
+		apk info -e "$1" >/dev/null 2>&1
+	elif command -v opkg >/dev/null 2>&1; then
+		opkg status "$1" 2>/dev/null | grep -q '^Status:.* installed'
+	else
+		return 1
+	fi
+}
+
+json_bool() { [ "$1" = 1 ] && echo true || echo false; }
+
+# The package manager is the second source, not the first: the version stamped
+# into the package at build time is there even when the database is unreadable.
+aether_version=$([ -r "$version_file" ] && head -n 1 "$version_file")
+[ -n "$aether_version" ] || aether_version=$(package_version aether)
+aether_core=$(/usr/bin/aether --version 2>/dev/null | head -n 1 | tr -d '\r')
+singbox_version=$(package_version sing-box)
+[ -n "$singbox_version" ] || singbox_version=$(sing-box version 2>/dev/null | sed -n 's/^sing-box version //p' | head -n 1)
+
+installed kmod-nft-tproxy && tproxy=1 || tproxy=0
+installed kmod-nft-socket && socket=1 || socket=0
+command -v nft >/dev/null 2>&1 && nftables=1 || nftables=0
+command -v sing-box >/dev/null 2>&1 && singbox=1 || singbox=0
+{ [ -c /dev/net/tun ] || installed kmod-tun; } >/dev/null 2>&1 && tun=1 || tun=0
+ip rule list >/dev/null 2>&1 && iprule=1 || iprule=0
+
+quoteless() { tr -d '"\\' ; }
+
+model=$(head -n 1 /tmp/sysinfo/model 2>/dev/null | quoteless)
+release=$(sed -n "s/^DISTRIB_DESCRIPTION='\(.*\)'$/\1/p" /etc/openwrt_release 2>/dev/null | head -n 1 | quoteless)
+arch=$(sed -n "s/^DISTRIB_ARCH='\(.*\)'$/\1/p" /etc/openwrt_release 2>/dev/null | head -n 1 | quoteless)
+aether_core=$(printf '%s' "$aether_core" | quoteless)
+
+printf '{"aether_version":"%s","aether_core":"%s","singbox_version":"%s","singbox":%s,"tproxy":%s,"socket":%s,"nftables":%s,"tun":%s,"iprule":%s,"socks":true,"model":"%s","release":"%s","arch":"%s"}\n' \
+	"$aether_version" "$aether_core" "$singbox_version" \
+	"$(json_bool "$singbox")" "$(json_bool "$tproxy")" "$(json_bool "$socket")" \
+	"$(json_bool "$nftables")" "$(json_bool "$tun")" "$(json_bool "$iprule")" \
+	"$model" "$release" "$arch"

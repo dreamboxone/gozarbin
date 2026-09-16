@@ -1,0 +1,2 @@
+# SPDX-License-Identifier: CC0-1.0
+# Iran IPv4 ranges are populated by: aetherctl update-iran
