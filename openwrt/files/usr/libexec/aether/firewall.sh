@@ -23,11 +23,12 @@ wanted_rules=all
 load_config() {
 	config_load aether
 	config_get mode main mode tproxy
-	config_get mark main mark 0x0a37
+	config_get mark main mark 0x0aff
 	config_get route_table main route_table 103
 	config_get socks_address main socks_address 127.0.0.1
 	config_get socks_port main socks_port 1819
 	config_get tproxy_port main tproxy_port 1821
+	config_get tproxy_mark main tproxy_mark 0x0a38
 	config_get tun_name main tun_name aether-tun
 	config_get tun_address main tun_address 172.19.0.1/30
 	config_get tun_address6 main tun_address6 'fdfe:dcba:9876::1/126'
@@ -107,7 +108,7 @@ tproxy_rules() {
 	echo "		fib daddr type local return"
 	echo "		meta nfproto ipv4 ip daddr @bypass4 return"
 	echo "		meta nfproto ipv6 ip6 daddr @bypass6 return"
-	echo "		meta l4proto { tcp, udp } meta mark set $mark tproxy to :$tproxy_port accept"
+	echo "		meta l4proto { tcp, udp } meta mark set $tproxy_mark tproxy to :$tproxy_port accept"
 	echo "	}"
 }
 
@@ -175,7 +176,10 @@ rule_sets() {
 # in the wild, so the installed version decides which one is written.
 reject_actions() {
 	local version major minor
-	version=$(sing-box version 2>/dev/null | sed -n 's/^sing-box version \([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1)
+	# Aether's own core, never whatever sing-box happens to be on PATH: on a
+	# router with Passwall2 that one is Passwall2's, and its version is not the
+	# version this config will be read by.
+	version=$(/usr/libexec/aether/singbox.sh --version 2>/dev/null | cut -d. -f1-2)
 	[ -n "$version" ] || return 1
 	major=${version%%.*}
 	minor=${version#*.}
@@ -267,9 +271,11 @@ start_rules() {
 	nft -c -f "$nft_file"
 	nft -f "$nft_file"
 	[ "$wanted_rules" = all ] && [ "$mode" = tproxy ] || return 0
-	ip rule add fwmark "$mark" lookup "$route_table" priority 100 2>/dev/null || true
+	# The TProxy mark, not Aether's own: this rule sends whatever carries it to
+	# loopback, which is right for intercepted traffic and fatal for the tunnel.
+	ip rule add fwmark "$tproxy_mark" lookup "$route_table" priority 100 2>/dev/null || true
 	ip route add local 0.0.0.0/0 dev lo table "$route_table" 2>/dev/null || true
-	ip -6 rule add fwmark "$mark" lookup "$route_table" priority 100 2>/dev/null || true
+	ip -6 rule add fwmark "$tproxy_mark" lookup "$route_table" priority 100 2>/dev/null || true
 	ip -6 route add local ::/0 dev lo table "$route_table" 2>/dev/null || true
 }
 
@@ -291,14 +297,22 @@ stop_rules() {
 	if [ -n "${mark:-}" ]; then
 		stop_tun_escape
 	fi
-	if [ -n "${mark:-}" ] && [ -n "${route_table:-}" ]; then
+	if [ -n "${tproxy_mark:-}" ] && [ -n "${route_table:-}" ]; then
+		while ip rule del fwmark "$tproxy_mark" lookup "$route_table" priority 100 2>/dev/null; do :; done
+		while ip -6 rule del fwmark "$tproxy_mark" lookup "$route_table" priority 100 2>/dev/null; do :; done
+		# Older installs put Aether's own mark on this rule; take that out too.
 		while ip rule del fwmark "$mark" lookup "$route_table" priority 100 2>/dev/null; do :; done
 		while ip -6 rule del fwmark "$mark" lookup "$route_table" priority 100 2>/dev/null; do :; done
 		ip route flush table "$route_table" 2>/dev/null || true
 		ip -6 route flush table "$route_table" 2>/dev/null || true
 	fi
-	rm -f "$nft_file" "$singbox_file"
-	rm -rf "$ruleset_dir"
+	# Only the nft file. The sing-box config and the rule sets it points at are
+	# written by the singbox-config that runs immediately before start_rules, and
+	# start_rules calls this first — so removing either here left sing-box being
+	# started against files that no longer existed. It died in under a second,
+	# procd gave up after five tries, and the redirect rules stayed in front of a
+	# port with nothing behind them. Both belong to the explicit stop.
+	rm -f "$nft_file"
 }
 
 load_config
@@ -311,7 +325,7 @@ case "${1:-}" in
 		wanted_rules=accounting
 		[ "$accounting" = 1 ] && start_rules || stop_rules
 		;;
-	stop) stop_rules ;;
+	stop) stop_rules; rm -f "$singbox_file"; rm -rf "$ruleset_dir" ;;
 	reload)
 		start_rules
 		[ "$mode" = tun ] && start_tun_escape || true

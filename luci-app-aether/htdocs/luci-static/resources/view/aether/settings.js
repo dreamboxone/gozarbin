@@ -194,12 +194,15 @@ return view.extend({
 		var states = {
 			connected: { text: _('متصل'), dot: 'ae-dot-on' },
 			scanning: { text: _('در حال اسکن…'), dot: 'ae-dot-warn' },
+			retrying: { text: _('اسکن ناموفق، تلاش دوباره…'), dot: '' },
 			verifying: { text: _('بررسی سرور قبلی…'), dot: 'ae-dot-warn' },
 			starting: { text: _('در حال شروع…'), dot: 'ae-dot-warn' },
 			failed: { text: _('سروری پیدا نشد'), dot: '' },
 			stopped: { text: _('خاموش'), dot: '' }
 		};
 		var shown = states[tunnel.state] || states.stopped;
+		var fails = Number(tunnel.fails) || 0;
+		var udpProtocol = (tunnel.protocol === 'wg' || tunnel.protocol === 'gool');
 
 		card.value.textContent = '';
 		card.value.appendChild(E('span', { 'class': 'ae-dot ' + shown.dot }));
@@ -215,10 +218,15 @@ return view.extend({
 				: _('از اسکن تازه'));
 			if (tunnel.transport) note.push(tunnel.transport);
 			if (tunnel.profile) note.push(_('استتار: ') + tunnel.profile);
-		} else if (tunnel.state === 'failed') {
-			note.push(tunnel.detail === 'deadline'
-				? _('مهلت اسکن تمام شد؛ حالت اسکن را روی thorough بگذارید')
-				: _('هیچ سروری از فیلترینگ رد نشد؛ پروفایل استتار را gfw کنید'));
+		} else if (tunnel.state === 'failed' || tunnel.state === 'retrying') {
+			note.push(_('تا حالا ') + fails + _(' بار ناموفق'));
+			/* WireGuard and WARP-in-WARP need their UDP ports through; MASQUE
+			 * rides QUIC on 443, which is the one that usually survives. Saying
+			 * which knob to turn beats a spinner that never stops. */
+			if (udpProtocol && fails >= 2)
+				note.push(_('پورت‌های UDP این پروتکل روی این شبکه باز نیستند — پروتکل را MASQUE کنید'));
+			else if (fails >= 2)
+				note.push(_('پروفایل استتار را gfw و حالت اسکن را thorough کنید'));
 		} else if (tunnel.state === 'scanning') {
 			note.push(_('چند دقیقه طول می‌کشد'));
 		}
@@ -542,7 +550,7 @@ return view.extend({
 		option.value('v6', _('فقط IPv6'));
 		option.value('both', _('هر دو'));
 
-		option = self.option(section, 'advanced', form.ListValue, 'noize', _('پروفایل مبهم‌سازی'),
+		option = self.option(section, 'advanced', form.ListValue, 'noize', _('پروفایل استتار'),
 			_('اگر پروفایل پیش‌فرض از فیلترینگ رد نشد، gfw را امتحان کنید.'));
 		[ 'off', 'light', 'firewall', 'balanced', 'gfw', 'aggressive' ].forEach(function(value) {
 			option.value(value);

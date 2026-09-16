@@ -22,7 +22,7 @@ fi
 # Everything below comes from the log since the last start, so a previous run's
 # outcome is never reported as this one's.
 report=$(logread -e aether 2>/dev/null | awk '
-	/Aether v/ { state = "starting"; source = ""; gateway = ""; transport = ""; rtt = ""; detail = "" }
+	/Aether v/ { state = "starting"; source = ""; gateway = ""; transport = ""; rtt = ""; detail = ""; fails = 0 }
 	/hunting for a working MASQUE gateway/ { state = "scanning"; source = "scan" }
 	/scan mode=/ { state = "scanning"; source = "scan" }
 	/verifying cached (gateway|WireGuard endpoint)/ { state = "verifying"; source = "cache" }
@@ -45,15 +45,22 @@ report=$(logread -e aether 2>/dev/null | awk '
 	# so reaching the deadline stops being the story once the tunnel is up.
 	/tunnel validated .*exposing socks5/ { state = "connected"; detail = "" }
 	/socks5 server listening on/ { state = "connected"; detail = "" }
-	/no usable (MASQUE|WireGuard|WARP) (gateway|endpoint) found/ { state = "failed"; detail = "no-gateway" }
-	/scan deadline reached/ { state = "failed"; detail = "deadline" }
+	# A failed sweep is followed straight away by another one, so without counting
+	# them the page shows a scan permanently in progress and never says that the
+	# same scan has already failed twenty times over.
+	/no usable (MASQUE|WireGuard|WARP) (gateway|endpoint) found|no clean endpoint found/ {
+		state = "failed"; detail = "no-gateway"; fails = fails + 1
+	}
+	/scan deadline reached/ { detail = "deadline" }
 	END {
-		printf "state=%s\nsource=%s\ngateway=%s\ntransport=%s\nrtt=%s\ndetail=%s\n",
-			state, source, gateway, transport, rtt, detail
+		# Scanning again after a failure is retrying, not a first attempt.
+		if (state == "scanning" && fails > 0) state = "retrying"
+		printf "state=%s\nsource=%s\ngateway=%s\ntransport=%s\nrtt=%s\ndetail=%s\nfails=%d\n",
+			state, source, gateway, transport, rtt, detail, fails
 	}
 ')
 
-state=; source=; gateway=; transport=; rtt=; detail=
+state=; source=; gateway=; transport=; rtt=; detail=; fails=0
 # Read line by line, not word by word: a transport is "HTTP/3 (QUIC)" and word
 # splitting drops half of it.
 while IFS= read -r line; do
@@ -64,6 +71,7 @@ while IFS= read -r line; do
 		transport=*) transport=${line#*=} ;;
 		rtt=*) rtt=${line#*=} ;;
 		detail=*) detail=${line#*=} ;;
+		fails=*) fails=${line#*=} ;;
 	esac
 done <<REPORT
 $report
@@ -86,7 +94,11 @@ pidof aether >/dev/null 2>&1 || state=stopped
 
 quoteless() { printf '%s' "$1" | tr -d '"\\'; }
 
-printf '{"state":"%s","source":"%s","gateway":"%s","profile":"%s","transport":"%s","rtt":"%s","detail":"%s","cached":"%s"}\n' \
+protocol=$(uci -q get aether.main.protocol)
+[ -n "$protocol" ] || protocol=masque
+[ "$fails" -ge 0 ] 2>/dev/null || fails=0
+
+printf '{"state":"%s","source":"%s","gateway":"%s","profile":"%s","transport":"%s","rtt":"%s","detail":"%s","fails":%s,"protocol":"%s","cached":"%s"}\n' \
 	"$(quoteless "$state")" "$(quoteless "$source")" "$(quoteless "$gateway")" \
 	"$(quoteless "$profile")" "$(quoteless "$transport")" "$(quoteless "$rtt")" \
-	"$(quoteless "$detail")" "$(quoteless "$peer")"
+	"$(quoteless "$detail")" "$fails" "$(quoteless "$protocol")" "$(quoteless "$peer")"

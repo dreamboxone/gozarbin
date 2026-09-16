@@ -36,7 +36,7 @@ start_service() {
 	config_get socks_address main socks_address 127.0.0.1
 	config_get socks_port main socks_port 1819
 	config_get http_port main http_port 0
-	config_get mark main mark 0x0a37
+	config_get mark main mark 0x0aff
 	config_get protocol main protocol masque
 	config_get scan main scan balanced
 	config_get ip_mode main ip_mode v4
@@ -102,7 +102,14 @@ start_service() {
 		/usr/libexec/aether/firewall.sh accounting || true
 		return 0
 	fi
-	/usr/libexec/aether/firewall.sh singbox-config
+	# Both of these before any redirect exists. A router whose LAN is pointed at
+	# a port with nothing listening on it has no internet at all, which is a far
+	# worse failure than transparent mode not starting.
+	if ! /usr/libexec/aether/firewall.sh singbox-config; then
+		stand_down singbox 'sing-box config could not be generated; transparent mode was not started'
+		/usr/libexec/aether/firewall.sh accounting || true
+		return 0
+	fi
 	/usr/libexec/aether/firewall.sh start || return 1
 	procd_open_instance transparent
 	procd_set_param command "$singbox" run -c /var/run/aether/sing-box.json

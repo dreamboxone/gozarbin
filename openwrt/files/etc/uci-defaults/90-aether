@@ -15,6 +15,7 @@ if [ -n "$(uci -q get aether.main)" ]; then
 	# the router sends unless the mark's low byte is 0xff. A tunnel under that
 	# old mark connects and then carries nothing, so it is corrected here.
 	[ "$(uci -q get aether.main.mark)" = 0x0a37 ] && uci set aether.main.mark=0x0aff
+	set_default tproxy_mark 0x0a38
 	set_default mode tproxy
 	set_default http_port 0
 	set_default tun_name aether-tun

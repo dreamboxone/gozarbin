@@ -10,6 +10,12 @@ config aether 'main'
 	option socks_port '1819'
 	option http_port '0'
 	option tproxy_port '1821'
+	# Deliberately NOT the same as `mark`. `mark` is what Aether puts on its own
+	# sockets so the firewall lets them out; this one is put on intercepted LAN
+	# packets to steer them to the local TProxy socket. Give both the same value
+	# and the routing rule meant for intercepted traffic also catches Aether's
+	# own, sending the tunnel to loopback and every scan comes back empty.
+	option tproxy_mark '0x0a38'
 	option tun_name 'aether-tun'
 	option tun_address '172.19.0.1/30'
 	option tun_address6 'fdfe:dcba:9876::1/126'
