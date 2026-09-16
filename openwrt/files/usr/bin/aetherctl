@@ -15,6 +15,16 @@ case "$1" in
 		/etc/init.d/aether stop
 		;;
 	restart) /etc/init.d/aether restart ;;
+	rescan)
+		# Aether reuses the last gateway that worked and skips scanning, which is
+		# what makes startup quick and what makes it look like it never scans.
+		# Removing that note is the only way to insist on a fresh sweep.
+		rm -f /etc/aether/*lastconn*.toml
+		uci set aether.main.enabled=1
+		uci commit aether
+		/etc/init.d/aether enable
+		/etc/init.d/aether restart
+		;;
 	status)
 		/etc/init.d/aether status
 		/usr/libexec/aether/passwall2-detect.sh
@@ -53,6 +63,7 @@ Usage: aetherctl <command>
   on               enable the service and start it
   off              stop the service and keep it disabled
   restart          restart the service
+  rescan           forget the cached gateway and scan for a new one
   status           service, Passwall2, dependency and traffic report
   version          package and core versions
   traffic          one JSON line of live counters

@@ -37,7 +37,11 @@ endef
 define Build/Compile
 endef
 
-AETHER_BINARY?=$(CURDIR)/prebuilt/$(ARCH)/aether
+# ARCH_PACKAGES, not ARCH. ARCH is the CPU family — "arm" covers armv5, armv6
+# and both armv7 ABIs, which need four different binaries — while ARCH_PACKAGES
+# is the package architecture OpenWrt actually distributes against, such as
+# arm_cortex-a7_neon-vfpv4. ARCH remains a fallback for a tree that predates it.
+AETHER_BINARY?=$(firstword $(wildcard 	$(CURDIR)/prebuilt/$(ARCH_PACKAGES)/aether 	$(CURDIR)/prebuilt/$(ARCH)/aether))
 
 # AETHER_OBFUSCATE=1 on the make command line strips the shipped shell scripts
 # down to working code with their licence headers, and nothing else, before they
@@ -46,7 +50,7 @@ AETHER_OBFUSCATE?=0
 
 define Build/Prepare
 	$(call Build/Prepare/Default)
-	@test -f "$(AETHER_BINARY)" || (echo "Missing Aether binary: $(AETHER_BINARY)" >&2; exit 1)
+	@test -n "$(AETHER_BINARY)" -a -f "$(AETHER_BINARY)" || 		(echo "No Aether binary for this target: looked for prebuilt/$(ARCH_PACKAGES)/aether and prebuilt/$(ARCH)/aether" >&2; exit 1)
 	$(CP) "$(AETHER_BINARY)" $(PKG_BUILD_DIR)/aether
 	echo "$(PKG_VERSION)-r$(PKG_RELEASE)" > $(PKG_BUILD_DIR)/version
 	rm -rf $(PKG_BUILD_DIR)/files
@@ -88,6 +92,7 @@ define Package/aether/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/update-iran.sh $(1)/usr/libexec/aether/update-iran.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/geo-update.sh $(1)/usr/libexec/aether/geo-update.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/traffic.sh $(1)/usr/libexec/aether/traffic.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/tunnel.sh $(1)/usr/libexec/aether/tunnel.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/deps.sh $(1)/usr/libexec/aether/deps.sh
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/libexec/aether/packages.sh $(1)/usr/libexec/aether/packages.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/singbox.sh $(1)/usr/libexec/aether/singbox.sh

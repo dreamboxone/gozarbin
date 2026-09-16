@@ -69,8 +69,15 @@ function parse(result, fallback) {
 
 /* LuCI writes its notifications in the page's own direction and labels the
  * dismiss button in English when no translation is installed. Both are fixed
- * here so a Persian message reads as one. */
+ * here so a Persian message reads as one.
+ *
+ * Only ever one of ours on screen: pressing a button twice is a question asked
+ * twice, not two things to be told about, and a column of identical messages
+ * buries the one that differs. */
 function notify(message, kind) {
+	document.querySelectorAll('.alert-message.aether-note').forEach(function(old) {
+		old.parentNode && old.parentNode.removeChild(old);
+	});
 	/* LuCI appends the class verbatim, so an absent one lands as "undefined". */
 	var node = ui.addNotification(null, E('p', {}, message), kind || 'info');
 	try {
@@ -79,6 +86,7 @@ function notify(message, kind) {
 			node = all.length ? all[all.length - 1] : null;
 		}
 		if (!node) return null;
+		node.classList.add('aether-note');
 		node.setAttribute('dir', 'rtl');
 		node.querySelectorAll('button, .btn').forEach(function(button) {
 			button.textContent = _('بستن');
@@ -111,13 +119,15 @@ return view.extend({
 			fs.exec('/usr/libexec/aether/deps.sh', [ '--json' ]).catch(soft),
 			fs.exec('/usr/libexec/aether/traffic.sh').catch(soft),
 			fs.exec('/usr/libexec/aether/singbox.sh', [ '--state' ]).catch(soft),
+			fs.exec('/usr/libexec/aether/tunnel.sh').catch(soft),
 			uci.load('aether')
 		]);
 	},
 
-	renderDashboard: function(system, passwall, deps, traffic) {
+	renderDashboard: function(system, passwall, deps, traffic, tunnel) {
 		var self = this;
 		var service = card(_('وضعیت سرویس'));
+		var server = card(_('سرور و اسکن'));
 		var usage = card(_('مصرف کل'));
 		var up = card(_('ارسال (آپلود)'), 'ae-card-up');
 		var down = card(_('دریافت (دانلود)'), 'ae-card-down');
@@ -156,18 +166,63 @@ return view.extend({
 			health.note.textContent = _('همهٔ بسته‌های لازم نصب هستند.');
 
 		var dash = E('div', { 'class': 'ae-dash' }, [
-			service.node, up.node, down.node, usage.node, build.node, health.node
+			service.node, server.node, up.node, down.node, usage.node, build.node, health.node
 		]);
 
 		this.state = { time: 0, upload: 0, download: 0, peak: 1 };
-		this.cards = { service: service, usage: usage, up: up, down: down };
+		this.cards = { service: service, server: server, usage: usage, up: up, down: down };
 		this.applyTraffic(traffic);
+		this.applyTunnel(tunnel);
 		poll.add(function() {
-			return fs.exec('/usr/libexec/aether/traffic.sh')
-				.then(function(result) { self.applyTraffic(parse(result)); })
-				.catch(function() {});
+			return Promise.all([
+				fs.exec('/usr/libexec/aether/traffic.sh').catch(function() { return null; }),
+				fs.exec('/usr/libexec/aether/tunnel.sh').catch(function() { return null; })
+			]).then(function(results) {
+				if (results[0]) self.applyTraffic(parse(results[0]));
+				if (results[1]) self.applyTunnel(parse(results[1]));
+			});
 		}, 3);
 		return dash;
+	},
+
+	/* Which server the tunnel is on and how it got there. Without this the page
+	 * said nothing about the one thing the program exists to do, so a working
+	 * tunnel and a dead one looked identical. */
+	applyTunnel: function(tunnel) {
+		if (!this.cards || !this.cards.server || !tunnel) return;
+		var card = this.cards.server;
+		var states = {
+			connected: { text: _('متصل'), dot: 'ae-dot-on' },
+			scanning: { text: _('در حال اسکن…'), dot: 'ae-dot-warn' },
+			verifying: { text: _('بررسی سرور قبلی…'), dot: 'ae-dot-warn' },
+			starting: { text: _('در حال شروع…'), dot: 'ae-dot-warn' },
+			failed: { text: _('سروری پیدا نشد'), dot: '' },
+			stopped: { text: _('خاموش'), dot: '' }
+		};
+		var shown = states[tunnel.state] || states.stopped;
+
+		card.value.textContent = '';
+		card.value.appendChild(E('span', { 'class': 'ae-dot ' + shown.dot }));
+		card.value.appendChild(document.createTextNode(shown.text));
+		if (tunnel.gateway && tunnel.state !== 'stopped') {
+			card.value.appendChild(E('div', { 'class': 'ae-server' }, ltr(tunnel.gateway)));
+		}
+
+		var note = [];
+		if (tunnel.state === 'connected') {
+			note.push(tunnel.source === 'cache'
+				? _('از سرور ذخیره‌شده، بدون اسکن')
+				: _('از اسکن تازه'));
+			if (tunnel.transport) note.push(tunnel.transport);
+			if (tunnel.profile) note.push(_('استتار: ') + tunnel.profile);
+		} else if (tunnel.state === 'failed') {
+			note.push(tunnel.detail === 'deadline'
+				? _('مهلت اسکن تمام شد؛ حالت اسکن را روی thorough بگذارید')
+				: _('هیچ سروری از فیلترینگ رد نشد؛ پروفایل استتار را gfw کنید'));
+		} else if (tunnel.state === 'scanning') {
+			note.push(_('چند دقیقه طول می‌کشد'));
+		}
+		card.note.textContent = note.join(' • ');
 	},
 
 	applyTraffic: function(traffic) {
@@ -200,11 +255,28 @@ return view.extend({
 		var downRate = span > 0 && download >= previous.download ? (download - previous.download) / span : 0;
 		var peak = Math.max(previous.peak || 1, upRate, downRate, 1);
 
+		/* Three different facts, and telling them apart matters: counting turned
+		 * off is the user's doing, counters absent is the service being down,
+		 * and neither should be reported as the other. */
 		if (traffic.accounting === false) {
 			cards.up.value.textContent = _('غیرفعال');
 			cards.down.value.textContent = _('غیرفعال');
 			cards.usage.value.textContent = _('شمارش خاموش است');
 			cards.usage.note.textContent = _('در برگهٔ پیشرفته روشن کنید.');
+			return;
+		}
+
+		if (traffic.counters === false) {
+			cards.up.value.textContent = '—';
+			cards.down.value.textContent = '—';
+			cards.up.note.textContent = '';
+			cards.down.note.textContent = '';
+			cards.up.bar.style.width = '0';
+			cards.down.bar.style.width = '0';
+			cards.usage.value.textContent = '—';
+			cards.usage.note.textContent = running
+				? _('شمارنده‌ها هنوز بالا نیامده‌اند.')
+				: _('سرویس خاموش است؛ شمارش با روشن شدن آن شروع می‌شود.');
 			return;
 		}
 
@@ -299,6 +371,13 @@ return view.extend({
 			this.action(_('راه‌اندازی سرویس'), 'apply', function() {
 				return run('/etc/init.d/aether', [ 'restart' ], _('سرویس راه‌اندازی شد.'));
 			}),
+			/* The scan is not a thing a user starts; it is how Aether connects.
+			 * What they can ask for is that it stop reusing the server it found
+			 * last time, which is what this does. */
+			this.action(_('اسکن دوباره و اتصال'), 'neutral', function() {
+				notify(_('سرور ذخیره‌شده پاک شد؛ اسکن تازه آغاز می‌شود و ممکن است چند دقیقه طول بکشد.'));
+				return run('/usr/bin/aetherctl', [ 'rescan' ], _('اسکن تازه آغاز شد.'));
+			}),
 			this.action(_('توقف سرویس'), 'reset', function() {
 				return run('/etc/init.d/aether', [ 'stop' ], _('سرویس متوقف شد.'));
 			}),
@@ -308,9 +387,25 @@ return view.extend({
 			this.action(_('به‌روزرسانی GeoIP و GeoSite'), 'neutral', function() {
 				return run('/usr/bin/aetherctl', [ 'update-geo' ], _('منابع GeoIP و GeoSite به‌روزرسانی شدند.'));
 			}),
+			/* Asked again at the moment of the click, not taken from the report
+			 * this page loaded with: a router that was missing something a few
+			 * minutes ago may not be now. And a package manager that reaches for
+			 * the network to conclude there is nothing to do is a poor way to
+			 * answer a question that is already answered locally. */
 			this.action(_('نصب پیش‌نیازهای جا افتاده'), 'neutral', function() {
-				notify(_('نصب پیش‌نیازها آغاز شد؛ بسته به سرعت اینترنت روتر ممکن است طول بکشد.'));
-				return run('/usr/bin/aetherctl', [ 'install-deps' ], _('پیش‌نیازها نصب شدند. صفحه را تازه کنید.'));
+				return fs.exec('/usr/libexec/aether/deps.sh', [ '--json' ]).then(function(result) {
+					var state = parse(result);
+					if (state.complete !== false) {
+						notify(_('پیش‌نیازها از قبل دانلود و نصب شده‌اند؛ کاری لازم نیست.'));
+						return;
+					}
+					notify(_('نصب این بسته‌ها آغاز شد: ') + (state.missing || '') +
+						_(' — بسته به سرعت اینترنت روتر ممکن است طول بکشد.'));
+					return run('/usr/bin/aetherctl', [ 'install-deps' ],
+						_('پیش‌نیازها نصب شدند. صفحه را تازه کنید.'));
+				}).catch(function(error) {
+					notify(_('بررسی پیش‌نیازها ناموفق بود: ') + error.message, 'error');
+				});
 			})
 		]);
 	},
@@ -483,6 +578,7 @@ return view.extend({
 		var deps = parse(results[2]);
 		var traffic = parse(results[3]);
 		var core = parse(results[4]);
+		var tunnel = parse(results[5]);
 
 		/* The class is enough to reach the notifications and set the type.
 		 * A dir on <body> would also flip LuCI's own navbar dropdowns, which
@@ -502,7 +598,7 @@ return view.extend({
 					'href': L.resource('view/aether/aether.css')
 				}),
 				E('h2', {}, 'Aether' + version),
-				self.renderDashboard(system, passwall, deps, traffic),
+				self.renderDashboard(system, passwall, deps, traffic, tunnel),
 				self.renderCoreNotice(system, core),
 				self.renderActions(),
 				rendered

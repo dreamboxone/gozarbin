@@ -44,11 +44,14 @@ upload_bytes=0
 download_bytes=0
 upload_packets=0
 download_packets=0
-accounting=0
+# Whether the counters exist right now, which is not the same question as
+# whether the user asked for counting: a stopped service has no counters and has
+# not been told to stop counting.
+counters_live=0
 for pair in $counters; do
 	case "$pair" in
-		upload_bytes=*) upload_bytes=${pair#*=}; accounting=1 ;;
-		download_bytes=*) download_bytes=${pair#*=}; accounting=1 ;;
+		upload_bytes=*) upload_bytes=${pair#*=}; counters_live=1 ;;
+		download_bytes=*) download_bytes=${pair#*=}; counters_live=1 ;;
 		upload_packets=*) upload_packets=${pair#*=} ;;
 		download_packets=*) download_packets=${pair#*=} ;;
 	esac
@@ -72,9 +75,12 @@ mode=$(uci -q get aether.main.mode)
 [ -n "$mode" ] && [ "$mode" != tproxy ] || mode=tproxy
 enabled=$(uci -q get aether.main.enabled)
 [ "$enabled" = 1 ] || enabled=0
+# Unset means on: that is the default the firewall script builds its rules with.
+accounting=$(uci -q get aether.main.accounting)
+[ "$accounting" = 0 ] || accounting=1
 
-printf '{"enabled":%s,"running":%s,"singbox":%s,"mode":"%s","transparent_off":"%s","uptime":%s,"accounting":%s,"upload":%s,"download":%s,"upload_packets":%s,"download_packets":%s,"time":%s}\n' \
+printf '{"enabled":%s,"running":%s,"singbox":%s,"mode":"%s","transparent_off":"%s","uptime":%s,"accounting":%s,"counters":%s,"upload":%s,"download":%s,"upload_packets":%s,"download_packets":%s,"time":%s}\n' \
 	"$(json_bool "$enabled")" "$(json_bool "$running")" "$(json_bool "$singbox")" "$mode" "$reason" \
-	"$(process_uptime "$aether_pid")" "$(json_bool "$accounting")" \
+	"$(process_uptime "$aether_pid")" "$(json_bool "$accounting")" "$(json_bool "$counters_live")" \
 	"$upload_bytes" "$download_bytes" "$upload_packets" "$download_packets" \
 	"$(date +%s)"

@@ -373,3 +373,16 @@ body.aether-page .alert-message p {
 	border-radius: 999px;
 	padding: 0.35rem 1.4rem;
 }
+
+/* The gateway address under the connection state. Left to right and on its own
+ * line: an address broken across a right-to-left line is unreadable. */
+.ae-server {
+	direction: ltr;
+	unicode-bidi: isolate;
+	text-align: right;
+	font-size: 1rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	opacity: 0.9;
+	margin-top: 0.15rem;
+}

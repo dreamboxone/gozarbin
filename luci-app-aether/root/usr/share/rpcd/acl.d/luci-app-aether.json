@@ -33,6 +33,9 @@
         ],
         "/usr/libexec/aether/singbox.sh --state": [
           "exec"
+        ],
+        "/usr/libexec/aether/tunnel.sh": [
+          "exec"
         ]
       }
     },
@@ -76,6 +79,9 @@
           "exec"
         ],
         "/usr/bin/aetherctl install-singbox": [
+          "exec"
+        ],
+        "/usr/bin/aetherctl rescan": [
           "exec"
         ]
       }
