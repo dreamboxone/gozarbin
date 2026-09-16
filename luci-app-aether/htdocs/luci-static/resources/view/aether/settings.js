@@ -9,6 +9,12 @@
 'require poll';
 'require uci';
 
+var GEO_DEFAULTS = {
+	geoip_url: 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-ir.srs',
+	geosite_url: 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-ir.srs',
+	geosite_ads_url: 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-category-ads-all.srs'
+};
+
 var UNITS = [ 'بایت', 'کیلوبایت', 'مگابایت', 'گیگابایت', 'ترابایت', 'پتابایت' ];
 
 function ltr(text) {
@@ -44,7 +50,8 @@ function parse(result, fallback) {
  * dismiss button in English when no translation is installed. Both are fixed
  * here so a Persian message reads as one. */
 function notify(message, kind) {
-	var node = ui.addNotification(null, E('p', {}, message), kind);
+	/* LuCI appends the class verbatim, so an absent one lands as "undefined". */
+	var node = ui.addNotification(null, E('p', {}, message), kind || 'info');
 	try {
 		if (!node || !node.querySelectorAll) {
 			var all = document.querySelectorAll('.alert-message');
@@ -149,8 +156,13 @@ return view.extend({
 		}));
 		cards.service.value.appendChild(document.createTextNode(
 			running ? _('در حال اجرا') : (traffic.enabled ? _('روشن، بالا نیامده') : _('خاموش'))));
-		cards.service.note.textContent = (modes[traffic.mode] || traffic.mode) +
-			(running ? ' • ' + _('مدت اجرا: ') + duration(traffic.uptime) : '');
+		var note = [ modes[traffic.mode] || traffic.mode ];
+		if (running) note.push(_('مدت اجرا: ') + duration(traffic.uptime));
+		/* Transparent mode stands down on its own when Passwall2 holds the
+		 * prerouting hook, so say so rather than leave the mode looking broken. */
+		if (running && traffic.mode !== 'socks' && !traffic.singbox)
+			note.push(_('حالت شفاف اجرا نشده — Passwall2 فعال است یا پیش‌نیازی کم است'));
+		cards.service.note.textContent = note.join(' • ');
 
 		var upload = Number(traffic.upload) || 0, download = Number(traffic.download) || 0;
 		var now = Number(traffic.time) || Math.floor(Date.now() / 1000);
@@ -227,6 +239,20 @@ return view.extend({
 		]);
 	},
 
+	/* Two LuCI defaults quietly empty half of /etc/config/aether on the first
+	 * save: an option the current mode hides is deleted, and a flag or list
+	 * whose value equals the widget default is deleted too. Hiding an option is
+	 * not the user asking to forget it, and "the default" is still an answer, so
+	 * both are turned off here. Text fields keep rmempty, because refusing to
+	 * save a page over one blank box would be worse than either. */
+	option: function(section, tab, type, name, title, description) {
+		var option = section.taboption(tab, type, name, title, description);
+		option.retain = true;
+		if (type === form.Flag || type === form.ListValue)
+			option.rmempty = false;
+		return option;
+	},
+
 	renderForm: function(system) {
 		var map = new form.Map('aether', _('تنظیمات Aether'),
 			_('پراکسی و تفکیک ترافیک ایران روی روتر. پس از هر تغییر، «ذخیره و اعمال» را بزنید.'));
@@ -237,34 +263,34 @@ return view.extend({
 		section.tab('routing', _('مسیریابی و تفکیک ترافیک'));
 		section.tab('advanced', _('پیشرفته'));
 
+		var self = this;
 		var option, enabled, mode, transparent, force, protocol, scan, socks, http;
 
-		enabled = section.taboption('general', form.Flag, 'enabled', _('فعال بودن سرویس'));
-		enabled.rmempty = false;
+		enabled = self.option(section, 'general', form.Flag, 'enabled', _('فعال بودن سرویس'));
 
-		mode = section.taboption('general', form.ListValue, 'mode', _('حالت کار'),
+		mode = self.option(section, 'general', form.ListValue, 'mode', _('حالت کار'),
 			_('TProxy: کل ترافیک شبکه از طریق nftables و sing-box. TUN: یک کارت شبکه مجازی به‌جای TProxy. SOCKS5: فقط پراکسی محلی، بدون دست‌کاری ترافیک شبکه.'));
 		mode.value('tproxy', _('پراکسی شفاف شبکه (TProxy)'));
 		mode.value('tun', _('کارت شبکهٔ مجازی (TUN)'));
 		mode.value('socks', _('فقط پراکسی SOCKS5'));
 		mode.default = 'tproxy';
 
-		transparent = section.taboption('general', form.Flag, 'transparent', _('عبور دادن ترافیک شبکه از تونل'));
+		transparent = self.option(section, 'general', form.Flag, 'transparent', _('عبور دادن ترافیک شبکه از تونل'));
 		transparent.depends({ mode: 'tproxy' });
 		transparent.depends({ mode: 'tun' });
 		transparent.default = '1';
 
-		force = section.taboption('general', form.Flag, 'force_with_passwall2', _('اجرا هم‌زمان با Passwall2'),
+		force = self.option(section, 'general', form.Flag, 'force_with_passwall2', _('اجرا هم‌زمان با Passwall2'),
 			_('به‌طور پیش‌فرض اگر Passwall2 روشن باشد، حالت شفاف Aether اجرا نمی‌شود تا دو برنامه با هم تداخل نکنند.'));
 		force.depends('transparent', '1');
 
-		protocol = section.taboption('general', form.ListValue, 'protocol', _('پروتکل تونل'));
+		protocol = self.option(section, 'general', form.ListValue, 'protocol', _('پروتکل تونل'));
 		protocol.value('masque', 'MASQUE (HTTP/3)');
 		protocol.value('wg', 'WireGuard');
 		protocol.value('gool', 'WARP-in-WARP (gool)');
 		protocol.value('mim', 'MASQUE-in-MASQUE');
 
-		scan = section.taboption('general', form.ListValue, 'scan', _('حالت اسکن سرور'),
+		scan = self.option(section, 'general', form.ListValue, 'scan', _('حالت اسکن سرور'),
 			_('turbo سریع‌ترین و ironclad مطمئن‌ترین حالت است.'));
 		scan.value('turbo', _('turbo — اولین سرور پاسخ‌گو'));
 		scan.value('balanced', _('balanced — پیش‌فرض، سریع‌ترین از چند سرور'));
@@ -272,104 +298,102 @@ return view.extend({
 		scan.value('stealth', _('stealth — کم‌سروصدا برای شبکه‌های حساس'));
 		scan.value('ironclad', _('ironclad — آزمایش واقعی هر سرور'));
 
-		socks = section.taboption('general', form.Value, 'socks_port', _('پورت SOCKS5'));
+		socks = self.option(section, 'general', form.Value, 'socks_port', _('پورت SOCKS5'));
 		socks.datatype = 'port';
 		socks.placeholder = '1819';
 
-		http = section.taboption('general', form.Value, 'http_port', _('پورت پراکسی HTTP'),
+		http = self.option(section, 'general', form.Value, 'http_port', _('پورت پراکسی HTTP'),
 			_('صفر یعنی خاموش. برای برنامه‌هایی که فقط HTTP proxy می‌پذیرند مفید است.'));
 		http.datatype = 'port';
 		http.placeholder = '0';
 
 		/* ---- routing ---- */
 
-		option = section.taboption('routing', form.Flag, 'iran_bypass', _('عبور مستقیم ترافیک ایران'),
+		option = self.option(section, 'routing', form.Flag, 'iran_bypass', _('عبور مستقیم ترافیک ایران'),
 			_('محدوده‌های IP ایران از تونل رد نمی‌شوند. پس از نصب، یک بار فهرست را به‌روزرسانی کنید.'));
 		option.default = '1';
 
-		option = section.taboption('routing', form.Value, 'iran4_url', _('منبع فهرست IPv4 ایران'));
-		option.depends('iran_bypass', '1');
-		option = section.taboption('routing', form.Value, 'iran6_url', _('منبع فهرست IPv6 ایران'));
-		option.depends('iran_bypass', '1');
+		option = self.option(section, 'routing', form.Value, 'iran4_url', _('منبع فهرست IPv4 ایران'));
+		option = self.option(section, 'routing', form.Value, 'iran6_url', _('منبع فهرست IPv6 ایران'));
 
-		option = section.taboption('routing', form.Flag, 'geo_enabled', _('استفاده از GeoIP و GeoSite'),
+		option = self.option(section, 'routing', form.Flag, 'geo_enabled', _('استفاده از GeoIP و GeoSite'),
 			_('قواعد sing-box (فایل‌های srs) برای تشخیص مقصدهای ایرانی بر اساس نام دامنه و IP.'));
 
-		option = section.taboption('routing', form.ListValue, 'geo_action', _('رفتار با مقصدهای شناسایی‌شده'));
+		option = self.option(section, 'routing', form.ListValue, 'geo_action', _('رفتار با مقصدهای شناسایی‌شده'));
 		option.value('direct', _('عبور مستقیم، بدون تونل'));
 		option.value('aether', _('عبور از تونل'));
 		option.value('block', _('مسدود کردن'));
 		option.depends('geo_enabled', '1');
 
-		option = section.taboption('routing', form.Value, 'geoip_url', _('منبع GeoIP'),
+		option = self.option(section, 'routing', form.Value, 'geoip_url', _('منبع GeoIP'),
 			_('نشانی فایل rule-set. می‌توانید نشانی آینه یا فایل دلخواه خود را بگذارید.'));
-		option.depends('geo_enabled', '1');
-		option = section.taboption('routing', form.Value, 'geosite_url', _('منبع GeoSite'));
-		option.depends('geo_enabled', '1');
+		option.default = GEO_DEFAULTS.geoip_url;
+		option = self.option(section, 'routing', form.Value, 'geosite_url', _('منبع GeoSite'));
+		option.default = GEO_DEFAULTS.geosite_url;
 
-		option = section.taboption('routing', form.Flag, 'block_ads', _('مسدود کردن تبلیغات و ردیاب‌ها'));
-		option = section.taboption('routing', form.Value, 'geosite_ads_url', _('منبع فهرست تبلیغات'));
-		option.depends('block_ads', '1');
+		option = self.option(section, 'routing', form.Flag, 'block_ads', _('مسدود کردن تبلیغات و ردیاب‌ها'));
+		option = self.option(section, 'routing', form.Value, 'geosite_ads_url', _('منبع فهرست تبلیغات'));
+		option.default = GEO_DEFAULTS.geosite_ads_url;
 
-		option = section.taboption('routing', form.Value, 'config_file', _('فایل پیکربندی Aether'),
+		option = self.option(section, 'routing', form.Value, 'config_file', _('فایل پیکربندی Aether'),
 			_('مسیر فایل هویت و قواعد مسیریابی اختصاصی Aether.'));
 		option.placeholder = '/etc/aether/aether.toml';
 
 		/* ---- advanced ---- */
 
-		option = section.taboption('advanced', form.ListValue, 'ip_mode', _('نسخهٔ IP'));
+		option = self.option(section, 'advanced', form.ListValue, 'ip_mode', _('نسخهٔ IP'));
 		option.value('v4', _('فقط IPv4'));
 		option.value('v6', _('فقط IPv6'));
 		option.value('both', _('هر دو'));
 
-		option = section.taboption('advanced', form.ListValue, 'noize', _('پروفایل مبهم‌سازی'),
+		option = self.option(section, 'advanced', form.ListValue, 'noize', _('پروفایل مبهم‌سازی'),
 			_('اگر پروفایل پیش‌فرض از فیلترینگ رد نشد، gfw را امتحان کنید.'));
 		[ 'off', 'light', 'firewall', 'balanced', 'gfw', 'aggressive' ].forEach(function(value) {
 			option.value(value);
 		});
 
-		option = section.taboption('advanced', form.ListValue, 'perf', _('پروفایل مصرف منابع'));
+		option = self.option(section, 'advanced', form.ListValue, 'perf', _('پروفایل مصرف منابع'));
 		option.value('low', _('کم — روترها و بردهای کوچک'));
 		option.value('medium', _('متوسط'));
 		option.value('high', _('زیاد — سرور'));
 
-		option = section.taboption('advanced', form.Flag, 'quick_reconnect', _('اتصال سریع با آخرین سرور موفق'));
-		option = section.taboption('advanced', form.Flag, 'accounting', _('شمارش مصرف آپلود و دانلود'),
+		option = self.option(section, 'advanced', form.Flag, 'quick_reconnect', _('اتصال سریع با آخرین سرور موفق'));
+		option = self.option(section, 'advanced', form.Flag, 'accounting', _('شمارش مصرف آپلود و دانلود'),
 			_('شمارنده‌های nftables روی مسیر پراکسی. خاموش کردن آن نمایش مصرف را غیرفعال می‌کند.'));
 		option.default = '1';
 
-		option = section.taboption('advanced', form.ListValue, 'log_level', _('سطح گزارش Aether'));
+		option = self.option(section, 'advanced', form.ListValue, 'log_level', _('سطح گزارش Aether'));
 		[ 'error', 'warn', 'info', 'debug', 'trace' ].forEach(function(value) { option.value(value); });
-		option = section.taboption('advanced', form.ListValue, 'singbox_log_level', _('سطح گزارش sing-box'));
+		option = self.option(section, 'advanced', form.ListValue, 'singbox_log_level', _('سطح گزارش sing-box'));
 		[ 'error', 'warn', 'info', 'debug' ].forEach(function(value) { option.value(value); });
 
-		option = section.taboption('advanced', form.DynamicList, 'lan_interface', _('رابط‌های شبکهٔ داخلی'),
+		option = self.option(section, 'advanced', form.DynamicList, 'lan_interface', _('رابط‌های شبکهٔ داخلی'),
 			_('ترافیک این رابط‌ها به تونل هدایت می‌شود.'));
 		option.placeholder = 'br-lan';
 		option.depends({ mode: 'tproxy' });
 
-		option = section.taboption('advanced', form.Value, 'tproxy_port', _('پورت TProxy'));
+		option = self.option(section, 'advanced', form.Value, 'tproxy_port', _('پورت TProxy'));
 		option.datatype = 'port';
 		option.depends({ mode: 'tproxy' });
-		option = section.taboption('advanced', form.Value, 'mark', _('علامت فایروال (fwmark)'));
+		option = self.option(section, 'advanced', form.Value, 'mark', _('علامت فایروال (fwmark)'));
 		option.depends({ mode: 'tproxy' });
-		option = section.taboption('advanced', form.Value, 'route_table', _('شمارهٔ جدول مسیریابی'));
+		option = self.option(section, 'advanced', form.Value, 'route_table', _('شمارهٔ جدول مسیریابی'));
 		option.datatype = 'uinteger';
 		option.depends({ mode: 'tproxy' });
 
-		option = section.taboption('advanced', form.Value, 'tun_name', _('نام کارت شبکهٔ مجازی'));
+		option = self.option(section, 'advanced', form.Value, 'tun_name', _('نام کارت شبکهٔ مجازی'));
 		option.depends({ mode: 'tun' });
-		option = section.taboption('advanced', form.Value, 'tun_address', _('نشانی IPv4 کارت مجازی'));
+		option = self.option(section, 'advanced', form.Value, 'tun_address', _('نشانی IPv4 کارت مجازی'));
 		option.datatype = 'cidr4';
 		option.depends({ mode: 'tun' });
-		option = section.taboption('advanced', form.Value, 'tun_address6', _('نشانی IPv6 کارت مجازی'));
+		option = self.option(section, 'advanced', form.Value, 'tun_address6', _('نشانی IPv6 کارت مجازی'));
 		option.datatype = 'cidr6';
 		option.depends({ mode: 'tun' });
-		option = section.taboption('advanced', form.Value, 'tun_mtu', _('MTU کارت مجازی'));
+		option = self.option(section, 'advanced', form.Value, 'tun_mtu', _('MTU کارت مجازی'));
 		option.datatype = 'range(576,65535)';
 		option.depends({ mode: 'tun' });
 
-		option = section.taboption('advanced', form.Value, 'socks_address', _('نشانی شنود پراکسی'),
+		option = self.option(section, 'advanced', form.Value, 'socks_address', _('نشانی شنود پراکسی'),
 			_('برای در دسترس بودن از شبکهٔ داخلی 0.0.0.0 بگذارید. توجه: پراکسی بدون رمز عبور باز می‌شود.'));
 
 		return map.render();
@@ -382,8 +406,10 @@ return view.extend({
 		var deps = parse(results[2]);
 		var traffic = parse(results[3]);
 
+		/* The class is enough to reach the notifications and set the type.
+		 * A dir on <body> would also flip LuCI's own navbar dropdowns, which
+		 * are positioned in pixels and end up ten thousand of them off-screen. */
 		document.body.classList.add('aether-page');
-		document.body.setAttribute('dir', 'rtl');
 
 		var version = system.aether_version ? ' — ' + system.aether_version : '';
 		return this.renderForm(system).then(function(rendered) {

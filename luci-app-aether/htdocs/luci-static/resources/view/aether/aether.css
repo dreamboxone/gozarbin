@@ -106,21 +106,30 @@ body.aether-page .cbi-button {
 	margin-top: 0.2rem;
 }
 
-.aether-rtl input[type="text"],
-.aether-rtl input[type="password"],
-.aether-rtl select,
-.aether-rtl textarea {
+/* The theme floats the little info marker to the start of the line, which on a
+ * right-to-left page is the right-hand end. */
+.aether-rtl .cbi-value-description::before {
+	float: right;
+	margin: 0.15rem 0 0 0.4rem;
+}
+
+.aether-rtl select {
 	direction: rtl;
 	text-align: right;
 	max-width: 28rem;
 	width: 100%;
 }
 
-/* Addresses, ports and URLs read left to right even on a right-to-left page. */
-.aether-rtl input.aether-ltr,
-.aether-rtl textarea.aether-ltr {
+/* Every text field on this page holds a URL, an address, a port, a path or an
+ * interface name. None of them is Persian, and all of them are misread when the
+ * scheme or the leading digits are pushed to the far end of the box. */
+.aether-rtl input[type="text"],
+.aether-rtl input[type="password"],
+.aether-rtl textarea {
 	direction: ltr;
 	text-align: left;
+	max-width: 28rem;
+	width: 100%;
 }
 
 .aether-rtl input[type="checkbox"] {

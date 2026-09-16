@@ -6,8 +6,8 @@ set -e
 . /lib/functions.sh
 
 config_load aether
-config_get url4 main iran4_url
-config_get url6 main iran6_url
+config_get url4 main iran4_url 'https://www.ipdeny.com/ipblocks/data/aggregated/ir-aggregated.zone'
+config_get url6 main iran6_url 'https://www.ipdeny.com/ipv6/ipaddresses/aggregated/ir-aggregated.zone'
 tmp4="/tmp/aether-iran4.$$"
 tmp6="/tmp/aether-iran6.$$"
 trap 'rm -f "$tmp4" "$tmp6"' EXIT

@@ -10,26 +10,10 @@
 packages='sing-box kmod-nft-tproxy kmod-nft-socket nftables ip-full ca-bundle'
 tun_packages='kmod-tun'
 
-pm() {
-	if command -v apk >/dev/null 2>&1; then echo apk
-	elif command -v opkg >/dev/null 2>&1; then echo opkg
-	fi
-}
-
-installed() {
-	case "$(pm)" in
-		apk) apk info -e "$1" >/dev/null 2>&1 ;;
-		opkg) opkg status "$1" 2>/dev/null | grep -q '^Status:.* installed' ;;
-		*) return 1 ;;
-	esac
-}
-
-version_of() {
-	case "$(pm)" in
-		apk) apk list --installed "$1" 2>/dev/null | sed -n "s/^$1-\([^ ]*\).*/\1/p" | head -n 1 ;;
-		opkg) opkg status "$1" 2>/dev/null | sed -n 's/^Version: //p' | head -n 1 ;;
-	esac
-}
+. /usr/libexec/aether/packages.sh
+# Taken here, in the top-level shell, so the command substitutions below inherit
+# it instead of each re-reading the database in a subshell of its own.
+pkg_snapshot
 
 wanted() {
 	local list="$packages"
@@ -40,7 +24,7 @@ wanted() {
 missing() {
 	local name out=
 	for name in $(wanted); do
-		installed "$name" || out="$out $name"
+		pkg_installed "$name" || out="$out $name"
 	done
 	echo "${out# }"
 }
@@ -48,10 +32,10 @@ missing() {
 report_json() {
 	local name sep= gone
 	gone=$(missing)
-	printf '{"manager":"%s","packages":[' "$(pm)"
+	printf '{"manager":"%s","packages":[' "$(pkg_manager)"
 	for name in $(wanted); do
 		printf '%s{"name":"%s","installed":%s,"version":"%s"}' \
-			"$sep" "$name" "$(installed "$name" && echo true || echo false)" "$(version_of "$name")"
+			"$sep" "$name" "$(pkg_installed "$name" && echo true || echo false)" "$(pkg_version "$name")"
 		sep=,
 	done
 	printf '],"missing":"%s","complete":%s}\n' "$gone" "$([ -z "$gone" ] && echo true || echo false)"
@@ -62,7 +46,7 @@ install_missing() {
 	gone=$(missing)
 	[ -n "$gone" ] || { echo 'All dependencies are already installed.'; return 0; }
 	echo "Installing:$gone"
-	case "$(pm)" in
+	case "$(pkg_manager)" in
 		apk) apk update && apk add $gone ;;
 		opkg) opkg update && opkg install $gone ;;
 		*) echo 'No supported package manager found.' >&2; return 1 ;;

@@ -12,6 +12,13 @@ ruleset_dir="$run_dir/rulesets"
 geo_dir=/etc/aether/geo
 table_name=aether_proxy
 
+# "all" builds the table transparent mode needs; "accounting" builds only the
+# byte counters. The second is what runs when transparent mode stands down —
+# for Passwall2, for a missing dependency, or because the mode is SOCKS5-only —
+# so the page still reports what left through the proxy without this touching
+# anybody else's prerouting rules.
+wanted_rules=all
+
 load_config() {
 	config_load aether
 	config_get mode main mode tproxy
@@ -81,6 +88,7 @@ accounting_rules() {
 
 tproxy_rules() {
 	local iran4 iran6
+	[ "$wanted_rules" = all ] || return 0
 	[ "$mode" = tproxy ] || return 0
 	iran4=
 	iran6=
@@ -256,7 +264,7 @@ start_rules() {
 	fi
 	nft -c -f "$nft_file"
 	nft -f "$nft_file"
-	[ "$mode" = tproxy ] || return 0
+	[ "$wanted_rules" = all ] && [ "$mode" = tproxy ] || return 0
 	ip rule add fwmark "$mark" lookup "$route_table" priority 100 2>/dev/null || true
 	ip route add local 0.0.0.0/0 dev lo table "$route_table" 2>/dev/null || true
 	ip -6 rule add fwmark "$mark" lookup "$route_table" priority 100 2>/dev/null || true
@@ -297,6 +305,10 @@ case "${1:-}" in
 		start_rules
 		[ "$mode" = tun ] && start_tun_escape || true
 		;;
+	accounting)
+		wanted_rules=accounting
+		[ "$accounting" = 1 ] && start_rules || stop_rules
+		;;
 	stop) stop_rules ;;
 	reload)
 		start_rules
@@ -304,5 +316,5 @@ case "${1:-}" in
 		;;
 	singbox-config) write_singbox ;;
 	check) write_singbox; write_rules; nft -c -f "$nft_file" ;;
-	*) echo 'Usage: firewall.sh {start|stop|reload|singbox-config|check}' >&2; exit 2 ;;
+	*) echo 'Usage: firewall.sh {start|accounting|stop|reload|singbox-config|check}' >&2; exit 2 ;;
 esac

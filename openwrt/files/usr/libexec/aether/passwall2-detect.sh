@@ -13,9 +13,6 @@ elif command -v opkg >/dev/null 2>&1; then
 	opkg status luci-app-passwall2 2>/dev/null | grep -q '^Status:.* installed' && installed=1
 fi
 
-if [ -x /etc/init.d/passwall2 ]; then
-	/etc/init.d/passwall2 running >/dev/null 2>&1 && active=1
-fi
 ubus call service list '{"name":"passwall2"}' 2>/dev/null | grep -q '"running": true' && active=1
 # Passwall2 does not expose a reliable `running` action on every OpenWrt build.
 # Treat an enabled global configuration as active so Aether fails safely during

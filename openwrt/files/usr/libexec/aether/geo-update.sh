@@ -12,15 +12,19 @@ set -e
 geo_dir=/etc/aether/geo
 mkdir -p "$geo_dir"
 
+# The defaults live here as well as in /etc/config/aether, so a config that was
+# hand-edited or trimmed still has somewhere to fetch from.
+rules=https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set
+
 config_load aether
-config_get geoip_url main geoip_url
-config_get geosite_url main geosite_url
-config_get ads_url main geosite_ads_url
+config_get geoip_url main geoip_url "$rules/geoip-ir.srs"
+config_get geosite_url main geosite_url "$rules/geosite-ir.srs"
+config_get ads_url main geosite_ads_url "$rules/geosite-category-ads-all.srs"
 config_get_bool block_ads main block_ads 0
 
 fetch() {
 	local url="$1" name="$2" tmp ext
-	[ -n "$url" ] || return 0
+	[ -n "$url" ] || { echo "no source configured for $name" >&2; return 1; }
 	case "$url" in
 		*.json) ext=json ;;
 		*) ext=srs ;;

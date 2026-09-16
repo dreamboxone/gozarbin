@@ -84,6 +84,7 @@ define Package/aether/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/geo-update.sh $(1)/usr/libexec/aether/geo-update.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/traffic.sh $(1)/usr/libexec/aether/traffic.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/deps.sh $(1)/usr/libexec/aether/deps.sh
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/libexec/aether/packages.sh $(1)/usr/libexec/aether/packages.sh
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/etc/init.d/aether $(1)/etc/init.d/aether
 	$(INSTALL_DIR) $(1)/etc/config
