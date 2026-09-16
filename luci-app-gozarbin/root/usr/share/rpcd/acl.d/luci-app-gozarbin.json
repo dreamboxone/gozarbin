@@ -72,9 +72,6 @@
         "/etc/init.d/gozarbin reload": [
           "exec"
         ],
-        "/usr/bin/gozarbinctl update-iran": [
-          "exec"
-        ],
         "/usr/bin/gozarbinctl update-geo": [
           "exec"
         ],

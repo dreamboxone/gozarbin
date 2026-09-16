@@ -8,6 +8,7 @@
 
 set -e
 . /lib/functions.sh
+. /usr/libexec/gozarbin/fetch.sh
 
 geo_dir=/etc/gozarbin/geo
 mkdir -p "$geo_dir"
@@ -22,7 +23,7 @@ config_get geosite_url main geosite_url "$rules/geosite-ir.srs"
 config_get ads_url main geosite_ads_url "$rules/geosite-category-ads-all.srs"
 config_get_bool block_ads main block_ads 0
 
-fetch() {
+download_set() {
 	local url="$1" name="$2" tmp ext
 	[ -n "$url" ] || { echo "no source configured for $name" >&2; return 1; }
 	case "$url" in
@@ -30,7 +31,9 @@ fetch() {
 		*) ext=srs ;;
 	esac
 	tmp="/tmp/gozarbin-$name.$$"
-	uclient-fetch -q -T 60 -O "$tmp" "$url" || { rm -f "$tmp"; echo "download failed: $url" >&2; return 1; }
+	# raw.githubusercontent.com is one of the hosts most often unreachable from
+	# here, so this goes through the tunnel when direct does not work.
+	fetch "$url" "$tmp" 120 || { rm -f "$tmp"; echo "download failed: $url" >&2; return 1; }
 	[ -s "$tmp" ] || { rm -f "$tmp"; echo "empty download: $url" >&2; return 1; }
 	if [ "$ext" = srs ]; then
 		# Every compiled sing-box rule set starts with the same three bytes.
@@ -45,9 +48,9 @@ fetch() {
 }
 
 status=0
-fetch "$geoip_url" geoip-ir || status=1
-fetch "$geosite_url" geosite-ir || status=1
-[ "$block_ads" = 1 ] && { fetch "$ads_url" geosite-ads || status=1; }
+download_set "$geoip_url" geoip-ir || status=1
+download_set "$geosite_url" geosite-ir || status=1
+[ "$block_ads" = 1 ] && { download_set "$ads_url" geosite-ads || status=1; }
 
 date +%s > "$geo_dir/.updated"
 [ "$(uci -q get gozarbin.main.enabled)" = 1 ] && /etc/init.d/gozarbin reload >/dev/null 2>&1 || true

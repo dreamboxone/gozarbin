@@ -484,9 +484,6 @@ return view.extend({
 			this.action(_('توقف سرویس'), 'reset', function() {
 				return run('/etc/init.d/gozarbin', [ 'stop' ], _('سرویس متوقف شد.'));
 			}),
-			this.action(_('به‌روزرسانی فهرست IP ایران'), 'neutral', function() {
-				return run('/usr/bin/gozarbinctl', [ 'update-iran' ], _('فهرست IP ایران به‌روزرسانی شد.'));
-			}),
 			this.action(_('به‌روزرسانی GeoIP و GeoSite'), 'neutral', function() {
 				return run('/usr/bin/gozarbinctl', [ 'update-geo' ], _('منابع GeoIP و GeoSite به‌روزرسانی شدند.'));
 			}),
@@ -583,21 +580,16 @@ return view.extend({
 
 		/* ---- routing ---- */
 
-		option = self.option(section, 'routing', form.Flag, 'iran_bypass', _('عبور مستقیم ترافیک ایران'),
-			_('محدوده‌های IP ایران از تونل رد نمی‌شوند. پس از نصب، یک بار فهرست را به‌روزرسانی کنید.'));
+		/* One option, one source. The GeoIP ranges also go into nftables, so
+		 * traffic to an Iranian address never reaches sing-box at all; GeoSite
+		 * catches Iranian sites hosted abroad, by name. */
+		option = self.option(section, 'routing', form.Flag, 'geo_enabled', _('عبور مستقیم ترافیک ایران'),
+			_('سایت‌ها و سرویس‌های ایرانی — هم بر اساس IP و هم بر اساس نام دامنه — بدون تونل و مستقیم باز می‌شوند. فهرست‌ها در اولین اتصال خودکار دریافت می‌شوند.'));
 		option.default = '1';
 
-		option = self.option(section, 'routing', form.Value, 'iran4_url', _('منبع فهرست IPv4 ایران'));
-		option = self.option(section, 'routing', form.Value, 'iran6_url', _('منبع فهرست IPv6 ایران'));
-
-		option = self.option(section, 'routing', form.Flag, 'geo_enabled', _('استفاده از GeoIP و GeoSite'),
-			_('قواعد sing-box (فایل‌های srs) برای تشخیص مقصدهای ایرانی بر اساس نام دامنه و IP.'));
-
-		option = self.option(section, 'routing', form.ListValue, 'geo_action', _('رفتار با مقصدهای شناسایی‌شده'));
-		option.value('direct', _('عبور مستقیم، بدون تونل'));
-		option.value('gozarbin', _('عبور از تونل'));
-		option.value('block', _('مسدود کردن'));
-		option.depends('geo_enabled', '1');
+		option = self.option(section, 'routing', form.Flag, 'dns', _('عبور DNS از تونل'),
+			_('فیلترینگ به پرس‌وجوی DNS جواب جعلی می‌دهد و دستگاه به صفحهٔ فیلتر وصل می‌شود (مثلاً یوتیوب روی تلویزیون). با این گزینه نام‌ها از داخل تونل پاسخ می‌گیرند و نام‌های ایرانی از DNS اینترنت خودتان. فقط در حالت شفاف.'));
+		option.default = '1';
 
 		option = self.option(section, 'routing', form.Value, 'geoip_url', _('منبع GeoIP'),
 			_('نشانی فایل rule-set. می‌توانید نشانی آینه یا فایل دلخواه خود را بگذارید.'));

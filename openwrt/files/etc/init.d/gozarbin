@@ -26,8 +26,12 @@ stand_down() {
 
 start_service() {
 	local enabled mode transparent force socks_address socks_port http_port mark
-	local protocol scan ip_mode noize perf log_level quick config_file singbox
+	local protocol scan ip_mode noize perf log_level quick config_file singbox dns passwall2
 	config_load gozarbin
+	# Before the enabled check, so a disabled service can never leave the
+	# network's DNS pointed at it. Nothing happens unless there is a file to
+	# remove.
+	/usr/libexec/gozarbin/dns.sh off
 	config_get_bool enabled main enabled 0
 	[ "$enabled" = 1 ] || return 0
 	config_get mode main mode tproxy
@@ -44,10 +48,11 @@ start_service() {
 	config_get perf main perf low
 	config_get log_level main log_level info
 	config_get_bool quick main quick_reconnect 1
+	config_get_bool dns main dns 1
 	config_get config_file main config_file /etc/gozarbin/gozarbin.toml
 
 	mkdir -p /var/run/gozarbin
-	rm -f "$reason_file" /var/run/gozarbin/wanted
+	rm -f "$reason_file" /var/run/gozarbin/wanted /var/run/gozarbin/dns-wanted
 
 	# Another transparent proxy on this router will swallow Gozarbin's own traffic
 	# unless the mark says otherwise, and the symptom is a tunnel that connects
@@ -66,8 +71,11 @@ start_service() {
 
 	singbox=$(/usr/libexec/gozarbin/singbox.sh --path 2>/dev/null)
 
+	passwall2=0
+	/usr/libexec/gozarbin/passwall2-detect.sh --active >/dev/null 2>&1 && passwall2=1
+
 	if [ "$transparent" = 1 ]; then
-		if /usr/libexec/gozarbin/passwall2-detect.sh --active >/dev/null 2>&1 && [ "$force" != 1 ]; then
+		if [ "$passwall2" = 1 ] && [ "$force" != 1 ]; then
 			stand_down passwall2 'Passwall2 is active; transparent mode was not started'
 		elif ! /usr/libexec/gozarbin/deps.sh --check; then
 			stand_down dependencies \
@@ -110,15 +118,29 @@ start_service() {
 		/usr/libexec/gozarbin/firewall.sh accounting || true
 		return 0
 	fi
-	# The counters can go in now. The redirect cannot, and this is the part that
-	# was wrong: sing-box dials the core's SOCKS port for every connection it
-	# accepts, and that port does not exist until the core has found a gateway —
-	# seconds on a good day, minutes when it has to scan for one. A LAN pointed
-	# at it before then has every single connection refused, which is a worse
-	# failure than not being proxied yet. monitor.sh puts the redirect in once
-	# both ends are really listening, and takes it out again if either stops.
-	/usr/libexec/gozarbin/firewall.sh accounting || true
-	echo transparent > /var/run/gozarbin/wanted
+	if [ "$mode" = tun ]; then
+		# TUN mode has no redirect to hold back: sing-box takes the traffic the
+		# moment it starts. What can go in beforehand has to: the escape rule
+		# that keeps Gozarbin's own tunnel out of sing-box's routes. Leaving this
+		# to monitor.sh, as the TProxy redirect is, meant it never went in at all
+		# — the monitor only knows how to wait for a TProxy port.
+		/usr/libexec/gozarbin/firewall.sh start || return 1
+	else
+		# The counters can go in now. The redirect cannot: sing-box dials the
+		# core's SOCKS port for every connection it accepts, and that port does
+		# not exist until the core has found a gateway — seconds on a good day,
+		# minutes when it has to scan for one. A LAN pointed at it before then has
+		# every single connection refused, which is a worse failure than not
+		# being proxied yet. monitor.sh puts the redirect in once both ends are
+		# really listening, and takes it out again if either stops.
+		/usr/libexec/gozarbin/firewall.sh accounting || true
+		echo transparent > /var/run/gozarbin/wanted
+		# Passwall2 points dnsmasq at itself. Two proxies each rewriting where
+		# dnsmasq forwards is the same fight as two of them on one prerouting
+		# hook, so while it is active — even with transparent mode forced on —
+		# DNS stays Passwall2's.
+		[ "$dns" = 1 ] && [ "$passwall2" = 0 ] && touch /var/run/gozarbin/dns-wanted
+	fi
 	procd_open_instance transparent
 	procd_set_param command "$singbox" run -c /var/run/gozarbin/sing-box.json
 	procd_set_param respawn 3600 5 5
@@ -128,8 +150,18 @@ start_service() {
 }
 
 stop_service() {
+	# The markers go before anything else. procd only kills monitor.sh after
+	# this function returns, so for the whole of it the monitor is still
+	# reconciling — and while the markers said transparent mode was wanted, it
+	# saw DNS switched off and switched it straight back on. The service then
+	# stopped with dnsmasq forwarding every name on the network to a port nobody
+	# was listening on.
+	rm -f /var/run/gozarbin/wanted /var/run/gozarbin/dns-wanted
+	# DNS next: once sing-box is gone, dnsmasq forwarding to it resolves
+	# nothing for anyone on the network.
+	/usr/libexec/gozarbin/dns.sh off
 	/usr/libexec/gozarbin/firewall.sh stop
-	rm -f "$reason_file" /var/run/gozarbin/wanted
+	rm -f "$reason_file"
 }
 
 reload_service() {

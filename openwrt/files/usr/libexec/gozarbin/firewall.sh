@@ -34,10 +34,11 @@ load_config() {
 	config_get tun_address6 main tun_address6 'fdfe:dcba:9876::1/126'
 	config_get tun_mtu main tun_mtu 9000
 	config_get singbox_log main singbox_log_level warn
-	config_get geo_action main geo_action direct
-	config_get_bool iran_bypass main iran_bypass 1
+	config_get ip_mode main ip_mode v4
+	config_get dns_port main dns_port 1822
+	config_get dns_server main dns_server 1.1.1.1
 	config_get_bool accounting main accounting 1
-	config_get_bool geo_enabled main geo_enabled 0
+	config_get_bool geo_enabled main geo_enabled 1
 	config_get_bool block_ads main block_ads 0
 	lan_interfaces=
 	config_list_foreach main lan_interface add_lan
@@ -50,18 +51,38 @@ add_lan() {
 	lan_interfaces="${lan_interfaces}${lan_interfaces:+, }\"${escaped}\""
 }
 
-cidr_list() {
-	local file="$1" family="$2"
-	[ -r "$file" ] || return 0
-	if [ "$family" = 4 ]; then
-		sed -n '/^[0-9][0-9.]*\/[0-9][0-9]*$/p' "$file"
-	else
-		sed -n '/^[0-9a-fA-F:][0-9a-fA-F:]*\/[0-9][0-9]*$/p' "$file"
-	fi
+# A downloaded rule set is kept under the name it was fetched as: .srs for the
+# compiled form sing-box publishes, .json for a source list someone wrote by hand.
+geo_file() {
+	local name="$1"
+	[ -s "$geo_dir/$name.srs" ] && { printf '%s' "$geo_dir/$name.srs"; return 0; }
+	[ -s "$geo_dir/$name.json" ] && { printf '%s' "$geo_dir/$name.json"; return 0; }
+	return 1
 }
 
-cidr_elements() {
-	cidr_list "$1" "$2" | awk 'BEGIN { sep = "" } { printf "%s%s", sep, $0; sep = "," } END { print "" }'
+# The Iranian address ranges, for nftables. There is one source for them, the
+# GeoIP rule set, and it is used twice: here, so traffic to an Iranian address
+# is turned back in the kernel before sing-box ever sees it, and in sing-box's
+# own rules, which also know Iranian domain names. nftables wants the ranges
+# spelt out and the rule set is compiled, so sing-box decompiles it first — the
+# two cannot disagree about what counts as Iranian when they read the same file.
+iran_ranges() {
+	local family="$1" source
+	[ "$geo_enabled" = 1 ] || return 0
+	source=$(geo_file geoip-ir) || return 0
+	case "$source" in
+		*.srs)
+			[ -n "$singbox" ] || return 0
+			mkdir -p "$ruleset_dir"
+			"$singbox" rule-set decompile -o "$ruleset_dir/geoip-ir.json" "$source" >/dev/null 2>&1 || return 0
+			source="$ruleset_dir/geoip-ir.json"
+			;;
+	esac
+	if [ "$family" = 4 ]; then
+		grep -oE '"[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+/[0-9]+"' "$source" || true
+	else
+		grep -oE '"[0-9a-fA-F]*:[0-9a-fA-F:]*/[0-9]+"' "$source" || true
+	fi | tr -d '"' | awk 'BEGIN { sep = "" } { printf "%s%s", sep, $0; sep = "," } END { print "" }'
 }
 
 # Both counters sit on the hop between sing-box (or any other SOCKS5 client) and
@@ -92,12 +113,8 @@ tproxy_rules() {
 	local iran4 iran6
 	[ "$wanted_rules" = all ] || return 0
 	[ "$mode" = tproxy ] || return 0
-	iran4=
-	iran6=
-	if [ "$iran_bypass" = 1 ]; then
-		iran4=$(cidr_elements /etc/gozarbin/iran4.txt 4)
-		iran6=$(cidr_elements /etc/gozarbin/iran6.txt 6)
-	fi
+	iran4=$(iran_ranges 4)
+	iran6=$(iran_ranges 6)
 	echo "	set lan_ifaces { type ifname; elements = { $lan_interfaces } }"
 	echo "	set bypass4 { type ipv4_addr; flags interval; auto-merge; elements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.0.0.0/24, 192.168.0.0/16, 198.18.0.0/15, 224.0.0.0/3${iran4:+, $iran4} } }"
 	echo "	set bypass6 { type ipv6_addr; flags interval; auto-merge; elements = { ::/128, ::1/128, fc00::/7, fe80::/10, ff00::/8${iran6:+, $iran6} } }"
@@ -122,31 +139,6 @@ write_rules() {
 	} > "$nft_file"
 }
 
-# A rule set built from the downloaded Iran ranges. TProxy mode bypasses them in
-# nftables already; TUN mode has no prerouting hook of its own, so sing-box has
-# to be told the same ranges.
-write_iran_ruleset() {
-	local out="$ruleset_dir/iran.json" count
-	mkdir -p "$ruleset_dir"
-	count=$({ cidr_list /etc/gozarbin/iran4.txt 4; cidr_list /etc/gozarbin/iran6.txt 6; } | wc -l)
-	[ "$count" -gt 0 ] || return 1
-	{
-		printf '{"version":1,"rules":[{"ip_cidr":['
-		{ cidr_list /etc/gozarbin/iran4.txt 4; cidr_list /etc/gozarbin/iran6.txt 6; } |
-			awk 'BEGIN { sep = "" } { printf "%s\"%s\"", sep, $0; sep = "," }'
-		printf ']}]}\n'
-	} > "$out"
-}
-
-# A downloaded rule set is kept under the name it was fetched as: .srs for the
-# compiled form sing-box publishes, .json for a source list someone wrote by hand.
-geo_file() {
-	local name="$1"
-	[ -s "$geo_dir/$name.srs" ] && { printf '%s' "$geo_dir/$name.srs"; return 0; }
-	[ -s "$geo_dir/$name.json" ] && { printf '%s' "$geo_dir/$name.json"; return 0; }
-	return 1
-}
-
 geo_set() {
 	local name="$1" path
 	path=$(geo_file "$name") || return 1
@@ -158,9 +150,6 @@ geo_set() {
 
 rule_sets() {
 	local sets= entry
-	if [ "$iran_bypass" = 1 ] && write_iran_ruleset; then
-		sets="{\"type\":\"local\",\"tag\":\"iran-ip\",\"format\":\"source\",\"path\":\"$ruleset_dir/iran.json\"}"
-	fi
 	if [ "$geo_enabled" = 1 ]; then
 		entry=$(geo_set geoip-ir) && sets="${sets}${sets:+,}$entry"
 		entry=$(geo_set geosite-ir) && sets="${sets}${sets:+,}$entry"
@@ -171,57 +160,33 @@ rule_sets() {
 	printf '%s' "$sets"
 }
 
-# sing-box 1.11 replaced the "block" outbound with a reject action on the rule
-# itself, and the outbound goes away for good in 1.13. Both spellings are still
-# in the wild, so the installed version decides which one is written.
-reject_actions() {
-	local version major minor
-	# Gozarbin's own core, never whatever sing-box happens to be on PATH: on a
-	# router with Passwall2 that one is Passwall2's, and its version is not the
-	# version this config will be read by.
-	version=$(/usr/libexec/gozarbin/singbox.sh --version 2>/dev/null | cut -d. -f1-2)
-	[ -n "$version" ] || return 1
-	major=${version%%.*}
-	minor=${version#*.}
-	[ "$major" -gt 1 ] 2>/dev/null && return 0
-	[ "$major" -eq 1 ] 2>/dev/null && [ "$minor" -ge 11 ] 2>/dev/null
-}
-
-# One route rule, with the destination written the way this sing-box expects.
-route_to() {
-	local match="$1" target="$2"
-	if [ "$target" = block ]; then
-		if reject_actions; then printf '{%s,"action":"reject"}' "$match"
-		else printf '{%s,"outbound":"block"}' "$match"; fi
-	else
-		printf '{%s,"outbound":"%s"}' "$match" "$target"
-	fi
-}
-
 route_rules() {
 	local rules= geo=
+	# DNS first, and before sniffing: queries dnsmasq forwards to the DNS
+	# listener are DNS by definition and need no looking at.
+	[ "$mode" = tproxy ] &&
+		rules="{\"inbound\":[\"gozarbin-dns\"],\"action\":\"hijack-dns\"}"
+	# Without this sing-box only ever sees an address, never a name. Every
+	# GeoSite rule and the whole ad list match on names, so none of them matched
+	# anything: sniffing reads the name out of the TLS handshake or the HTTP
+	# request, and out of a DNS query, which is how the next rule finds those.
+	rules="${rules}${rules:+,}{\"action\":\"sniff\"}"
+	# A device with a resolver of its own — a TV asking 8.8.8.8 — gets its
+	# answer from the tunnel as well, not from the filter sitting on port 53.
+	rules="${rules},{\"protocol\":\"dns\",\"action\":\"hijack-dns\"}"
 	[ "$block_ads" = 1 ] && geo_file geosite-ads >/dev/null &&
-		rules=$(route_to '"rule_set":["geosite-ads"]' block)
-	if [ "$mode" = tun ]; then
-		rules="${rules}${rules:+,}{\"ip_is_private\":true,\"outbound\":\"direct\"}"
-		[ "$iran_bypass" = 1 ] && [ -s "$ruleset_dir/iran.json" ] &&
-			rules="${rules}${rules:+,}{\"rule_set\":[\"iran-ip\"],\"outbound\":\"direct\"}"
-	fi
+		rules="${rules},{\"rule_set\":[\"geosite-ads\"],\"action\":\"reject\"}"
+	rules="${rules},{\"ip_is_private\":true,\"outbound\":\"direct\"}"
 	if [ "$geo_enabled" = 1 ]; then
 		geo_file geoip-ir >/dev/null && geo="\"geoip-ir\""
 		geo_file geosite-ir >/dev/null && geo="${geo}${geo:+,}\"geosite-ir\""
-		[ -n "$geo" ] && rules="${rules}${rules:+,}$(route_to "\"rule_set\":[$geo]" "$geo_action")"
+		[ -n "$geo" ] && rules="${rules},{\"rule_set\":[$geo],\"outbound\":\"direct\"}"
 	fi
 	printf '%s' "$rules"
 }
 
-# The legacy block outbound is only declared when something still refers to it.
 outbounds() {
-	local list='{ "type": "socks", "tag": "gozarbin", "server": "'"$socks_address"'", "server_port": '"$socks_port"', "version": "5" }, { "type": "direct", "tag": "direct" }'
-	if ! reject_actions && { [ "$block_ads" = 1 ] || [ "$geo_action" = block ]; }; then
-		list="$list, { \"type\": \"block\", \"tag\": \"block\" }"
-	fi
-	printf '%s' "$list"
+	printf '%s' '{ "type": "socks", "tag": "gozarbin", "server": "'"$socks_address"'", "server_port": '"$socks_port"', "version": "5" }, { "type": "direct", "tag": "direct" }'
 }
 
 inbound() {
@@ -232,8 +197,44 @@ inbound() {
 		printf '{"type":"tun","tag":"gozarbin-tun","interface_name":"%s","address":[%s],"mtu":%s,"auto_route":true,"strict_route":true,"stack":"system"}' \
 			"$tun_name" "$addresses" "$tun_mtu"
 	else
-		printf '{"type":"tproxy","tag":"gozarbin-tproxy","listen":"::","listen_port":%s}' "$tproxy_port"
+		printf '{"type":"tproxy","tag":"gozarbin-tproxy","listen":"::","listen_port":%s},' "$tproxy_port"
+		printf '{"type":"direct","tag":"gozarbin-dns","listen":"127.0.0.1","listen_port":%s}' "$dns_port"
 	fi
+}
+
+# The resolver the WAN handed out, used for Iranian names only. Never the
+# router's own 127.0.0.1: while transparent mode is up that is dnsmasq, dnsmasq
+# forwards to sing-box, and sing-box would be asking itself.
+wan_dns() {
+	local file found
+	for file in /tmp/resolv.conf.d/resolv.conf.auto /tmp/resolv.conf.auto; do
+		[ -r "$file" ] || continue
+		found=$(awk '$1 == "nameserver" && $2 ~ /^[0-9.]+$/ && $2 !~ /^127[.]/ { print $2; exit }' "$file")
+		[ -n "$found" ] && { printf '%s' "$found"; return 0; }
+	done
+	return 1
+}
+
+# Names go out through the tunnel, as DNS-over-HTTPS, so nothing on the path can
+# answer in the resolver's place. Iranian names are the exception: asked through
+# the tunnel they would resolve from abroad, to servers abroad or to none at
+# all, so those go to the ISP's resolver like they always did.
+dns_section() {
+	local servers rules= iran strategy
+	servers="{\"type\":\"https\",\"tag\":\"remote\",\"server\":\"$dns_server\",\"detour\":\"gozarbin\"}"
+	if [ "$geo_enabled" = 1 ] && geo_file geosite-ir >/dev/null && iran=$(wan_dns); then
+		servers="${servers},{\"type\":\"udp\",\"tag\":\"iran\",\"server\":\"$iran\"}"
+		rules="{\"rule_set\":[\"geosite-ir\"],\"server\":\"iran\"}"
+	fi
+	# The tunnel carries what the core was told to carry. Handing out addresses
+	# of the other family only gives devices something to try and time out on.
+	case "$ip_mode" in
+		v4) strategy=ipv4_only ;;
+		v6) strategy=ipv6_only ;;
+		*) strategy=prefer_ipv4 ;;
+	esac
+	printf '{ "servers": [%s], "rules": [%s], "final": "remote", "strategy": "%s" }' \
+		"$servers" "$rules" "$strategy"
 }
 
 write_singbox() {
@@ -244,10 +245,12 @@ write_singbox() {
 	cat > "$singbox_file" <<EOF
 {
   "log": { "level": "$singbox_log", "timestamp": true },
+  "dns": $(dns_section),
   "inbounds": [$(inbound)],
   "outbounds": [$(outbounds)],
   "route": {
     "auto_detect_interface": true,
+    "default_domain_resolver": "remote",
     "rule_set": [$sets],
     "rules": [$rules],
     "final": "gozarbin"

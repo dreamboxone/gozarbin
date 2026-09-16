@@ -24,8 +24,25 @@ if [ -n "$(uci -q get gozarbin.main)" ]; then
 	set_default tun_mtu 9000
 	set_default singbox_log_level warn
 	set_default accounting 1
-	set_default geo_enabled 0
-	set_default geo_action direct
+	# 2.1.2 folded the separate Iran IP list into the GeoIP and GeoSite rule sets,
+	# under the old list's name. Whoever had either one sending Iranian traffic
+	# direct still does; the options that no longer mean anything go.
+	if [ -n "$(uci -q get gozarbin.main.iran4_url)$(uci -q get gozarbin.main.geo_action)" ]; then
+		direct=0
+		[ "$(uci -q get gozarbin.main.iran_bypass)" = 0 ] || direct=1
+		[ "$(uci -q get gozarbin.main.geo_enabled)" = 1 ] &&
+			[ "$(uci -q get gozarbin.main.geo_action)" = direct ] && direct=1
+		uci set gozarbin.main.geo_enabled="$direct"
+		uci -q delete gozarbin.main.iran_bypass
+		uci -q delete gozarbin.main.iran4_url
+		uci -q delete gozarbin.main.iran6_url
+		uci -q delete gozarbin.main.geo_action
+		rm -f /etc/gozarbin/iran4.txt* /etc/gozarbin/iran6.txt*
+	fi
+	set_default geo_enabled 1
+	set_default dns 1
+	set_default dns_port 1822
+	set_default dns_server 1.1.1.1
 	set_default geoip_url 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-ir.srs'
 	set_default geosite_url 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-ir.srs'
 	set_default geosite_ads_url 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-category-ads-all.srs'

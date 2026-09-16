@@ -55,8 +55,8 @@ case "$1" in
 	traffic) exec /usr/libexec/gozarbin/traffic.sh ;;
 	deps) exec /usr/libexec/gozarbin/deps.sh "${2:---json}" ;;
 	install-deps) exec /usr/libexec/gozarbin/deps.sh --install ;;
-	update-iran) exec /usr/libexec/gozarbin/update-iran.sh ;;
 	update-geo) exec /usr/libexec/gozarbin/geo-update.sh ;;
+	dns) exec /usr/libexec/gozarbin/dns.sh "${2:-state}" ;;
 	mode)
 		[ -n "$2" ] || { uci -q get gozarbin.main.mode; exit 0; }
 		case "$2" in
@@ -81,8 +81,9 @@ Usage: gozarbinctl <command>
   traffic          one JSON line of live counters
   deps [--json]    dependency report
   install-deps     install whatever dependency is missing
-  update-iran      refresh the Iran IP ranges
-  update-geo       refresh the geoip/geosite rule sets
+  update-geo       refresh the GeoIP, GeoSite and ad rule sets
+  dns [on|off|state]
+                   whether the network's DNS goes through the tunnel
   singbox [op]     Gozarbin's sing-box core: --state, --version, --origin, --check
   install-singbox [version|--background]
                    install or update Gozarbin's own sing-box core;

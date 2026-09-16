@@ -57,13 +57,28 @@ origin() {
 	system_origin
 }
 
+# The config firewall.sh writes needs sing-box 1.12: the DNS servers are in the
+# format 1.12 introduced, and sniffing and DNS hijacking are rule actions. An
+# older core refuses that config and dies at start, so an older core is not a
+# usable one — the page offers to install a current one instead.
+min_version=1.12.0
+
+usable() {
+	local found
+	found=$(version_of "$1") && [ -n "$found" ] || return 1
+	! older_than "$found" "$min_version"
+}
+
 # The binary Gozarbin runs, or nothing, which callers must treat as "no core".
 path() {
+	local binary
 	case "$(origin)" in
-		own) printf '%s' "$own" ;;
-		system) command -v sing-box ;;
+		own) binary="$own" ;;
+		system) binary=$(command -v sing-box) ;;
 		*) return 1 ;;
 	esac
+	usable "$binary" || return 1
+	printf '%s' "$binary"
 }
 
 version_of() {
@@ -105,47 +120,10 @@ go_arches() {
 
 free_kb() { df -k "$1" 2>/dev/null | awk 'NR == 2 { print $4 }'; }
 
-# Where the bytes come from. GitHub answers directly on some Iranian networks
-# and not on others, and on a third kind it answers and then delivers at a
-# trickle. So: try direct, abandon it the moment it stalls, and go out through
-# the tunnel this router already has. The tunnel is the slower road and the one
-# that works, which is the right order to try them in.
-socks_endpoint() {
-	local port
-	port=$(uci -q get gozarbin.main.socks_port)
-	[ -n "$port" ] || port=1819
-	netstat -ln 2>/dev/null | grep -q "127\.0\.0\.1:$port[[:space:]]" || return 1
-	printf '127.0.0.1:%s' "$port"
-}
+. /usr/libexec/gozarbin/fetch.sh
 
-# fetch <url> <destination|-> <seconds>
-fetch() {
-	local url="$1" dest="$2" timeout="$3" socks
-	if ! command -v curl >/dev/null 2>&1; then
-		# No curl means no SOCKS, so there is only the direct road.
-		if [ "$dest" = - ]; then
-			uclient-fetch -q -T "$timeout" -O - "$url" 2>/dev/null
-		else
-			uclient-fetch -q -T "$timeout" -O "$dest" "$url" 2>/dev/null
-		fi
-		return
-	fi
-	# Under 5 kB/s for half a minute is throttling, not a slow link, and waiting
-	# it out is not a plan.
-	if [ "$dest" = - ]; then
-		curl -fsSL --max-time "$timeout" --speed-limit 5000 --speed-time 30 "$url" && return 0
-	else
-		curl -fsSL --max-time "$timeout" --speed-limit 5000 --speed-time 30 -o "$dest" "$url" && return 0
-	fi
-	socks=$(socks_endpoint) || return 1
-	job_step downloading "$socks"
-	echo "  direct fetch failed; going through the tunnel at $socks"
-	if [ "$dest" = - ]; then
-		curl -fsSL --max-time "$timeout" -x "socks5h://$socks" "$url"
-	else
-		curl -fsSL --max-time "$timeout" -x "socks5h://$socks" -o "$dest" "$url"
-	fi
-}
+# The page says so when the download had to go through the tunnel.
+fetch_notice() { job_step downloading "$1"; }
 
 # ------------------------------------------------------------- the install
 

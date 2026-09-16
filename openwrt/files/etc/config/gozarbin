@@ -35,11 +35,15 @@ config gozarbin 'main'
 	option singbox_log_level 'warn'
 	option quick_reconnect '1'
 	option accounting '1'
-	option iran_bypass '1'
-	option iran4_url 'https://www.ipdeny.com/ipblocks/data/aggregated/ir-aggregated.zone'
-	option iran6_url 'https://www.ipdeny.com/ipv6/ipaddresses/aggregated/ir-aggregated.zone'
-	option geo_enabled '0'
-	option geo_action 'direct'
+	# Iranian sites and services go direct, recognised by address (GeoIP) and by
+	# name (GeoSite). One source for both, and for the kernel's fast path too.
+	option geo_enabled '1'
+	# The network's DNS, resolved through the tunnel while transparent mode is up.
+	# Without it the filter answers names itself and devices connect to the block
+	# page's address, which no proxy can fix afterwards.
+	option dns '1'
+	option dns_port '1822'
+	option dns_server '1.1.1.1'
 	option geoip_url 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-ir.srs'
 	option geosite_url 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-ir.srs'
 	option geosite_ads_url 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-category-ads-all.srs'

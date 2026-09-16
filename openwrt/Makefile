@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gozarbin
 PKG_VERSION:=2.1.0
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 PKG_LICENSE:=AGPL-3.0-only
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=dreamboxone
@@ -60,8 +60,6 @@ endef
 
 define Package/gozarbin/conffiles
 /etc/config/gozarbin
-/etc/gozarbin/iran4.txt
-/etc/gozarbin/iran6.txt
 endef
 
 define Package/gozarbin/prerm
@@ -89,7 +87,8 @@ define Package/gozarbin/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/firewall.sh $(1)/usr/libexec/gozarbin/firewall.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/passwall2-detect.sh $(1)/usr/libexec/gozarbin/passwall2-detect.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/system-info.sh $(1)/usr/libexec/gozarbin/system-info.sh
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/update-iran.sh $(1)/usr/libexec/gozarbin/update-iran.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/dns.sh $(1)/usr/libexec/gozarbin/dns.sh
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/fetch.sh $(1)/usr/libexec/gozarbin/fetch.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/geo-update.sh $(1)/usr/libexec/gozarbin/geo-update.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/traffic.sh $(1)/usr/libexec/gozarbin/traffic.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/tunnel.sh $(1)/usr/libexec/gozarbin/tunnel.sh
@@ -103,8 +102,6 @@ define Package/gozarbin/install
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/files/etc/config/gozarbin $(1)/etc/config/gozarbin
 	$(INSTALL_DIR) $(1)/etc/gozarbin/geo
 	$(INSTALL_DIR) $(1)/etc/gozarbin/state
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/files/etc/gozarbin/iran4.txt $(1)/etc/gozarbin/iran4.txt
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/files/etc/gozarbin/iran6.txt $(1)/etc/gozarbin/iran6.txt
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/etc/uci-defaults/90-gozarbin $(1)/etc/uci-defaults/90-gozarbin
 endef
