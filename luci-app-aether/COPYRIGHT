@@ -1,0 +1,7 @@
+SPDX-License-Identifier: AGPL-3.0-only
+Copyright (C) 2026 dreamboxone
+
+This directory holds the LuCI web interface for Aether. Every file in it is
+covered by the AGPL-3.0-only license in the repository root, including the JSON
+menu and ACL definitions, which carry no header of their own because the format
+has no comment syntax.

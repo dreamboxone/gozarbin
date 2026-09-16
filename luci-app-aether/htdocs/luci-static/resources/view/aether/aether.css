@@ -1,0 +1,302 @@
+/* SPDX-License-Identifier: AGPL-3.0-only
+ * Copyright (C) 2026 dreamboxone
+ *
+ * Right-to-left layout and Persian typography for the Aether settings page.
+ * Colours are written as translucent greys over whatever the active LuCI theme
+ * paints behind them, so the page reads the same on the light and dark themes
+ * without knowing which one is in use.
+ */
+
+:root {
+	--ae-font: "Vazirmatn", "Vazir", "Sahel", "Shabnam", "IRANSans", "IRANYekan", "Segoe UI", Tahoma, system-ui, sans-serif;
+	--ae-line: rgba(127, 127, 127, 0.28);
+	--ae-fill: rgba(127, 127, 127, 0.10);
+	--ae-fill-strong: rgba(127, 127, 127, 0.18);
+	--ae-accent: #d8b24c;
+	--ae-up: #4aa3df;
+	--ae-down: #4cb782;
+	--ae-bad: #d9534f;
+	--ae-radius: 12px;
+}
+
+body.aether-page {
+	font-family: var(--ae-font);
+	font-size: 15px;
+	line-height: 1.9;
+}
+
+body.aether-page input,
+body.aether-page select,
+body.aether-page textarea,
+body.aether-page button,
+body.aether-page .btn,
+body.aether-page .cbi-button {
+	font-family: var(--ae-font);
+	font-size: 15px;
+	border-radius: 8px;
+}
+
+/* ---------- the settings form, laid out right to left ---------- */
+
+.aether-rtl {
+	direction: rtl;
+	text-align: right;
+}
+
+.aether-rtl h2,
+.aether-rtl h3,
+.aether-rtl legend,
+.aether-rtl .cbi-map-descr {
+	text-align: right;
+	font-family: var(--ae-font);
+}
+
+.aether-rtl h2 {
+	font-size: 1.7rem;
+	font-weight: 700;
+	letter-spacing: 0;
+}
+
+.aether-rtl .cbi-map-descr {
+	font-size: 15px;
+	opacity: 0.85;
+	margin-bottom: 1rem;
+}
+
+/* A LuCI row is a floated label next to a field. Floats have no right-to-left
+ * form, so the row becomes a reversed flex line instead: the label keeps its
+ * place in the markup and lands on the right, the field beside it on the left. */
+.aether-rtl .cbi-value {
+	display: flex;
+	flex-direction: row-reverse;
+	align-items: flex-start;
+	gap: 1rem;
+	padding: 0.45rem 0;
+	border-bottom: 1px solid var(--ae-line);
+}
+
+.aether-rtl .cbi-value:last-child {
+	border-bottom: 0;
+}
+
+.aether-rtl .cbi-value-title {
+	float: none !important;
+	width: 30%;
+	min-width: 9rem;
+	padding: 0.35rem 0 0 0;
+	text-align: right;
+	font-weight: 600;
+	line-height: 1.8;
+}
+
+.aether-rtl .cbi-value-field {
+	float: none !important;
+	width: auto;
+	flex: 1 1 auto;
+	padding: 0;
+	text-align: right;
+}
+
+.aether-rtl .cbi-value-description {
+	display: block;
+	width: 100%;
+	text-align: right;
+	font-size: 13px;
+	opacity: 0.75;
+	margin-top: 0.2rem;
+}
+
+.aether-rtl input[type="text"],
+.aether-rtl input[type="password"],
+.aether-rtl select,
+.aether-rtl textarea {
+	direction: rtl;
+	text-align: right;
+	max-width: 28rem;
+	width: 100%;
+}
+
+/* Addresses, ports and URLs read left to right even on a right-to-left page. */
+.aether-rtl input.aether-ltr,
+.aether-rtl textarea.aether-ltr {
+	direction: ltr;
+	text-align: left;
+}
+
+.aether-rtl input[type="checkbox"] {
+	transform: scale(1.25);
+	margin: 0.5rem 0 0 0;
+}
+
+.aether-rtl .cbi-tabmenu {
+	display: flex;
+	flex-direction: row-reverse;
+	justify-content: flex-end;
+	padding: 0;
+	margin-bottom: 1rem;
+	border-bottom: 1px solid var(--ae-line);
+}
+
+.aether-rtl .cbi-tabmenu li {
+	float: none !important;
+	margin: 0 0 0 0.35rem;
+}
+
+.aether-rtl .cbi-tabmenu li a {
+	font-size: 15px;
+	padding: 0.5rem 1rem;
+	border-radius: var(--ae-radius) var(--ae-radius) 0 0;
+}
+
+.aether-rtl .cbi-page-actions,
+.aether-rtl .cbi-section-actions {
+	direction: rtl;
+	text-align: left;
+}
+
+@media (max-width: 720px) {
+	.aether-rtl .cbi-value {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.aether-rtl .cbi-value-title,
+	.aether-rtl .cbi-value-field {
+		width: 100%;
+	}
+}
+
+/* ---------- notifications ---------- */
+
+body.aether-page .alert-message,
+body.aether-page #maincontent .alert-message,
+body.aether-page .notification {
+	direction: rtl;
+	text-align: right;
+	font-family: var(--ae-font);
+	font-size: 15px;
+	border-radius: var(--ae-radius);
+}
+
+body.aether-page .alert-message > button,
+body.aether-page .alert-message .btn,
+body.aether-page .alert-message .close {
+	float: left !important;
+	margin: 0 1rem 0 0;
+}
+
+body.aether-page .alert-message p {
+	direction: rtl;
+	text-align: right;
+	margin: 0;
+}
+
+/* ---------- status dashboard ---------- */
+
+.ae-dash {
+	direction: rtl;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+	gap: 0.85rem;
+	margin: 0 0 1.25rem 0;
+}
+
+.ae-card {
+	background: var(--ae-fill);
+	border: 1px solid var(--ae-line);
+	border-radius: var(--ae-radius);
+	padding: 0.9rem 1rem;
+	min-height: 5.6rem;
+}
+
+.ae-card-label {
+	font-size: 13px;
+	opacity: 0.7;
+	margin-bottom: 0.35rem;
+}
+
+.ae-card-value {
+	font-size: 1.35rem;
+	font-weight: 700;
+	line-height: 1.5;
+	word-break: break-word;
+}
+
+.ae-card-note {
+	font-size: 12.5px;
+	opacity: 0.65;
+	margin-top: 0.2rem;
+}
+
+.ae-card-up .ae-card-value { color: var(--ae-up); }
+.ae-card-down .ae-card-value { color: var(--ae-down); }
+
+.ae-num {
+	direction: ltr;
+	unicode-bidi: isolate;
+	display: inline-block;
+	font-variant-numeric: tabular-nums;
+}
+
+.ae-dot {
+	display: inline-block;
+	width: 0.65rem;
+	height: 0.65rem;
+	border-radius: 50%;
+	margin-left: 0.45rem;
+	vertical-align: baseline;
+	background: var(--ae-bad);
+}
+
+.ae-dot-on { background: var(--ae-down); }
+.ae-dot-warn { background: var(--ae-accent); }
+
+.ae-badge {
+	display: inline-block;
+	border: 1px solid var(--ae-line);
+	background: var(--ae-fill-strong);
+	border-radius: 999px;
+	padding: 0.1rem 0.7rem;
+	margin: 0.12rem 0 0.12rem 0.3rem;
+	font-size: 13px;
+	white-space: nowrap;
+}
+
+.ae-badge-ok { border-color: rgba(76, 183, 130, 0.7); }
+.ae-badge-bad { border-color: rgba(217, 83, 79, 0.75); }
+.ae-badge-warn { border-color: rgba(216, 178, 76, 0.8); }
+
+/* A bar per direction, drawn against the larger of the two rates so the pair
+ * stays comparable at a glance instead of both sitting pinned at full width. */
+.ae-bar {
+	height: 6px;
+	border-radius: 999px;
+	background: var(--ae-fill-strong);
+	overflow: hidden;
+	margin-top: 0.45rem;
+}
+
+.ae-bar > span {
+	display: block;
+	height: 100%;
+	width: 0;
+	border-radius: 999px;
+	transition: width 0.6s ease;
+}
+
+.ae-card-up .ae-bar > span { background: var(--ae-up); }
+.ae-card-down .ae-bar > span { background: var(--ae-down); }
+
+.ae-actions {
+	direction: rtl;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0 0 1.25rem 0;
+}
+
+.ae-actions .cbi-button,
+.ae-actions button {
+	border-radius: 999px;
+	padding: 0.35rem 1.1rem;
+}

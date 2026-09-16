@@ -1,0 +1,30 @@
+{
+  "luci-app-aether": {
+    "description": "Grant access to Aether configuration",
+    "read": {
+      "cgi-io": [ "exec" ],
+      "uci": [ "aether" ],
+      "ubus": { "service": [ "list" ], "file": [ "exec", "read", "stat" ] },
+      "file": {
+        "/usr/libexec/aether/passwall2-detect.sh --json": [ "exec" ],
+        "/usr/libexec/aether/system-info.sh": [ "exec" ],
+        "/usr/libexec/aether/deps.sh --json": [ "exec" ],
+        "/usr/libexec/aether/traffic.sh": [ "exec" ]
+      }
+    },
+    "write": {
+      "cgi-io": [ "exec" ],
+      "uci": [ "aether" ],
+      "ubus": { "service": [ "set", "delete", "signal" ], "file": [ "exec" ] },
+      "file": {
+        "/etc/init.d/aether start": [ "exec" ],
+        "/etc/init.d/aether stop": [ "exec" ],
+        "/etc/init.d/aether restart": [ "exec" ],
+        "/etc/init.d/aether reload": [ "exec" ],
+        "/usr/bin/aetherctl update-iran": [ "exec" ],
+        "/usr/bin/aetherctl update-geo": [ "exec" ],
+        "/usr/bin/aetherctl install-deps": [ "exec" ]
+      }
+    }
+  }
+}
