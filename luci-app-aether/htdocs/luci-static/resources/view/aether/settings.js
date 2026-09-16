@@ -301,6 +301,31 @@ return view.extend({
 		this.state = { time: now, upload: upload, download: download, peak: peak };
 	},
 
+	/* Passwall2, Passwall and ShadowSocksR all read `mark & 0xff == 0xff` as
+	 * "not mine", and their output chains otherwise pull every packet the router
+	 * sends into their own proxy — Aether's tunnel included, which then connects
+	 * and carries nothing. There is no symptom to go on, so it is said here. */
+	renderMarkNotice: function(passwall) {
+		var self = this;
+		var mark = uci.get('aether', 'main', 'mark') || '0x0aff';
+		if (!passwall.installed || /ff$/i.test(mark)) return E([]);
+		return E('div', { 'class': 'ae-notice ae-notice-bad' }, [
+			E('div', { 'class': 'ae-notice-text' }, [
+				E('strong', {}, _('علامت فایروال با Passwall2 سازگار نیست')),
+				E('div', {}, [
+					_('علامت فعلی '), ltr(mark),
+					_(' است. Passwall2 هر بسته‌ای را که روتر می‌فرستد به پراکسی خودش می‌برد مگر آنکه بایت آخر علامت ff باشد — با این علامت، تونل Aether وصل می‌شود ولی هیچ ترافیکی از آن رد نمی‌شود.')
+				])
+			]),
+			this.action(_('اصلاح علامت'), 'apply', function() {
+				return fs.exec('/usr/bin/aetherctl', [ 'fix-mark' ]).then(function(result) {
+					if (result.code === 0) notify(_('علامت فایروال به 0x0aff تغییر کرد و سرویس دوباره راه‌اندازی شد.'));
+					else notify(_('تغییر علامت ناموفق بود: ') + (result.stderr || result.code), 'error');
+				}).catch(function(error) { notify(_('اجرا نشد: ') + error.message, 'error'); });
+			})
+		]);
+	},
+
 	/* Silent unless there is something to act on. A router that is offline, or
 	 * behind a blocked GitHub, or simply has not passed enough traffic for the
 	 * check to have run, has nothing to be told about. */
@@ -546,7 +571,8 @@ return view.extend({
 		option = self.option(section, 'advanced', form.Value, 'tproxy_port', _('پورت TProxy'));
 		option.datatype = 'port';
 		option.depends({ mode: 'tproxy' });
-		option = self.option(section, 'advanced', form.Value, 'mark', _('علامت فایروال (fwmark)'));
+		option = self.option(section, 'advanced', form.Value, 'mark', _('علامت فایروال (fwmark)'),
+			_('بایت آخر باید ff بماند. Passwall2 و Passwall و ShadowSocksR علامتی که به ff ختم شود را رد می‌کنند؛ در غیر این صورت ترافیک خود Aether را هم به پراکسی خودشان می‌برند و تونل وصل می‌شود ولی چیزی از آن رد نمی‌شود.'));
 		option.depends({ mode: 'tproxy' });
 		option = self.option(section, 'advanced', form.Value, 'route_table', _('شمارهٔ جدول مسیریابی'));
 		option.datatype = 'uinteger';
@@ -599,6 +625,7 @@ return view.extend({
 				}),
 				E('h2', {}, 'Aether' + version),
 				self.renderDashboard(system, passwall, deps, traffic, tunnel),
+				self.renderMarkNotice(passwall),
 				self.renderCoreNotice(system, core),
 				self.renderActions(),
 				rendered

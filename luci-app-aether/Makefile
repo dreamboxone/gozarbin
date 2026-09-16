@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-aether
 PKG_VERSION:=2.1.0
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 PKG_LICENSE:=AGPL-3.0-only
 PKG_MAINTAINER:=dreamboxone
 

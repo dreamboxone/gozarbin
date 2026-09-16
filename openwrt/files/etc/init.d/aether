@@ -49,6 +49,18 @@ start_service() {
 	mkdir -p /var/run/aether
 	rm -f "$reason_file"
 
+	# Another transparent proxy on this router will swallow Aether's own traffic
+	# unless the mark says otherwise, and the symptom is a tunnel that connects
+	# and then carries nothing at all.
+	case "$mark" in
+		*ff|*FF) ;;
+		*)
+			if /usr/libexec/aether/passwall2-detect.sh --installed >/dev/null 2>&1; then
+				logger -t aether "firewall mark $mark does not end in ff; Passwall2 will capture Aether's own traffic and the tunnel will carry nothing"
+			fi
+			;;
+	esac
+
 	# SOCKS5-only is a mode of its own, not a broken transparent setup.
 	[ "$mode" = socks ] && transparent=0
 

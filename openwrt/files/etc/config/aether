@@ -14,7 +14,11 @@ config aether 'main'
 	option tun_address '172.19.0.1/30'
 	option tun_address6 'fdfe:dcba:9876::1/126'
 	option tun_mtu '9000'
-	option mark '0x0a37'
+	# The low byte must stay 0xff. Passwall2, Passwall and ShadowSocksR all
+	# treat `mark & 0xff == 0xff` as "not mine, leave it alone", and their
+	# output chains otherwise pull every packet the router sends — including
+	# Aether's own tunnel — into their proxy, where it dies silently.
+	option mark '0x0aff'
 	option route_table '103'
 	option protocol 'masque'
 	option scan 'balanced'

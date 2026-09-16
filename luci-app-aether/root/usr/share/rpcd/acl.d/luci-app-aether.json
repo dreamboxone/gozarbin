@@ -83,6 +83,9 @@
         ],
         "/usr/bin/aetherctl rescan": [
           "exec"
+        ],
+        "/usr/bin/aetherctl fix-mark": [
+          "exec"
         ]
       }
     }
