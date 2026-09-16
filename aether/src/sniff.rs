@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2025-2026 CluvexStudio contributors
+
 const TLS_HANDSHAKE: u8 = 0x16;
 const TLS_CLIENT_HELLO: u8 = 0x01;
 const EXT_SERVER_NAME: u16 = 0x0000;

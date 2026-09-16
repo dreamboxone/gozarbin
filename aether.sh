@@ -1,4 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 CluvexStudio contributors
 set -uo pipefail
 
 readonly REPO="CluvexStudio/Aether"

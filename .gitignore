@@ -32,3 +32,8 @@ routes-*.conf
 # Pluggable transport binaries put here by pt-build.sh. The release archives
 # carry their own, built for the target they ship to.
 pt/
+.tmp-sdk/
+openwrt/prebuilt/
+
+# Packages built by scripts/build-openwrt-packages.sh.
+dist/

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2025-2026 CluvexStudio contributors
+
 use std::ffi::c_void;
 use std::os::raw::c_int;
 use std::ptr;

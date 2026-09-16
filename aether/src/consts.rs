@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2025-2026 CluvexStudio contributors
+
 pub const API_URL: &str = "https://api.cloudflareclient.com";
 pub const API_VERSION: &str = "v0a4471";
 

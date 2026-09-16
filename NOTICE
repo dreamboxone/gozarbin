@@ -1,0 +1,30 @@
+Aether for OpenWrt
+SPDX-License-Identifier: AGPL-3.0-only
+
+Copyright (C) 2025-2026 CluvexStudio contributors
+    The Aether core (aether/, quiche/, and the root build scripts).
+    Upstream: https://github.com/CluvexStudio/Aether
+
+Copyright (C) 2026 dreamboxone
+    The OpenWrt integration: openwrt/, luci-app-aether/, scripts/, and the
+    OpenWrt leg of .github/workflows/release.yml.
+    Upstream: https://github.com/dreamboxone/aether
+
+Everything here is licensed under the GNU Affero General Public License,
+version 3 only. The full text is in LICENSE.
+
+What that means for anyone redistributing this work, in short:
+
+  - The source must come with it, or be offered on the same terms.
+  - These copyright notices and this licence must be kept intact.
+  - A modified version must be licensed under AGPL-3.0-only as well, and must
+    say what was changed.
+  - Running a modified version as a network service counts as distribution:
+    its users must be able to get its source.
+
+The name "Aether" and its logo are covered separately by TRADEMARK.md and are
+not licensed for use by a modified version.
+
+Third-party components keep their own licences. sing-box, which this package
+depends on at runtime, is GPL-3.0-or-later and is neither bundled nor modified
+here; it is installed by the OpenWrt package manager from its own feed.
