@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-aether
 PKG_VERSION:=2.1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_LICENSE:=AGPL-3.0-only
 PKG_MAINTAINER:=dreamboxone
 
@@ -22,6 +22,13 @@ include $(INCLUDE_DIR)/package.mk
 # path separator, so "settings-2.1.0-r1" is fetched as "settings-2/1/0-r1.js"
 # and the page dies with a 404 before it renders anything.
 VIEW:=settings-$(subst .,-,$(PKG_VERSION))-r$(PKG_RELEASE)
+
+# The stylesheet gets the same treatment, and for a sharper reason: a ?v= query
+# carrying the version only changes when the version does, so a stylesheet edited
+# between two builds of the same release keeps the URL it already had, and a
+# browser that fetched the earlier one goes on serving it. A file name derived
+# from the release moves whenever the package does.
+CSS:=aether-$(subst .,-,$(PKG_VERSION))-r$(PKG_RELEASE).css
 
 define Package/luci-app-aether
   SECTION:=luci
@@ -70,8 +77,10 @@ endef
 define Package/luci-app-aether/install
 	@case "$(VIEW)" in *.*) 		echo "view name must not contain a dot, LuCI reads it as a path: $(VIEW)" >&2; 		exit 1 ;; esac
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/aether
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/aether/settings.js $(1)/www/luci-static/resources/view/aether/$(VIEW).js
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/aether/aether.css $(1)/www/luci-static/resources/view/aether/aether.css
+	sed 's#view/aether/aether\.css#view/aether/$(CSS)#' 		$(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/aether/settings.js 		> $(1)/www/luci-static/resources/view/aether/$(VIEW).js
+	chmod 0644 $(1)/www/luci-static/resources/view/aether/$(VIEW).js
+	@grep -q 'view/aether/$(CSS)' $(1)/www/luci-static/resources/view/aether/$(VIEW).js || 		{ echo "the stylesheet reference was not rewritten" >&2; exit 1; }
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/aether/aether.css $(1)/www/luci-static/resources/view/aether/$(CSS)
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	sed 's#aether/settings#aether/$(VIEW)#' ./root/usr/share/luci/menu.d/luci-app-aether.json 		> $(1)/usr/share/luci/menu.d/luci-app-aether.json
 	chmod 0644 $(1)/usr/share/luci/menu.d/luci-app-aether.json

@@ -494,11 +494,12 @@ return view.extend({
 			return E('div', { 'class': 'aether-rtl', 'dir': 'rtl' }, [
 				E('link', {
 					'rel': 'stylesheet',
-					/* LuCI versions its own resource URLs but not one a view asks
-					 * for itself, so without this a browser keeps serving the
-					 * stylesheet it cached before the package was upgraded. */
-					'href': L.resource('view/aether/aether.css') + '?v=' +
-						encodeURIComponent(system.aether_version || '0')
+					/* The package build rewrites this path to the file name
+					 * carrying the release. LuCI versions its own resource URLs
+					 * but not one a view asks for itself, and a query string is
+					 * no help either: it only moves when the version does, while
+					 * the file it points at can change under it. */
+					'href': L.resource('view/aether/aether.css')
 				}),
 				E('h2', {}, 'Aether' + version),
 				self.renderDashboard(system, passwall, deps, traffic),
