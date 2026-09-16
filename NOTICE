@@ -1,6 +1,13 @@
 Aether for OpenWrt
 SPDX-License-Identifier: AGPL-3.0-only
 
+This is a MODIFIED version of Aether by CluvexStudio.
+
+Modified during 2026 by dreamboxone, which added the OpenWrt packaging, the
+service and its firewall rules, a sing-box core of its own, and a Persian
+right-to-left LuCI interface. The upstream project is unchanged and unaffected;
+what it is and what was added are set out below.
+
 Copyright (C) 2025-2026 CluvexStudio contributors
     The Aether core (aether/, quiche/, and the root build scripts).
     Upstream: https://github.com/CluvexStudio/Aether
