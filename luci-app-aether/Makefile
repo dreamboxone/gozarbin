@@ -17,7 +17,11 @@ include $(INCLUDE_DIR)/package.mk
 # older copy keeps using it — and with the caching uhttpd advertises (see the
 # postinst below) it holds one for days. A new release is a new URL, so the page
 # a user opens is the page that was installed.
-VIEW:=settings-$(PKG_VERSION)-r$(PKG_RELEASE)
+#
+# The dots go. A view name is a class name to LuCI, which turns every dot into a
+# path separator, so "settings-2.1.0-r1" is fetched as "settings-2/1/0-r1.js"
+# and the page dies with a 404 before it renders anything.
+VIEW:=settings-$(subst .,-,$(PKG_VERSION))-r$(PKG_RELEASE)
 
 define Package/luci-app-aether
   SECTION:=luci
@@ -64,6 +68,7 @@ exit 0
 endef
 
 define Package/luci-app-aether/install
+	@case "$(VIEW)" in *.*) 		echo "view name must not contain a dot, LuCI reads it as a path: $(VIEW)" >&2; 		exit 1 ;; esac
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/aether
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/aether/settings.js $(1)/www/luci-static/resources/view/aether/$(VIEW).js
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/aether/aether.css $(1)/www/luci-static/resources/view/aether/aether.css
