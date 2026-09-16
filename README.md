@@ -1,255 +1,389 @@
-# Aether
+<div dir="rtl">
 
-![Aether](Docs/Aether.png)
+# Aether برای OpenWrt
 
-### اینترنت آزاد برای همه:))
-**[راهنمای فارسی](README.fa.md)** · **[English Guide](Docs/DOCS.en.md)** · **[راهنمای کامل فارسی](Docs/DOCS.fa.md)**
+راهنمای کامل نصب و استفاده. اگر فقط می‌خواهید شروع کنید، [نصب سریع](#نصب-سریع) کافی است؛ باقی متن توضیح تک‌تک امکانات است.
 
-Telegram: https://t.me/CluvexStudio
+---
 
-Aether is a censorship circumvention client designed for heavily restricted networks. It automatically discovers reachable routes, establishes an encrypted tunnel, and exposes a local SOCKS5 proxy for your applications.
+## Aether چه کار می‌کند؟
 
-Unlike traditional VPN clients, Aether is built for environments where Deep Packet Inspection (DPI), protocol fingerprinting, UDP throttling, and endpoint blocking are common.
+Aether یک کلاینت عبور از فیلترینگ است که روی خود روتر اجرا می‌شود. یک تونل رمزنگاری‌شده به بیرون باز می‌کند و آن را به سه شکل در اختیار شما می‌گذارد:
 
-## Features
-
-- Automatic endpoint discovery, with end-to-end data-plane validation so a gateway is only trusted once it actually passes traffic, not just once it answers the handshake
-- MASQUE (HTTP/3 & HTTP/2), with optional TLS ClientHello fragmentation on HTTP/2
-- WireGuard support
-- Nested WireGuard mode (`gool`), with both hops discovered by the scan or given by hand
-- Nested MASQUE mode (`--mim`), a masque tunnel inside another one for a different exit address
-- Traffic obfuscation
-- Routing rules by domain, address, or port, matched from the TLS server name so they keep working behind a tun front end
-- Upstream proxy support, so Aether can dial out through another VPN or proxy already running on the machine
-- Optional Tor exit (`--tor`), with Tor carried inside the tunnel, so the exit address is a Tor exit
-- Automatic reconnection, and quick-reconnect to your last known-good gateway to skip rescanning
-- Local SOCKS5 proxy
-- Command-line flags, environment variables, or interactive prompts — your choice
-- Linux, Windows, macOS and Android (Termux)
-
-## Download
-
-Prebuilt binaries are on the [Releases](https://github.com/CluvexStudio/Aether/releases/latest) page. Pick the archive that matches your system:
-
-| System | Archive |
-| --- | --- |
-| Windows x86_64 | `aether-windows-x86_64.zip` |
-| macOS on Apple Silicon (M1 and later) | `aether-macos-arm64.tar.gz` |
-| macOS on Intel | `aether-macos-x86_64.tar.gz` |
-| Linux x86_64 / arm64 / armv7 (glibc 2.34 or newer) | `aether-linux-x86_64.tar.gz`, `aether-linux-arm64.tar.gz`, `aether-linux-armv7.tar.gz` |
-| Linux with musl or an older glibc, fully static | `aether-linux-x86_64-musl.tar.gz`, `aether-linux-aarch64-musl.tar.gz`, `aether-linux-armv7-musl.tar.gz` |
-| OpenWrt routers | the `-musl` archive for the router's CPU, see [OpenWrt](#openwrt) |
-| Android (Termux) | the installer below |
-
-Every archive has a matching `.sha256` file, and `SHA256SUMS.txt` lists them all. On a Mac, `uname -m` prints `arm64` or `x86_64`. The macOS binaries are not notarized, so clear the download quarantine once after extracting:
-
-```bash
-tar -xzf aether-macos-x86_64.tar.gz
-xattr -d com.apple.quarantine aether
-./aether
-```
-
-### Termux (Android) — one-line install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/CluvexStudio/aether/main/aether.sh -o aether.sh && chmod +x aether.sh && ./aether.sh install
-```
-
-This detects your device architecture, downloads the matching release, verifies its checksum, and installs `aether` into `$PREFIX/bin`. Run it afterwards with:
-
-```bash
-aether
-```
-
-To update later, run `./aether.sh update`. To remove it, run `./aether.sh uninstall`.
-
-### OpenWrt
-
-Aether runs on OpenWrt as a single static binary of 7 to 10 MB. Choose the archive by the output of `uname -m`:
-
-| `uname -m` | Typical routers | Archive |
+| حالت | چه اتفاقی می‌افتد | مناسب چه کسی |
 | --- | --- | --- |
-| `aarch64` | MediaTek MT7981/MT7986 (e.g. Xiaomi AX3000T), Qualcomm IPQ807x, Raspberry Pi 4/5 | `aether-linux-aarch64-musl.tar.gz` |
-| `armv7l` | Qualcomm IPQ40xx (e.g. Google Wifi), MediaTek MT7623, other Cortex-A7/A9/A15 boards | `aether-linux-armv7-musl.tar.gz` |
-| `x86_64` | x86 mini PCs and VMs | `aether-linux-x86_64-musl.tar.gz` |
+| **پراکسی شفاف (TProxy)** | تمام ترافیک دستگاه‌های شبکه بدون هیچ تنظیمی از تونل رد می‌شود | حالت پیش‌فرض و پیشنهادی |
+| **کارت شبکهٔ مجازی (TUN)** | یک اینترفیس مجازی ساخته می‌شود و مسیریابی از آن عبور می‌کند | روترهایی که TProxy در آن‌ها مشکل دارد |
+| **فقط SOCKS5** | تنها یک پراکسی محلی باز می‌شود و ترافیک شبکه دست‌نخورده می‌ماند | وقتی می‌خواهید فقط بعضی برنامه‌ها از تونل رد شوند |
 
-MIPS routers (`mips`/`mipsel`, e.g. MT7621) are not supported.
+بخش SOCKS5 داخل خود هستهٔ Aether پیاده‌سازی شده است. حالت شفاف و حالت TUN با کمک **sing-box** انجام می‌شود که هنگام نصب به‌صورت خودکار نصب می‌شود.
+
+---
+
+## پیش‌نیازها
+
+هنگام نصب بسته، همهٔ موارد زیر به‌طور خودکار توسط `apk` یا `opkg` نصب می‌شوند. نیازی نیست چیزی را دستی نصب کنید:
+
+| بسته | برای چه لازم است |
+| --- | --- |
+| `sing-box` | موتور حالت شفاف و حالت TUN |
+| `kmod-nft-tproxy` | ماژول کرنل برای هدایت ترافیک به تونل |
+| `kmod-nft-socket` | ماژول کرنل مکمل TProxy |
+| `kmod-tun` | ماژول کرنل برای حالت TUN |
+| `nftables` | نوشتن قواعد فایروال |
+| `ip-full` | قواعد مسیریابی بر اساس fwmark |
+| `ca-bundle` و `libustream-mbedtls` | دانلود امن فهرست‌ها روی HTTPS |
+
+اگر روتر بعداً یکی از این بسته‌ها را از دست بدهد (مثلاً بعد از بازیابی نسخهٔ پشتیبان)، صفحهٔ تنظیمات آن را در کارت «پیش‌نیازها» نشان می‌دهد و دکمهٔ **«نصب پیش‌نیازهای جا افتاده»** آن را نصب می‌کند. همین کار از خط فرمان:
+
+</div>
 
 ```sh
-cd /tmp
-A=aether-linux-aarch64-musl.tar.gz
-wget https://github.com/CluvexStudio/Aether/releases/latest/download/$A
-wget https://github.com/CluvexStudio/Aether/releases/latest/download/$A.sha256
-sha256sum -c $A.sha256 && tar -xzf $A && mv aether /usr/bin/aether
-mkdir -p /etc/aether
-aether --config /etc/aether/aether.toml
+aetherctl deps          # گزارش وضعیت
+aetherctl install-deps  # نصب موارد جا افتاده
 ```
 
-Keep `--config` on persistent storage such as `/etc/aether`: `/tmp` is wiped at every reboot, and a lost identity means a new device registration on each boot, which Cloudflare rate limits. To share the proxy with your LAN, bind it to the router's LAN address, for example `--bind 192.168.1.1:1819`; it has no authentication, so never expose it on the WAN. If `wget` reports an SSL error, run `opkg update && opkg install ca-bundle`, or copy the file over with `scp`.
+<div dir="rtl">
 
-If the router also sends its own traffic into a tun front end (hev-socks5-tunnel, tun2socks), start Aether with `--mark 0xff` so every socket it opens to the internet carries that firewall mark, and let marked packets bypass the tun, for example with `ip rule add fwmark 0xff lookup main priority 100`. Setting a mark needs root.
+سرویس هم پیش از شروع حالت شفاف همین بررسی را انجام می‌دهد و اگر چیزی کم باشد، به‌جای خرابی خاموش، پیام آن را در `logread` می‌نویسد.
 
-## Build
+---
 
-### Requirements
+## نصب سریع
 
-- Rust 1.98 or newer
-- C/C++ compiler
-- CMake
+۱. فایل‌های `aether` و `luci-app-aether` متناسب با معماری روتر را از بخش Releases دانلود و روی روتر کپی کنید.
 
-The `quiche` repository must be placed alongside `aether`:
+۲. روی OpenWrt 24.10 به بعد (که از `apk` استفاده می‌کند):
 
-```text
-<repo>/
-  aether/
-  quiche/
+</div>
+
+```sh
+apk add --allow-untrusted ./aether-*.apk ./luci-app-aether-*.apk
 ```
 
-Build from the repository root; the Cargo manifest is `aether/Cargo.toml`, so enter that directory first:
+<div dir="rtl">
 
-```bash
-cd aether
-cargo build --release
+روی نسخه‌های قدیمی‌تر با `opkg`:
+
+</div>
+
+```sh
+opkg install ./aether_*.ipk ./luci-app-aether_*.ipk
 ```
 
-Binary, relative to the repository root:
+<div dir="rtl">
 
-```text
-aether/target/release/aether
+۳. در LuCI به **خدمات ← Aether** بروید.
+
+۴. یک بار دکمهٔ **«به‌روزرسانی فهرست IP ایران»** را بزنید تا ترافیک داخلی از تونل رد نشود.
+
+۵. گزینهٔ **«فعال بودن سرویس»** را روشن کنید و **ذخیره و اعمال** را بزنید.
+
+همین. پراکسی SOCKS5 روی `127.0.0.1:1819` بالا می‌آید و ترافیک شبکه از تونل عبور می‌کند.
+
+---
+
+## صفحهٔ تنظیمات
+
+### داشبورد بالای صفحه
+
+شش کارت که هر سه ثانیه به‌روز می‌شوند:
+
+| کارت | چه چیزی نشان می‌دهد |
+| --- | --- |
+| **وضعیت سرویس** | روشن/خاموش، حالت کار و مدت اجرا |
+| **ارسال (آپلود)** | سرعت لحظه‌ای و مجموع بایت‌های ارسالی |
+| **دریافت (دانلود)** | سرعت لحظه‌ای و مجموع بایت‌های دریافتی |
+| **مصرف کل** | جمع دو جهت و تعداد بسته‌ها |
+| **نسخه و پلتفرم** | نسخهٔ نصب‌شدهٔ Aether، مدل روتر و نسخهٔ OpenWrt |
+| **پیش‌نیازها و Passwall2** | وضعیت sing-box، ماژول‌های کرنل، TUN و Passwall2 |
+
+اعداد مصرف از شمارنده‌های واقعی `nftables` روی مسیر پراکسی خوانده می‌شوند، نه از تخمین. شمارنده‌ها با هر بار راه‌اندازی مجدد سرویس از صفر شروع می‌شوند.
+
+### دکمه‌های عملیات
+
+- **راه‌اندازی مجدد سرویس** — معادل `/etc/init.d/aether restart`
+- **توقف سرویس** — سرویس را خاموش می‌کند بدون آنکه گزینهٔ «فعال بودن» تغییر کند
+- **به‌روزرسانی فهرست IP ایران** — محدوده‌های IPv4 و IPv6 ایران را دوباره دانلود می‌کند
+- **به‌روزرسانی GeoIP و GeoSite** — فایل‌های قواعد sing-box را دانلود می‌کند
+- **نصب پیش‌نیازهای جا افتاده** — بسته‌های کم را نصب می‌کند
+
+### برگهٔ «عمومی»
+
+| گزینه | توضیح |
+| --- | --- |
+| فعال بودن سرویس | روشن/خاموش کردن Aether |
+| حالت کار | TProxy، TUN یا فقط SOCKS5 |
+| عبور دادن ترافیک شبکه از تونل | اگر خاموش باشد فقط پراکسی محلی بالا می‌آید |
+| اجرا هم‌زمان با Passwall2 | پیش‌فرض خاموش؛ پایین‌تر توضیح داده شده |
+| پروتکل تونل | MASQUE، WireGuard، WARP-in-WARP یا MASQUE-in-MASQUE |
+| حالت اسکن سرور | از `turbo` (سریع) تا `ironclad` (مطمئن) |
+| پورت SOCKS5 | پیش‌فرض ۱۸۱۹ |
+| پورت پراکسی HTTP | صفر یعنی خاموش؛ برای برنامه‌هایی که SOCKS نمی‌فهمند |
+
+**کدام پروتکل؟** اگر نمی‌دانید، `MASQUE` را دست نزنید. اگر شبکه QUIC را می‌بندد، `WireGuard` را امتحان کنید. `gool` و `mim` دو پرش پشت سر هم می‌سازند و IP خروجی را عوض می‌کنند، به قیمت سرعت کمتر.
+
+**کدام حالت اسکن؟** `balanced` پیش‌فرض است. روی شبکه‌ای که همه‌چیز بسته به‌نظر می‌رسد `thorough`، و اگر شبکه به اسکن حساس است `stealth`.
+
+### برگهٔ «مسیریابی و تفکیک ترافیک»
+
+| گزینه | توضیح |
+| --- | --- |
+| عبور مستقیم ترافیک ایران | محدوده‌های IP ایران بدون تونل رد می‌شوند |
+| منبع فهرست IPv4/IPv6 ایران | نشانی دانلود فهرست؛ قابل تغییر به هر آینهٔ دلخواه |
+| استفاده از GeoIP و GeoSite | فعال کردن قواعد sing-box بر اساس دامنه و IP |
+| رفتار با مقصدهای شناسایی‌شده | عبور مستقیم، عبور از تونل، یا مسدود کردن |
+| منبع GeoIP / منبع GeoSite | نشانی فایل `.srs` یا `.json`؛ **هر نشانی دلخواهی را می‌توانید وارد کنید** |
+| مسدود کردن تبلیغات و ردیاب‌ها | استفاده از فهرست تبلیغات |
+| منبع فهرست تبلیغات | نشانی فهرست تبلیغات |
+| فایل پیکربندی Aether | مسیر فایل هویت و قواعد اختصاصی |
+
+### برگهٔ «پیشرفته»
+
+| گزینه | توضیح |
+| --- | --- |
+| نسخهٔ IP | IPv4، IPv6 یا هر دو |
+| پروفایل مبهم‌سازی | `off` تا `aggressive`؛ روی شبکه‌های سخت‌گیر `gfw` |
+| پروفایل مصرف منابع | روی روتر `low` بگذارید |
+| اتصال سریع با آخرین سرور موفق | از اسکن دوباره جلوگیری می‌کند |
+| شمارش مصرف آپلود و دانلود | خاموش کردنش نمایش مصرف را غیرفعال می‌کند |
+| سطح گزارش Aether و sing-box | برای عیب‌یابی `debug` |
+| رابط‌های شبکهٔ داخلی | معمولاً `br-lan` |
+| پورت TProxy، fwmark، جدول مسیریابی | فقط اگر با چیز دیگری تداخل داشت تغییر دهید |
+| نام، نشانی و MTU کارت مجازی | تنظیمات حالت TUN |
+| نشانی شنود پراکسی | برای دسترسی از شبکهٔ داخلی `0.0.0.0` — **بدون رمز عبور باز می‌شود** |
+
+> ⚠️ اگر «نشانی شنود پراکسی» را روی `0.0.0.0` بگذارید، هر دستگاهی در شبکه (و در صورت باز بودن پورت، از اینترنت) می‌تواند از پراکسی شما استفاده کند. فقط وقتی این کار را بکنید که فایروال روتر پورت را از سمت WAN بسته باشد.
+
+---
+
+## تفکیک ترافیک ایران
+
+دو سازوکار مستقل وجود دارد که می‌توانید یکی یا هر دو را روشن کنید:
+
+### ۱. فهرست محدوده‌های IP ایران
+
+ساده و سبک. فهرست CIDRها دانلود و مستقیماً به `nftables` داده می‌شود، پس هزینهٔ اجرایی تقریباً صفر دارد ولی فقط بر اساس IP کار می‌کند.
+
+</div>
+
+```sh
+aetherctl update-iran
 ```
 
-## Docker
+<div dir="rtl">
 
-You can run Aether in an isolated environment using Docker. The official image is available on GitHub Container Registry (GHCR).
+فایل‌ها در `/etc/aether/iran4.txt` و `/etc/aether/iran6.txt` نگهداری می‌شوند و هنگام ارتقای بسته پاک نمی‌شوند. منبع پیش‌فرض `ipdeny.com` است و از همان صفحهٔ تنظیمات قابل تعویض است.
 
-> **The SOCKS5 proxy has no authentication.** Anyone who can reach the port can use your tunnel. Every command below publishes the port to `127.0.0.1` only, so it stays reachable from your own machine and nothing else. Do not replace it with `-p 1819:1819`, because that form listens on every interface of the host and turns the proxy into an open relay. If you genuinely need to serve other machines, put an authenticated front end in front of it and firewall the port.
+### ۲. قواعد GeoIP و GeoSite
 
-The `-v aether-data:/data` volume keeps the generated WARP identity between runs. Without it every start registers a brand new device, and Cloudflare begins rate limiting your address.
+دقیق‌تر، چون علاوه بر IP نام دامنه را هم می‌شناسد. فایل‌های `rule-set` سینگ‌باکس دانلود می‌شوند و در `/etc/aether/geo/` می‌نشینند.
 
-Pull and run the pre-built image (interactive mode is required for initial setup):
+</div>
 
-```bash
-docker run -it -p 127.0.0.1:1819:1819 -v aether-data:/data ghcr.io/cluvexstudio/aether:latest
+```sh
+aetherctl update-geo
 ```
 
-You can also bypass prompts by providing environment variables:
+<div dir="rtl">
 
-```bash
-docker run -it -p 127.0.0.1:1819:1819 -v aether-data:/data \
-  -e AETHER_PROTOCOL=masque \
-  -e AETHER_SCAN=balanced \
-  ghcr.io/cluvexstudio/aether:latest
+منابع پیش‌فرض:
+
+| فهرست | نشانی پیش‌فرض |
+| --- | --- |
+| GeoIP ایران | `https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-ir.srs` |
+| GeoSite ایران | `https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-ir.srs` |
+| تبلیغات | `https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-category-ads-all.srs` |
+
+هر سه نشانی در صفحهٔ تنظیمات قابل ویرایش‌اند. اگر GitHub در دسترس نبود، نشانی یک آینه را بگذارید. هم فایل `.srs` (فرمت باینری سینگ‌باکس) و هم `.json` (فرمت متنی) پذیرفته می‌شود؛ تشخیص از روی پسوند نشانی انجام می‌شود و فایل فقط وقتی جایگزین می‌شود که واقعاً یک rule-set معتبر باشد.
+
+### ۳. قواعد دستی خود Aether
+
+هستهٔ Aether مسیریابی مستقل خودش را هم دارد که با فایل پیکربندی کار می‌کند. در فایلی که در «فایل پیکربندی Aether» معرفی کرده‌اید می‌توانید بنویسید:
+
+</div>
+
+```ini
+[direct]
+example.com
+full:bank.ir
+keyword:arvancloud
+10.0.0.0/8
+private
+
+[block]
+doubleclick.net
+port:25
 ```
 
-If you prefer to build the image manually from source:
+<div dir="rtl">
 
-```bash
-docker build -t aether .
-docker run -it -p 127.0.0.1:1819:1819 -v aether-data:/data aether
+`block` اول بررسی می‌شود، بعد `direct`، و باقی ترافیک از تونل می‌رود.
+
+---
+
+## هم‌زیستی با Passwall2
+
+اگر Passwall2 روی روتر فعال باشد، دو برنامه سر قواعد `nftables` و جدول مسیریابی با هم تداخل می‌کنند. به همین دلیل:
+
+- Aether وضعیت Passwall2 را می‌خواند و اگر فعال بود، **حالت شفاف را بالا نمی‌آورد** و در `logread` دلیلش را می‌نویسد.
+- پراکسی SOCKS5 در هر حال بالا می‌آید، پس می‌توانید همچنان از آن استفاده کنید.
+- اگر می‌دانید چه می‌کنید و آن‌ها را روی پورت‌ها و مارک‌های جدا تنظیم کرده‌اید، گزینهٔ **«اجرا هم‌زمان با Passwall2»** این محافظ را برمی‌دارد.
+
+---
+
+## خط فرمان
+
+</div>
+
+```sh
+aetherctl on              # روشن کردن و راه‌اندازی
+aetherctl off             # خاموش کردن
+aetherctl restart         # راه‌اندازی مجدد
+aetherctl status          # گزارش کامل: سرویس، Passwall2، پیش‌نیازها و مصرف
+aetherctl version         # نسخهٔ بسته و نسخهٔ هسته
+aetherctl traffic         # یک خط JSON از شمارنده‌های زنده
+aetherctl deps            # گزارش پیش‌نیازها
+aetherctl install-deps    # نصب پیش‌نیازهای جا افتاده
+aetherctl update-iran     # به‌روزرسانی فهرست IP ایران
+aetherctl update-geo      # به‌روزرسانی GeoIP و GeoSite
+aetherctl mode tun        # تغییر حالت کار: tproxy | tun | socks
 ```
 
-## Usage
+<div dir="rtl">
 
-The examples below use the binary you built, run from inside `aether/`. With a release download, run `./aether` (or `aether.exe` on Windows) from the folder you extracted it to instead.
+خود هستهٔ Aether هم ده‌ها گزینهٔ دیگر دارد که با `aether --help` فهرست می‌شوند (Tor، Zero Trust، ECH، تکه‌تکه کردن ClientHello و…).
 
-Run with no arguments and answer the prompts:
+---
 
-```bash
-./target/release/aether
+## تنظیمات در UCI
+
+همهٔ گزینه‌های صفحهٔ تنظیمات در `/etc/config/aether` ذخیره می‌شوند و مستقیماً هم قابل ویرایش‌اند:
+
+</div>
+
+```sh
+uci set aether.main.mode=tun
+uci set aether.main.protocol=wg
+uci set aether.main.geo_enabled=1
+uci commit aether
+/etc/init.d/aether restart
 ```
 
-Or skip the prompts with flags:
+<div dir="rtl">
 
-```bash
-./target/release/aether --masque -4 --scan turbo --noize firewall
+این فایل جزو `conffiles` بسته است، یعنی ارتقای نسخه آن را پاک نمی‌کند. گزینه‌های جدیدِ هر نسخه هنگام ارتقا با مقدار پیش‌فرض به آن اضافه می‌شوند.
+
+---
+
+## عیب‌یابی
+
+**سرویس روشن است ولی اینترنت ندارم**
+
+</div>
+
+```sh
+logread -e aether | tail -50
 ```
 
-On Windows, double-click `run-aether.bat` (included in the release zip) instead — it opens a terminal, runs `aether.exe`, and keeps the window open afterwards so you can read any errors.
+<div dir="rtl">
 
-Every prompt has a flag and an environment variable equivalent. Run `aether help` (or `--help`) for the full list — every flag, every variable, and what each one does — or see the guides linked below.
+اگر پیام مربوط به Passwall2 دیدید، یکی از دو برنامه را خاموش کنید. اگر پیام کمبود پیش‌نیاز دیدید، `aetherctl install-deps` را بزنید.
 
-After startup, a SOCKS5 proxy will be available at:
+**کارت مصرف صفر می‌ماند**
 
-```
-127.0.0.1:1819
-```
+مطمئن شوید «شمارش مصرف آپلود و دانلود» در برگهٔ پیشرفته روشن است، و سرویس بعد از روشن کردن آن یک بار راه‌اندازی مجدد شده باشد.
 
-Example:
+**سایت‌های ایرانی کند شده‌اند**
 
-```bash
-curl -x socks5h://127.0.0.1:1819 https://www.cloudflare.com/cdn-cgi/trace
-```
+فهرست IP ایران را به‌روزرسانی کنید و مطمئن شوید «عبور مستقیم ترافیک ایران» روشن است.
 
-## Supported Protocols
+**تونل وصل نمی‌شود**
 
-### MASQUE (Recommended)
+پروفایل مبهم‌سازی را روی `gfw` و حالت اسکن را روی `thorough` بگذارید. اگر باز هم نشد، پروتکل را به `WireGuard` تغییر دهید.
 
-Encapsulates traffic over HTTP/3 (QUIC) or HTTP/2 (TLS), making it resemble ordinary HTTPS traffic.
+**می‌خواهم ببینم دقیقاً چه قواعدی نصب شده‌اند**
 
-### WireGuard
+</div>
 
-Fast and lightweight transport for networks with less aggressive inspection.
-
-### Nested MASQUE (`--mim`)
-
-A MASQUE tunnel carried inside another MASQUE tunnel. The inner hop is dialled from inside the outer one, so Cloudflare sees the outer edge instead of your address and hands the inner tunnel a different exit IP — the same idea as `gool`, on the MASQUE carrier. Both hops use HTTP/3, or both use HTTP/2 with `--h2`.
-
-```bash
-./target/release/aether --mim
+```sh
+nft list table inet aether_proxy
+ip rule list
+cat /var/run/aether/sing-box.json
 ```
 
-### Nested WireGuard (`gool`)
+<div dir="rtl">
 
-A WireGuard tunnel running inside another WireGuard tunnel, providing an additional encryption layer.
+---
 
-Its two hops are found by the scan by default. If you already know addresses that work on your network, name them instead with `--wiw-outer 162.159.192.1:2408 --wiw-inner 188.114.96.1:2408`, or both at once with `--wiw-peers 162.159.192.1:2408,188.114.96.1:2408`. The port is required — which port gets through is what differs between networks, so none is assumed. Give only one and the scan finds the other.
+## حذف
 
-## Tor
+</div>
 
-Built with the `tor` feature, Aether carries a Tor implementation (arti) and can combine it with the tunnel three ways:
-
-| Mode | Flag | Path | Exit address |
-| --- | --- | --- | --- |
-| Tor through the tunnel | `--tor` | you → WARP → Tor → internet | a Tor exit |
-| The tunnel through Tor | `--tor-reverse` | you → Tor → WARP → internet | a WARP exit |
-| Tor alone | `--tor-only` | you → Tor → internet | a Tor exit |
-
-```bash
-cd aether
-cargo build --release --features tor
-./target/release/aether --masque --tor
+```sh
+aetherctl off
+apk del luci-app-aether aether      # OpenWrt 24.10 به بعد
+opkg remove luci-app-aether aether  # نسخه‌های قدیمی‌تر
 ```
 
-With `--tor` the usual proxy on `127.0.0.1:1819` keeps the WARP exit and a second one on `127.0.0.1:1820` comes out of Tor. Because Tor rides inside the tunnel, a network that blocks Tor never sees it. Any transport can carry it — `--masque` over HTTP/3 or HTTP/2, `--wg`, `--gool`, `--mim` — with nothing in between: `--wg --tor` has the WireGuard tunnel carry Tor directly. The other direction cannot do that, because Tor carries TCP only and WARP's WireGuard endpoints answer on UDP alone, so `--tor-reverse` runs MASQUE over HTTP/2. `--tor-reverse` and `--tor-only` reach Tor directly, and where Tor is blocked they fetch their own bridges from bridgedb and run them through the pluggable transports shipped in the `pt/` folder beside the binary, so there is nothing to install and nothing to paste in. See [Docs/DOCS.en.md](Docs/DOCS.en.md#tor).
+<div dir="rtl">
 
-## Documentation
+پیش از حذف، سرویس خودش قواعد فایروال و مسیریابی را پاک می‌کند.
 
-Detailed documentation is available in:
+---
 
-- [Docs/GUIDE.en.md](Docs/GUIDE.en.md) — English guide
-- [Docs/GUIDE.fa.md](Docs/GUIDE.fa.md) — راهنمای فارسی
+## ساخت از سورس
 
-## Credits
+</div>
 
-Developed by **CluvexStudio**. :))
+```sh
+cargo build --release --manifest-path aether/Cargo.toml
+./scripts/build-openwrt-packages.sh <sdk-directory> <aether-binary> <output-directory>
+```
 
-MASQUE support is built on top of Cloudflare's **Quiche** library.
+<div dir="rtl">
 
+اسکریپت بالا هر دو بستهٔ `aether` و `luci-app-aether` را با OpenWrt SDK می‌سازد و در پوشهٔ خروجی می‌گذارد.
 
-## Contributing
+---
 
-> **Experienced network developers and protocol engineers are welcome to contribute.**
+## ساخت بستهٔ «مبهم‌سازی‌شده»
 
-> **Please keep the codebase clean, maintainable, and well-engineered. Low-quality or vibe-coded contributions will not be accepted.**
+اسکریپت‌های shell و فایل‌های رابط کاربری که روی روتر نصب می‌شوند می‌توانند پیش از بسته‌بندی از توضیحات، خطوط خالی و تورفتگی خالی شوند، به‌طوری‌که فقط کد اجراشدنی و هدر کپی‌رایت باقی بماند:
 
-## Donate
+</div>
 
-If Aether has been useful to you, consider supporting its development:
+```sh
+AETHER_OBFUSCATE=1 ./scripts/build-openwrt-packages.sh <sdk> <binary> <output>
+```
 
-- **TRX (Tron):** `TRxVSHcoADZnBfztFmFb2TQopusAwWYEVR`
-- **BTC:** `bc1qnjnvzsa5avgj7n0uy383cv5zdxfjnvvp257egm`
-- **TON:** `UQAH75bXaaRUhZMwiF0ZujOXFDDmvLSPASKoOsWF0HNasiaM`
+<div dir="rtl">
 
-## License
+ابزارش [openwrt/tools/obfuscate.py](openwrt/tools/obfuscate.py) است و به‌تنهایی هم قابل اجراست:
 
-See the LICENSE file for licensing information.
+</div>
+
+```sh
+python3 openwrt/tools/obfuscate.py --check openwrt/files luci-app-aether/htdocs
+```
+
+<div dir="rtl">
+
+این کار محافظه‌کارانه است: هیچ نامی تغییر نمی‌کند و هیچ چیزی دوباره کدگذاری نمی‌شود، پس برنامه دقیقاً همان برنامه می‌ماند.
+
+**اما صریح بگویم:** این کار فقط کپی‌برداری را پرزحمت‌تر می‌کند و جلوی آن را نمی‌گیرد. هستهٔ Aether تحت AGPL-3.0 منتشر شده و هر اثر مشتق‌شده‌ای هم باید AGPL-3.0 بماند؛ یعنی هر کسی که بسته را می‌گیرد، قانوناً حق دارد سورس واقعی را هم داشته باشد. چیزی که واقعاً جلوی انتشار مجدد به نام شخص دیگر را می‌گیرد این‌هاست:
+
+- **لایسنس** — AGPL-3.0 استفادهٔ تجاری بدون انتشار سورس و بدون حفظ همین لایسنس را ممنوع می‌کند.
+- **هدر کپی‌رایت** — روی تک‌تک فایل‌ها هست و حذف یا تغییر آن نقض لایسنس است.
+- **نشان تجاری** — نام و لوگوی Aether طبق [TRADEMARK.md](TRADEMARK.md) قابل استفاده در فورک تغییر داده‌شده نیست.
+- **تاریخچهٔ عمومی مخزن** — کامیت‌های زمان‌دار و Releaseهای امضاشده مدرک تقدم شما هستند.
+
+---
+
+## لایسنس
+
+این پروژه تحت **AGPL-3.0-only** منتشر شده است. متن کامل در [LICENSE](LICENSE) و نشان تجاری در [TRADEMARK.md](TRADEMARK.md).
+
+هستهٔ Aether کار [CluvexStudio](https://github.com/CluvexStudio/Aether) است. بسته‌بندی OpenWrt و رابط کاربری فارسی در این مخزن نگهداری می‌شود. جزئیات در [NOTICE](NOTICE).
+
+</div>
