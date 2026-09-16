@@ -6,8 +6,12 @@
 # again at runtime because a router can be flashed, restored from a backup, or
 # have a package removed by hand, and transparent mode fails in confusing ways
 # when one of them is missing.
+#
+# sing-box is not in this list. Aether keeps its own core and installs it from
+# SagerNet's releases; a sing-box that belongs to Passwall2 is neither used nor
+# upgraded here. See singbox.sh.
 
-packages='sing-box kmod-nft-tproxy kmod-nft-socket nftables ip-full ca-bundle'
+packages='kmod-nft-tproxy kmod-nft-socket nftables ip-full ca-bundle'
 tun_packages='kmod-tun'
 
 . /usr/libexec/aether/packages.sh

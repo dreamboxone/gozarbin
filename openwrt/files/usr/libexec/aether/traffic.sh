@@ -54,17 +54,27 @@ for pair in $counters; do
 	esac
 done
 
+# Matched on our own config path, not on the process name: another proxy on this
+# router may be running a sing-box of its own, and that one is not ours to count.
+aether_singbox() {
+	local dir
+	for dir in /proc/[0-9]*; do
+		grep -qs 'aether/sing-box.json' "$dir/cmdline" && return 0
+	done
+	return 1
+}
+
 aether_pid=$(first_pid aether)
-singbox_pid=$(first_pid sing-box)
 [ -n "$aether_pid" ] && running=1 || running=0
-[ -n "$singbox_pid" ] && singbox=1 || singbox=0
+aether_singbox && singbox=1 || singbox=0
+reason=$(head -n 1 /var/run/aether/transparent-off 2>/dev/null)
 mode=$(uci -q get aether.main.mode)
 [ -n "$mode" ] && [ "$mode" != tproxy ] || mode=tproxy
 enabled=$(uci -q get aether.main.enabled)
 [ "$enabled" = 1 ] || enabled=0
 
-printf '{"enabled":%s,"running":%s,"singbox":%s,"mode":"%s","uptime":%s,"accounting":%s,"upload":%s,"download":%s,"upload_packets":%s,"download_packets":%s,"time":%s}\n' \
-	"$(json_bool "$enabled")" "$(json_bool "$running")" "$(json_bool "$singbox")" "$mode" \
+printf '{"enabled":%s,"running":%s,"singbox":%s,"mode":"%s","transparent_off":"%s","uptime":%s,"accounting":%s,"upload":%s,"download":%s,"upload_packets":%s,"download_packets":%s,"time":%s}\n' \
+	"$(json_bool "$enabled")" "$(json_bool "$running")" "$(json_bool "$singbox")" "$mode" "$reason" \
 	"$(process_uptime "$aether_pid")" "$(json_bool "$accounting")" \
 	"$upload_bytes" "$download_bytes" "$upload_packets" "$download_packets" \
 	"$(date +%s)"

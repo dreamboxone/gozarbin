@@ -65,13 +65,18 @@ body.aether-page .cbi-button {
 
 /* A LuCI row is a floated label next to a field. Floats have no right-to-left
  * form, so the row becomes a reversed flex line instead: the label keeps its
- * place in the markup and lands on the right, the field beside it on the left. */
-.aether-rtl .cbi-value {
-	display: flex;
-	flex-direction: row-reverse;
+ * place in the markup and lands on the right, the field beside it on the left.
+ *
+ * Every one of these carries !important. The theme restates the same properties
+ * inside width-based media queries, which land after this file and otherwise win
+ * on a wide screen — which is exactly where the page is read. */
+.aether-rtl .cbi-value,
+.aether-rtl .cbi-section .cbi-value {
+	display: flex !important;
+	flex-direction: row-reverse !important;
 	align-items: flex-start;
 	gap: 1rem;
-	padding: 0.45rem 0;
+	padding: 0.5rem 0;
 	border-bottom: 1px solid var(--ae-line);
 }
 
@@ -79,21 +84,26 @@ body.aether-page .cbi-button {
 	border-bottom: 0;
 }
 
-.aether-rtl .cbi-value-title {
+.aether-rtl .cbi-value-title,
+.aether-rtl .cbi-section .cbi-value-title {
 	float: none !important;
-	width: 30%;
+	width: 30% !important;
 	min-width: 9rem;
-	padding: 0.35rem 0 0 0;
-	text-align: right;
+	padding: 0.35rem 0 0 0 !important;
+	text-align: right !important;
+	font-family: var(--ae-font) !important;
+	font-size: 15px !important;
 	font-weight: 600;
-	line-height: 1.8;
+	line-height: 1.9;
+	color: inherit;
 }
 
-.aether-rtl .cbi-value-field {
+.aether-rtl .cbi-value-field,
+.aether-rtl .cbi-section .cbi-value-field {
 	float: none !important;
-	width: auto;
+	width: auto !important;
 	flex: 1 1 auto;
-	padding: 0;
+	padding: 0 !important;
 	text-align: right;
 }
 
@@ -101,7 +111,9 @@ body.aether-page .cbi-button {
 	display: block;
 	width: 100%;
 	text-align: right;
-	font-size: 13px;
+	font-family: var(--ae-font) !important;
+	font-size: 13.5px;
+	line-height: 1.9;
 	opacity: 0.75;
 	margin-top: 0.2rem;
 }
@@ -137,10 +149,12 @@ body.aether-page .cbi-button {
 	margin: 0.5rem 0 0 0;
 }
 
+/* Reversed so the first tab in the markup, the general one, is the first a
+ * Persian reader meets: the rightmost. */
 .aether-rtl .cbi-tabmenu {
-	display: flex;
-	flex-direction: row-reverse;
-	justify-content: flex-end;
+	display: flex !important;
+	flex-direction: row-reverse !important;
+	justify-content: flex-end !important;
 	padding: 0;
 	margin-bottom: 1rem;
 	border-bottom: 1px solid var(--ae-line);
@@ -148,11 +162,12 @@ body.aether-page .cbi-button {
 
 .aether-rtl .cbi-tabmenu li {
 	float: none !important;
-	margin: 0 0 0 0.35rem;
+	margin: 0 0 0 0.35rem !important;
 }
 
 .aether-rtl .cbi-tabmenu li a {
-	font-size: 15px;
+	font-family: var(--ae-font) !important;
+	font-size: 15px !important;
 	padding: 0.5rem 1rem;
 	border-radius: var(--ae-radius) var(--ae-radius) 0 0;
 }
@@ -308,4 +323,36 @@ body.aether-page .alert-message p {
 .ae-actions button {
 	border-radius: 999px;
 	padding: 0.35rem 1.1rem;
+}
+
+/* ---------- the sing-box core notice ---------- */
+
+.ae-notice {
+	direction: rtl;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	background: var(--ae-fill);
+	border: 1px solid var(--ae-line);
+	border-right-width: 4px;
+	border-radius: var(--ae-radius);
+	padding: 0.8rem 1rem;
+	margin: 0 0 1.25rem 0;
+}
+
+.ae-notice-warn { border-right-color: var(--ae-accent); }
+.ae-notice-bad { border-right-color: var(--ae-bad); }
+
+.ae-notice-text {
+	flex: 1 1 18rem;
+	font-size: 14.5px;
+	line-height: 1.9;
+}
+
+.ae-notice .cbi-button,
+.ae-notice button {
+	border-radius: 999px;
+	padding: 0.35rem 1.4rem;
 }

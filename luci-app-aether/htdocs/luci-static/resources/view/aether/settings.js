@@ -15,20 +15,41 @@ var GEO_DEFAULTS = {
 	geosite_ads_url: 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-category-ads-all.srs'
 };
 
-var UNITS = [ 'بایت', 'کیلوبایت', 'مگابایت', 'گیگابایت', 'ترابایت', 'پتابایت' ];
+/* Written by the init script into /var/run/aether/transparent-off. */
+var REASONS = {
+	passwall2: _('حالت شفاف اجرا نشده چون Passwall2 فعال است'),
+	dependencies: _('حالت شفاف اجرا نشده چون یک پیش‌نیاز نصب نیست'),
+	singbox: _('حالت شفاف اجرا نشده چون هستهٔ sing-box نصب نیست')
+};
+
+var MEGABYTE = 1024 * 1024;
 
 function ltr(text) {
 	return E('span', { 'class': 'ae-num' }, String(text));
 }
 
-function bytes(value) {
-	var n = Number(value) || 0, i = 0;
-	while (n >= 1024 && i < UNITS.length - 1) { n /= 1024; i++; }
-	return (i === 0 ? n.toFixed(0) : n.toFixed(n < 10 ? 2 : 1)) + ' ' + UNITS[i];
+/* The figure is its own left-to-right island so its digits stay in order, and
+ * the unit is ordinary right-to-left text beside it. Written as one string the
+ * whole thing becomes an island and the number lands on the wrong side. */
+function measure(number, unit) {
+	return E('span', {}, [ ltr(number), ' ', unit ]);
+}
+
+function megabytes(value) {
+	var mb = (Number(value) || 0) / MEGABYTE;
+	return mb >= 100 ? mb.toFixed(0) : mb.toFixed(mb >= 10 ? 1 : 2);
+}
+
+function amount(value) {
+	return measure(megabytes(value), _('مگابایت'));
 }
 
 function rate(value) {
-	return bytes(value) + ' بر ثانیه';
+	return measure(megabytes(value), _('مگابایت بر ثانیه'));
+}
+
+function count(value) {
+	return measure(Number(value) || 0, _('بسته'));
 }
 
 function duration(seconds) {
@@ -89,32 +110,37 @@ return view.extend({
 			fs.exec('/usr/libexec/aether/system-info.sh').catch(soft),
 			fs.exec('/usr/libexec/aether/deps.sh', [ '--json' ]).catch(soft),
 			fs.exec('/usr/libexec/aether/traffic.sh').catch(soft),
+			fs.exec('/usr/libexec/aether/singbox.sh', [ '--state' ]).catch(soft),
 			uci.load('aether')
 		]);
 	},
 
 	renderDashboard: function(system, passwall, deps, traffic) {
 		var self = this;
-		var version = system.aether_version || '—';
 		var service = card(_('وضعیت سرویس'));
 		var usage = card(_('مصرف کل'));
 		var up = card(_('ارسال (آپلود)'), 'ae-card-up');
 		var down = card(_('دریافت (دانلود)'), 'ae-card-down');
-		var build = card(_('نسخه و پلتفرم'));
+		var build = card(_('نوع دستگاه'));
 		var health = card(_('پیش‌نیازها و Passwall2'));
 
 		build.value.textContent = '';
-		build.value.appendChild(ltr('Aether ' + version));
+		build.value.appendChild(E('span', {}, system.model || _('نامشخص')));
 		build.note.appendChild(ltr([
-			system.model || '', system.release || '', system.arch || ''
+			system.release || '', system.arch || ''
 		].filter(Boolean).join(' • ')));
 
-		var singboxState = system.singbox ? 'ok' : 'bad';
 		var kernelOk = system.tproxy && system.socket && system.nftables;
 		health.value.textContent = '';
+		var origins = {
+			own: _('هستهٔ اختصاصی Aether'),
+			system: _('هستهٔ sing-box سیستم')
+		};
 		health.value.appendChild(badge(
-			system.singbox ? 'sing-box ' + (system.singbox_version || '') : _('sing-box نصب نیست'),
-			singboxState));
+			system.singbox ? 'sing-box ' + (system.singbox_version || '') : _('هستهٔ sing-box نصب نیست'),
+			system.singbox ? 'ok' : 'bad'));
+		if (origins[system.singbox_origin])
+			health.value.appendChild(badge(origins[system.singbox_origin], 'ok'));
 		health.value.appendChild(badge(
 			kernelOk ? _('ماژول‌های TProxy کامل') : _('ماژول‌های TProxy ناقص'),
 			kernelOk ? 'ok' : 'bad'));
@@ -158,10 +184,11 @@ return view.extend({
 			running ? _('در حال اجرا') : (traffic.enabled ? _('روشن، بالا نیامده') : _('خاموش'))));
 		var note = [ modes[traffic.mode] || traffic.mode ];
 		if (running) note.push(_('مدت اجرا: ') + duration(traffic.uptime));
-		/* Transparent mode stands down on its own when Passwall2 holds the
-		 * prerouting hook, so say so rather than leave the mode looking broken. */
-		if (running && traffic.mode !== 'socks' && !traffic.singbox)
-			note.push(_('حالت شفاف اجرا نشده — Passwall2 فعال است یا پیش‌نیازی کم است'));
+		/* The reason comes from the init script, the only side that knows it.
+		 * Guessing at it here produced a card that contradicted the dependency
+		 * card beside it. */
+		if (running && REASONS[traffic.transparent_off])
+			note.push(REASONS[traffic.transparent_off]);
 		cards.service.note.textContent = note.join(' • ');
 
 		var upload = Number(traffic.upload) || 0, download = Number(traffic.download) || 0;
@@ -182,24 +209,71 @@ return view.extend({
 		}
 
 		cards.up.value.textContent = '';
-		cards.up.value.appendChild(ltr(rate(upRate)));
+		cards.up.value.appendChild(rate(upRate));
 		cards.up.note.textContent = '';
-		cards.up.note.appendChild(ltr(_('مجموع: ') + bytes(upload)));
+		cards.up.note.appendChild(E('span', {}, [ _('مجموع: '), amount(upload) ]));
 		cards.up.bar.style.width = Math.round(upRate / peak * 100) + '%';
 
 		cards.down.value.textContent = '';
-		cards.down.value.appendChild(ltr(rate(downRate)));
+		cards.down.value.appendChild(rate(downRate));
 		cards.down.note.textContent = '';
-		cards.down.note.appendChild(ltr(_('مجموع: ') + bytes(download)));
+		cards.down.note.appendChild(E('span', {}, [ _('مجموع: '), amount(download) ]));
 		cards.down.bar.style.width = Math.round(downRate / peak * 100) + '%';
 
 		cards.usage.value.textContent = '';
-		cards.usage.value.appendChild(ltr(bytes(upload + download)));
+		cards.usage.value.appendChild(amount(upload + download));
 		cards.usage.note.textContent = '';
-		cards.usage.note.appendChild(ltr(
-			(Number(traffic.upload_packets) || 0) + (Number(traffic.download_packets) || 0) + ' ' + _('بسته')));
+		cards.usage.note.appendChild(count(
+			(Number(traffic.upload_packets) || 0) + (Number(traffic.download_packets) || 0)));
 
 		this.state = { time: now, upload: upload, download: download, peak: peak };
+	},
+
+	/* Silent unless there is something to act on. A router that is offline, or
+	 * behind a blocked GitHub, or simply has not passed enough traffic for the
+	 * check to have run, has nothing to be told about. */
+	renderCoreNotice: function(system, core) {
+		/* No version argument: the ACL matches on the whole command line, and the
+		 * script looks up the current stable itself anyway. */
+		var install = function() {
+			notify(_('دریافت هستهٔ sing-box آغاز شد؛ بسته به سرعت اینترنت روتر ممکن است چند دقیقه طول بکشد.'));
+			return fs.exec('/usr/bin/aetherctl', [ 'install-singbox' ])
+				.then(function(result) {
+					if (result.code === 0)
+						notify(_('هستهٔ sing-box نصب شد. صفحه را تازه کنید.'));
+					else
+						notify(_('نصب هسته ناموفق بود: ') + (result.stderr || result.stdout || result.code), 'error');
+				})
+				.catch(function(error) { notify(_('اجرا نشد: ') + error.message, 'error'); });
+		};
+
+		if (!system.singbox) {
+			var why = system.singbox_origin === 'passwall'
+				? _('روی این روتر فقط هستهٔ متعلق به Passwall2 نصب است. Aether از آن استفاده نمی‌کند تا Passwall2 دست‌نخورده بماند و هستهٔ خودش را لازم دارد.')
+				: _('حالت شفاف و حالت TUN به هستهٔ sing-box نیاز دارند.');
+			return E('div', { 'class': 'ae-notice ae-notice-bad' }, [
+				E('div', { 'class': 'ae-notice-text' }, [
+					E('strong', {}, _('هستهٔ sing-box برای Aether نصب نیست')),
+					E('div', {}, why)
+				]),
+				this.action(_('نصب هسته'), 'apply', install)
+			]);
+		}
+
+		if (core && core.update === true && core.latest) {
+			return E('div', { 'class': 'ae-notice ae-notice-warn' }, [
+				E('div', { 'class': 'ae-notice-text' }, [
+					E('strong', {}, _('نسخهٔ پایدار تازه‌ای از هستهٔ sing-box منتشر شده است')),
+					E('div', {}, [
+						_('نصب‌شده: '), ltr(core.installed || '—'),
+						' — ', _('جدید: '), ltr(core.latest)
+					])
+				]),
+				this.action(_('به‌روزرسانی'), 'apply', install)
+			]);
+		}
+
+		return E([]);
 	},
 
 	action: function(label, style, handler) {
@@ -394,7 +468,8 @@ return view.extend({
 		option.depends({ mode: 'tun' });
 
 		option = self.option(section, 'advanced', form.Value, 'socks_address', _('نشانی شنود پراکسی'),
-			_('برای در دسترس بودن از شبکهٔ داخلی 0.0.0.0 بگذارید. توجه: پراکسی بدون رمز عبور باز می‌شود.'));
+			_('پیش‌فرض 127.0.0.1 است و برای کار عادی درست است: حالت شفاف از همین استفاده می‌کند. فقط اگر می‌خواهید دستگاه‌های شبکه مستقیماً به SOCKS5 وصل شوند 0.0.0.0 بگذارید — آن‌وقت پراکسی بدون رمز عبور برای کل شبکه باز می‌شود.'));
+		option.placeholder = '127.0.0.1';
 
 		return map.render();
 	},
@@ -405,6 +480,7 @@ return view.extend({
 		var system = parse(results[1]);
 		var deps = parse(results[2]);
 		var traffic = parse(results[3]);
+		var core = parse(results[4]);
 
 		/* The class is enough to reach the notifications and set the type.
 		 * A dir on <body> would also flip LuCI's own navbar dropdowns, which
@@ -419,9 +495,8 @@ return view.extend({
 					'href': L.resource('view/aether/aether.css')
 				}),
 				E('h2', {}, 'Aether' + version),
-				E('div', { 'class': 'cbi-map-descr' },
-					_('مدیریت پراکسی، تفکیک ترافیک ایران و مشاهدهٔ مصرف واقعی شبکه')),
 				self.renderDashboard(system, passwall, deps, traffic),
+				self.renderCoreNotice(system, core),
 				self.renderActions(),
 				rendered
 			]);

@@ -18,15 +18,20 @@ define Package/aether
   SUBMENU:=Web Servers/Proxies
   TITLE:=Aether censorship-circumvention client for OpenWrt
   URL:=https://github.com/dreamboxone/aether
+  # No +sing-box here on purpose. On a router with Passwall2 that package is
+  # Passwall2's own core, and depending on it would tie Aether's upgrades to it.
+  # Aether installs a core of its own instead; see files/usr/libexec/aether/singbox.sh.
   DEPENDS:=+ca-bundle +libustream-mbedtls +ip-full +nftables +kmod-nft-tproxy \
-	+kmod-nft-socket +kmod-tun +sing-box
+	+kmod-nft-socket +kmod-tun
 endef
 
 define Package/aether/description
  Aether SOCKS5 service with optional transparent LAN proxying, TUN mode, Iran
- bypass and sing-box rule sets. Installing it pulls in sing-box, the nftables
- TProxy and socket kernel modules, the TUN module and full iproute2, so a fresh
- router has everything transparent mode needs.
+ bypass and sing-box rule sets. Installing it pulls in the nftables TProxy and
+ socket kernel modules, the TUN module and full iproute2. Transparent mode also
+ needs a sing-box core, which Aether keeps its own copy of and installs from
+ SagerNet's releases: a sing-box belonging to Passwall2 is never used here, and
+ never upgraded.
 endef
 
 define Build/Compile
@@ -64,7 +69,7 @@ endef
 define Package/aether/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
-mkdir -p /etc/aether/geo
+mkdir -p /etc/aether/geo /etc/aether/state
 missing=$$(/usr/libexec/aether/deps.sh --missing 2>/dev/null)
 [ -n "$$missing" ] && echo "Aether: these dependencies are still missing:$$missing"
 exit 0
@@ -85,11 +90,14 @@ define Package/aether/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/traffic.sh $(1)/usr/libexec/aether/traffic.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/deps.sh $(1)/usr/libexec/aether/deps.sh
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/libexec/aether/packages.sh $(1)/usr/libexec/aether/packages.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/singbox.sh $(1)/usr/libexec/aether/singbox.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/aether/monitor.sh $(1)/usr/libexec/aether/monitor.sh
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/etc/init.d/aether $(1)/etc/init.d/aether
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/files/etc/config/aether $(1)/etc/config/aether
 	$(INSTALL_DIR) $(1)/etc/aether/geo
+	$(INSTALL_DIR) $(1)/etc/aether/state
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/files/etc/aether/iran4.txt $(1)/etc/aether/iran4.txt
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/files/etc/aether/iran6.txt $(1)/etc/aether/iran6.txt
 	$(INSTALL_DIR) $(1)/etc/uci-defaults

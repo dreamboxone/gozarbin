@@ -11,6 +11,7 @@ singbox_file="$run_dir/sing-box.json"
 ruleset_dir="$run_dir/rulesets"
 geo_dir=/etc/aether/geo
 table_name=aether_proxy
+singbox=$(/usr/libexec/aether/singbox.sh --path 2>/dev/null)
 
 # "all" builds the table transparent mode needs; "accounting" builds only the
 # byte counters. The second is what runs when transparent mode stands down —
@@ -249,7 +250,8 @@ write_singbox() {
   }
 }
 EOF
-	sing-box check -c "$singbox_file"
+	[ -n "$singbox" ] || { echo "no sing-box core for Aether" >&2; return 1; }
+	"$singbox" check -c "$singbox_file"
 }
 
 start_rules() {

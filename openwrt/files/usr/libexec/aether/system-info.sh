@@ -17,13 +17,15 @@ json_bool() { [ "$1" = 1 ] && echo true || echo false; }
 aether_version=$([ -r "$version_file" ] && head -n 1 "$version_file")
 [ -n "$aether_version" ] || aether_version=$(pkg_version aether)
 aether_core=$(/usr/bin/aether --version 2>/dev/null | head -n 1 | tr -d '\r')
-singbox_version=$(pkg_version sing-box)
-[ -n "$singbox_version" ] || singbox_version=$(sing-box version 2>/dev/null | sed -n 's/^sing-box version //p' | head -n 1)
+# Never the package version: on a router running Passwall2 that is Passwall2's
+# core, which Aether does not use.
+singbox_version=$(/usr/libexec/aether/singbox.sh --version 2>/dev/null)
+singbox_origin=$(/usr/libexec/aether/singbox.sh --origin 2>/dev/null)
 
 pkg_installed kmod-nft-tproxy && tproxy=1 || tproxy=0
 pkg_installed kmod-nft-socket && socket=1 || socket=0
 command -v nft >/dev/null 2>&1 && nftables=1 || nftables=0
-command -v sing-box >/dev/null 2>&1 && singbox=1 || singbox=0
+[ -n "$singbox_version" ] && singbox=1 || singbox=0
 { [ -c /dev/net/tun ] || pkg_installed kmod-tun; } >/dev/null 2>&1 && tun=1 || tun=0
 ip rule list >/dev/null 2>&1 && iprule=1 || iprule=0
 
@@ -34,8 +36,8 @@ release=$(sed -n "s/^DISTRIB_DESCRIPTION='\(.*\)'$/\1/p" /etc/openwrt_release 2>
 arch=$(sed -n "s/^DISTRIB_ARCH='\(.*\)'$/\1/p" /etc/openwrt_release 2>/dev/null | head -n 1 | quoteless)
 aether_core=$(printf '%s' "$aether_core" | quoteless)
 
-printf '{"aether_version":"%s","aether_core":"%s","singbox_version":"%s","singbox":%s,"tproxy":%s,"socket":%s,"nftables":%s,"tun":%s,"iprule":%s,"socks":true,"model":"%s","release":"%s","arch":"%s"}\n' \
-	"$aether_version" "$aether_core" "$singbox_version" \
+printf '{"aether_version":"%s","aether_core":"%s","singbox_version":"%s","singbox_origin":"%s","singbox":%s,"tproxy":%s,"socket":%s,"nftables":%s,"tun":%s,"iprule":%s,"socks":true,"model":"%s","release":"%s","arch":"%s"}\n' \
+	"$aether_version" "$aether_core" "$singbox_version" "$singbox_origin" \
 	"$(json_bool "$singbox")" "$(json_bool "$tproxy")" "$(json_bool "$socket")" \
 	"$(json_bool "$nftables")" "$(json_bool "$tun")" "$(json_bool "$iprule")" \
 	"$model" "$release" "$arch"

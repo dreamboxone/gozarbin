@@ -19,12 +19,18 @@ case "$1" in
 		/etc/init.d/aether status
 		/usr/libexec/aether/passwall2-detect.sh
 		/usr/libexec/aether/deps.sh
+		/usr/libexec/aether/singbox.sh --state
 		/usr/libexec/aether/traffic.sh
 		;;
 	version)
 		[ -r /usr/share/aether/version ] && cat /usr/share/aether/version
 		/usr/bin/aether --version 2>/dev/null
+		printf 'sing-box core: %s (%s)\n' \
+			"$(/usr/libexec/aether/singbox.sh --version 2>/dev/null)" \
+			"$(/usr/libexec/aether/singbox.sh --origin 2>/dev/null)"
 		;;
+	singbox) exec /usr/libexec/aether/singbox.sh "${2:---state}" "$3" ;;
+	install-singbox) exec /usr/libexec/aether/singbox.sh --install "$2" ;;
 	traffic) exec /usr/libexec/aether/traffic.sh ;;
 	deps) exec /usr/libexec/aether/deps.sh "${2:---json}" ;;
 	install-deps) exec /usr/libexec/aether/deps.sh --install ;;
@@ -54,6 +60,9 @@ Usage: aetherctl <command>
   install-deps     install whatever dependency is missing
   update-iran      refresh the Iran IP ranges
   update-geo       refresh the geoip/geosite rule sets
+  singbox [op]     Aether's sing-box core: --state, --version, --origin, --check
+  install-singbox [version]
+                   install or update Aether's own sing-box core
   mode [name]      show, or set: tproxy | tun | socks
 USAGE
 		exit 2
