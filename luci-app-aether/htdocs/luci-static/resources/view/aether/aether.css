@@ -63,17 +63,16 @@ body.aether-page .cbi-button {
 	margin-bottom: 1rem;
 }
 
-/* A LuCI row is a floated label next to a field. Floats have no right-to-left
- * form, so the row becomes a reversed flex line instead: the label keeps its
- * place in the markup and lands on the right, the field beside it on the left.
+/* A LuCI row is a label beside a field, laid out as a flex line.
  *
- * Every one of these carries !important. The theme restates the same properties
- * inside width-based media queries, which land after this file and otherwise win
- * on a wide screen — which is exactly where the page is read. */
+ * No flex-direction here, and that is the whole point: `direction: rtl` already
+ * runs the main axis right to left, so the label — first in the markup — lands
+ * on the right of its own accord. Asking for row-reverse on top of that flips
+ * the line back to left-to-right, which is the bug this replaces. */
 .aether-rtl .cbi-value,
 .aether-rtl .cbi-section .cbi-value {
 	display: flex !important;
-	flex-direction: row-reverse !important;
+	flex-wrap: wrap;
 	align-items: flex-start;
 	gap: 1rem;
 	padding: 0.5rem 0;
@@ -154,12 +153,13 @@ body.aether-page .cbi-button {
 	margin: 0.5rem 0 0 0;
 }
 
-/* Reversed so the first tab in the markup, the general one, is the first a
- * Persian reader meets: the rightmost. */
+/* Same reasoning as the rows: the direction does the reversing, so the general
+ * tab, first in the markup, is the rightmost. flex-start is the right-hand end
+ * of a right-to-left line. */
 .aether-rtl .cbi-tabmenu {
 	display: flex !important;
-	flex-direction: row-reverse !important;
-	justify-content: flex-end !important;
+	flex-direction: row !important;
+	justify-content: flex-start !important;
 	padding: 0;
 	margin-bottom: 1rem;
 	border-bottom: 1px solid var(--ae-line);
@@ -183,15 +183,22 @@ body.aether-page .cbi-button {
 	text-align: left;
 }
 
+/* The row rule above is marked, so this one has to be as well or a narrow
+ * screen keeps the two-column line and squeezes both halves. */
 @media (max-width: 720px) {
-	.aether-rtl .cbi-value {
-		flex-direction: column;
+	.aether-rtl .cbi-value,
+	.aether-rtl .cbi-section .cbi-value {
+		flex-direction: column !important;
 		align-items: stretch;
+		gap: 0.25rem;
 	}
 
-	.aether-rtl .cbi-value-title,
-	.aether-rtl .cbi-value-field {
-		width: 100%;
+	.aether-rtl .cbi-value label.cbi-value-title,
+	.aether-rtl .cbi-value .cbi-value-title,
+	.aether-rtl .cbi-value .cbi-value-field {
+		flex: 0 0 auto !important;
+		max-width: none;
+		width: 100% !important;
 	}
 }
 
