@@ -11,6 +11,14 @@ PKG_MAINTAINER:=dreamboxone
 
 include $(INCLUDE_DIR)/package.mk
 
+# The view is installed under a name carrying the release, and the menu entry is
+# rewritten to match. LuCI stamps its own version onto the URL it fetches a view
+# from, which never changes when only this package does, so a browser holding an
+# older copy keeps using it — and with the caching uhttpd advertises (see the
+# postinst below) it holds one for days. A new release is a new URL, so the page
+# a user opens is the page that was installed.
+VIEW:=settings-$(PKG_VERSION)-r$(PKG_RELEASE)
+
 define Package/luci-app-aether
   SECTION:=luci
   CATEGORY:=LuCI
@@ -51,16 +59,17 @@ endef
 define Package/luci-app-aether/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
-touch /www/luci-static/resources/view/aether/settings.js 	/www/luci-static/resources/view/aether/aether.css 2>/dev/null
+touch /www/luci-static/resources/view/aether/*.js 	/www/luci-static/resources/view/aether/*.css 2>/dev/null
 exit 0
 endef
 
 define Package/luci-app-aether/install
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/aether
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/aether/settings.js $(1)/www/luci-static/resources/view/aether/settings.js
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/aether/settings.js $(1)/www/luci-static/resources/view/aether/$(VIEW).js
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/aether/aether.css $(1)/www/luci-static/resources/view/aether/aether.css
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-aether.json $(1)/usr/share/luci/menu.d/luci-app-aether.json
+	sed 's#aether/settings#aether/$(VIEW)#' ./root/usr/share/luci/menu.d/luci-app-aether.json 		> $(1)/usr/share/luci/menu.d/luci-app-aether.json
+	chmod 0644 $(1)/usr/share/luci/menu.d/luci-app-aether.json
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
 	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-aether.json $(1)/usr/share/rpcd/acl.d/luci-app-aether.json
 endef

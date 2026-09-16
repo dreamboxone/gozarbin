@@ -294,8 +294,10 @@ return view.extend({
 			});
 		};
 		return E('div', { 'class': 'ae-actions' }, [
-			this.action(_('راه‌اندازی مجدد سرویس'), 'apply', function() {
-				return run('/etc/init.d/aether', [ 'restart' ], _('سرویس دوباره راه‌اندازی شد.'));
+			/* restart, not start: it brings up a stopped service just the same,
+			 * and reloads a running one after a settings change. */
+			this.action(_('راه‌اندازی سرویس'), 'apply', function() {
+				return run('/etc/init.d/aether', [ 'restart' ], _('سرویس راه‌اندازی شد.'));
 			}),
 			this.action(_('توقف سرویس'), 'reset', function() {
 				return run('/etc/init.d/aether', [ 'stop' ], _('سرویس متوقف شد.'));
@@ -340,7 +342,7 @@ return view.extend({
 		var self = this;
 		var option, enabled, mode, transparent, force, protocol, scan, socks, http;
 
-		enabled = self.option(section, 'general', form.Flag, 'enabled', _('فعال بودن سرویس'));
+		enabled = self.option(section, 'general', form.Flag, 'enabled', _('فعال کردن برنامه'));
 
 		mode = self.option(section, 'general', form.ListValue, 'mode', _('حالت کار'),
 			_('TProxy: کل ترافیک شبکه از طریق nftables و sing-box. TUN: یک کارت شبکه مجازی به‌جای TProxy. SOCKS5: فقط پراکسی محلی، بدون دست‌کاری ترافیک شبکه.'));
