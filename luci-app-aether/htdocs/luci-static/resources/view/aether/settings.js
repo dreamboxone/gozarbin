@@ -492,7 +492,11 @@ return view.extend({
 			return E('div', { 'class': 'aether-rtl', 'dir': 'rtl' }, [
 				E('link', {
 					'rel': 'stylesheet',
-					'href': L.resource('view/aether/aether.css')
+					/* LuCI versions its own resource URLs but not one a view asks
+					 * for itself, so without this a browser keeps serving the
+					 * stylesheet it cached before the package was upgraded. */
+					'href': L.resource('view/aether/aether.css') + '?v=' +
+						encodeURIComponent(system.aether_version || '0')
 				}),
 				E('h2', {}, 'Aether' + version),
 				self.renderDashboard(system, passwall, deps, traffic),

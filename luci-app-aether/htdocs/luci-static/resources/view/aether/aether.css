@@ -84,25 +84,30 @@ body.aether-page .cbi-button {
 	border-bottom: 0;
 }
 
-.aether-rtl .cbi-value-title,
-.aether-rtl .cbi-section .cbi-value-title {
+/* The theme styles this label as `.cbi-value label.cbi-value-title`, which is
+ * one element selector more specific than an .aether-rtl descendant rule, so it
+ * kept winning on the font size and on `flex: 0 0 180px`. Matched at the same
+ * shape here, and the properties that decide the layout are marked besides. */
+.aether-rtl .cbi-value label.cbi-value-title,
+.aether-rtl .cbi-value .cbi-value-title {
 	float: none !important;
-	width: 30% !important;
+	flex: 0 0 30% !important;
 	min-width: 9rem;
+	max-width: 22rem;
 	padding: 0.35rem 0 0 0 !important;
 	text-align: right !important;
 	font-family: var(--ae-font) !important;
 	font-size: 15px !important;
+	line-height: 1.9 !important;
 	font-weight: 600;
-	line-height: 1.9;
 	color: inherit;
 }
 
-.aether-rtl .cbi-value-field,
+.aether-rtl .cbi-value .cbi-value-field,
 .aether-rtl .cbi-section .cbi-value-field {
 	float: none !important;
 	width: auto !important;
-	flex: 1 1 auto;
+	flex: 1 1 auto !important;
 	padding: 0 !important;
 	text-align: right;
 }
