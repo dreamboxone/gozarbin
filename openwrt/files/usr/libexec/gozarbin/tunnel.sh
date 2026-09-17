@@ -11,7 +11,9 @@
 # last-connection file it keeps beside the identity, and its own log since the
 # most recent start.
 
-lastconn=$(ls /etc/gozarbin/*lastconn*.toml 2>/dev/null | head -n 1)
+# Not the non-Iranian exit's note: that core keeps its own, and this reports the
+# main tunnel.
+lastconn=$(ls /etc/gozarbin/*lastconn*.toml 2>/dev/null | grep -v '/unblock' | head -n 1)
 peer=
 profile=
 if [ -n "$lastconn" ]; then
@@ -21,7 +23,9 @@ fi
 
 # Everything below comes from the log since the last start, so a previous run's
 # outcome is never reported as this one's.
-report=$(logread -e gozarbin 2>/dev/null | awk '
+# The exit core logs as gozarbin-unblock, which the pattern also matches; its own
+# scans and starts would otherwise read as the main tunnel's.
+report=$(logread -e gozarbin 2>/dev/null | grep -v 'gozarbin-unblock[[]' | awk '
 	/Aether v/ { state = "starting"; source = ""; gateway = ""; transport = ""; rtt = ""; detail = ""; fails = 0 }
 	/hunting for a working MASQUE gateway/ { state = "scanning"; source = "scan" }
 	/scan mode=/ { state = "scanning"; source = "scan" }

@@ -16,6 +16,13 @@ if [ -n "$(uci -q get gozarbin.main)" ]; then
 	# old mark connects and then carries nothing, so it is corrected here.
 	[ "$(uci -q get gozarbin.main.mark)" = 0x0a37 ] && uci set gozarbin.main.mark=0x0aff
 	set_default tproxy_mark 0x0a38
+	# 2.1.2 dropped the switch for routing the network through the tunnel; the
+	# mode alone decides. Switched off in TProxy or TUN mode it was a SOCKS5-only
+	# setup in all but name, so that is what it becomes.
+	if [ "$(uci -q get gozarbin.main.transparent)" = 0 ]; then
+		uci set gozarbin.main.mode=socks
+	fi
+	uci -q delete gozarbin.main.transparent
 	set_default mode tproxy
 	set_default http_port 0
 	set_default tun_name gozarbin-tun
@@ -43,6 +50,16 @@ if [ -n "$(uci -q get gozarbin.main)" ]; then
 	set_default dns 1
 	set_default dns_port 1822
 	set_default dns_server 1.1.1.1
+	# The domain list only on the upgrade that introduces the option. After that
+	# an empty list is somebody's decision, not a gap to fill.
+	if [ -z "$(uci -q get gozarbin.main.unblock)" ]; then
+		for domain in anthropic.com claude.ai claude.com claudeusercontent.com openai.com chatgpt.com oaistatic.com oaiusercontent.com spotify.com scdn.co spotifycdn.com gemini.google.com aistudio.google.com generativelanguage.googleapis.com meta.ai; do
+			uci add_list gozarbin.main.unblock_domain="$domain"
+		done
+	fi
+	set_default unblock 0
+	set_default unblock_port 1823
+	set_default unblock_tor_port 1824
 	set_default geoip_url 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-ir.srs'
 	set_default geosite_url 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-ir.srs'
 	set_default geosite_ads_url 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-category-ads-all.srs'

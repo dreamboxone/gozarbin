@@ -78,14 +78,25 @@ enabled=$(uci -q get gozarbin.main.enabled)
 # Unset means on: that is the default the firewall script builds its rules with.
 accounting=$(uci -q get gozarbin.main.accounting)
 [ "$accounting" = 0 ] || accounting=1
-# Transparent mode switched off is a choice, not a stand-down, and the two read
-# very differently on a page that otherwise says the mode is TProxy.
-transparent=$(uci -q get gozarbin.main.transparent)
-[ "$transparent" = 0 ] || transparent=1
+# The non-Iranian exit: off; starting, while Tor and then WARP come up, which
+# takes a couple of minutes; ready once its SOCKS port answers; or down, when it
+# was meant to run and is not running at all.
+unblock=off
+if [ "$(uci -q get gozarbin.main.unblock)" = 1 ] && [ "$running" = 1 ] && [ "$singbox" = 1 ]; then
+	unblock_port=$(uci -q get gozarbin.main.unblock_port)
+	[ -n "$unblock_port" ] || unblock_port=1823
+	if netstat -ln 2>/dev/null | grep -q ":$unblock_port "; then
+		unblock=ready
+	elif [ -n "$(first_pid gozarbin-unblock)" ]; then
+		unblock=starting
+	else
+		unblock=down
+	fi
+fi
 
-printf '{"enabled":%s,"running":%s,"singbox":%s,"mode":"%s","transparent":%s,"transparent_off":"%s","uptime":%s,"accounting":%s,"counters":%s,"upload":%s,"download":%s,"upload_packets":%s,"download_packets":%s,"time":%s}\n' \
+printf '{"enabled":%s,"running":%s,"singbox":%s,"mode":"%s","transparent_off":"%s","uptime":%s,"accounting":%s,"counters":%s,"upload":%s,"download":%s,"upload_packets":%s,"download_packets":%s,"unblock":"%s","time":%s}\n' \
 	"$(json_bool "$enabled")" "$(json_bool "$running")" "$(json_bool "$singbox")" \
-	"$mode" "$(json_bool "$transparent")" "$reason" \
+	"$mode" "$reason" \
 	"$(process_uptime "$gozarbin_pid")" "$(json_bool "$accounting")" "$(json_bool "$counters_live")" \
 	"$upload_bytes" "$download_bytes" "$upload_packets" "$download_packets" \
-	"$(date +%s)"
+	"$unblock" "$(date +%s)"

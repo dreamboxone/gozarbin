@@ -57,6 +57,16 @@ case "$1" in
 	install-deps) exec /usr/libexec/gozarbin/deps.sh --install ;;
 	update-geo) exec /usr/libexec/gozarbin/geo-update.sh ;;
 	dns) exec /usr/libexec/gozarbin/dns.sh "${2:-state}" ;;
+	unblock)
+		# Where the non-Iranian exit actually lands, asked through it.
+		port=$(uci -q get gozarbin.main.unblock_port)
+		[ -n "$port" ] || port=1823
+		netstat -ln 2>/dev/null | grep -q ":$port " ||
+			{ echo 'the non-Iranian exit is not up: switched off, or still connecting' >&2; exit 1; }
+		command -v curl >/dev/null 2>&1 || { echo 'this check needs curl' >&2; exit 1; }
+		curl -s --max-time 40 -x "socks5h://127.0.0.1:$port" https://cloudflare.com/cdn-cgi/trace |
+			grep -E '^(ip|loc|warp)='
+		;;
 	mode)
 		[ -n "$2" ] || { uci -q get gozarbin.main.mode; exit 0; }
 		case "$2" in
@@ -84,6 +94,7 @@ Usage: gozarbinctl <command>
   update-geo       refresh the GeoIP, GeoSite and ad rule sets
   dns [on|off|state]
                    whether the network's DNS goes through the tunnel
+  unblock          where the non-Iranian exit lands (ip, country)
   singbox [op]     Gozarbin's sing-box core: --state, --version, --origin, --check
   install-singbox [version|--background]
                    install or update Gozarbin's own sing-box core;

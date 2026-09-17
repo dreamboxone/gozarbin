@@ -40,9 +40,32 @@ load_config() {
 	config_get_bool accounting main accounting 1
 	config_get_bool geo_enabled main geo_enabled 1
 	config_get_bool block_ads main block_ads 0
+	config_get_bool unblock main unblock 0
+	config_get unblock_port main unblock_port 1823
 	lan_interfaces=
 	config_list_foreach main lan_interface add_lan
 	[ -n "$lan_interfaces" ] || lan_interfaces='"br-lan"'
+	unblock_domains=
+	config_list_foreach main unblock_domain add_unblock
+	[ -n "$unblock_domains" ] || unblock=0
+}
+
+# A domain name and nothing else: it goes into JSON unescaped.
+add_unblock() {
+	case "$1" in
+		''|*[!A-Za-z0-9.-]*) return 0 ;;
+	esac
+	unblock_domains="${unblock_domains}${unblock_domains:+,}\"${1#.}\""
+}
+
+# What the counters watch: the core's SOCKS port, and the non-Iranian exit's
+# too when there is one, since that traffic leaves through a tunnel as well.
+proxy_ports() {
+	if [ "$unblock" = 1 ]; then
+		printf '{ %s, %s }' "$socks_port" "$unblock_port"
+	else
+		printf '%s' "$socks_port"
+	fi
 }
 
 add_lan() {
@@ -89,7 +112,9 @@ iran_ranges() {
 # the Gozarbin proxy, so they measure what really left through the tunnel in either
 # mode, and they keep counting for clients that speak SOCKS5 directly.
 accounting_rules() {
+	local ports
 	[ "$accounting" = 1 ] || return 0
+	ports=$(proxy_ports)
 	# Written the way nft dumps a counter object, so the file reloads verbatim.
 	echo "	counter upload {"
 	echo "		packets 0 bytes 0"
@@ -99,13 +124,13 @@ accounting_rules() {
 	echo "	}"
 	echo "	chain accounting_output {"
 	echo "		type filter hook output priority filter; policy accept;"
-	echo "		oifname \"lo\" meta l4proto { tcp, udp } th dport $socks_port counter name \"upload\""
-	echo "		oifname \"lo\" meta l4proto { tcp, udp } th sport $socks_port counter name \"download\""
-	echo "		oifname != \"lo\" meta l4proto { tcp, udp } th sport $socks_port counter name \"download\""
+	echo "		oifname \"lo\" meta l4proto { tcp, udp } th dport $ports counter name \"upload\""
+	echo "		oifname \"lo\" meta l4proto { tcp, udp } th sport $ports counter name \"download\""
+	echo "		oifname != \"lo\" meta l4proto { tcp, udp } th sport $ports counter name \"download\""
 	echo "	}"
 	echo "	chain accounting_input {"
 	echo "		type filter hook input priority filter; policy accept;"
-	echo "		iifname != \"lo\" meta l4proto { tcp, udp } th dport $socks_port counter name \"upload\""
+	echo "		iifname != \"lo\" meta l4proto { tcp, udp } th dport $ports counter name \"upload\""
 	echo "	}"
 }
 
@@ -177,6 +202,11 @@ route_rules() {
 	[ "$block_ads" = 1 ] && geo_file geosite-ads >/dev/null &&
 		rules="${rules},{\"rule_set\":[\"geosite-ads\"],\"action\":\"reject\"}"
 	rules="${rules},{\"ip_is_private\":true,\"outbound\":\"direct\"}"
+	# Services that refuse Iran, to the WARP connection that starts from a Tor
+	# exit. With no fallback: while that connection is still coming up these
+	# sites fail, rather than reaching the service from Iran after all.
+	[ "$unblock" = 1 ] &&
+		rules="${rules},{\"domain_suffix\":[$unblock_domains],\"outbound\":\"unblock\"}"
 	if [ "$geo_enabled" = 1 ]; then
 		geo_file geoip-ir >/dev/null && geo="\"geoip-ir\""
 		geo_file geosite-ir >/dev/null && geo="${geo}${geo:+,}\"geosite-ir\""
@@ -187,6 +217,10 @@ route_rules() {
 
 outbounds() {
 	printf '%s' '{ "type": "socks", "tag": "gozarbin", "server": "'"$socks_address"'", "server_port": '"$socks_port"', "version": "5" }, { "type": "direct", "tag": "direct" }'
+	if [ "$unblock" = 1 ]; then
+		printf ', { "type": "socks", "tag": "unblock", "server": "127.0.0.1", "server_port": %s, "version": "5" }' "$unblock_port"
+	fi
+	return 0
 }
 
 inbound() {

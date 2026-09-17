@@ -22,6 +22,13 @@ var REASONS = {
 	singbox: _('حالت شفاف اجرا نشده چون هستهٔ sing-box نصب نیست')
 };
 
+/* The non-Iranian exit, as traffic.sh reports it. "off" says nothing. */
+var UNBLOCK = {
+	starting: _('خروجی غیرایرانی: در حال اتصال از راه Tor'),
+	ready: _('خروجی غیرایرانی: آماده'),
+	down: _('خروجی غیرایرانی: قطع است')
+};
+
 /* Written by singbox.sh into /var/run/gozarbin/install.json. */
 var INSTALL_STEPS = {
 	starting: _('در حال آماده‌سازی…'),
@@ -269,8 +276,8 @@ return view.extend({
 		 * card beside it. */
 		if (running && REASONS[traffic.transparent_off])
 			note.push(REASONS[traffic.transparent_off]);
-		else if (running && traffic.mode !== 'socks' && traffic.transparent === false)
-			note.push(_('عبور دادن ترافیک شبکه از تونل خاموش است؛ فقط پراکسی محلی بالاست'));
+		if (running && UNBLOCK[traffic.unblock])
+			note.push(UNBLOCK[traffic.unblock]);
 		cards.service.note.textContent = note.join(' • ');
 
 		var upload = Number(traffic.upload) || 0, download = Number(traffic.download) || 0;
@@ -535,7 +542,7 @@ return view.extend({
 		section.tab('advanced', _('پیشرفته'));
 
 		var self = this;
-		var option, enabled, mode, transparent, force, protocol, scan, socks, http;
+		var option, enabled, mode, force, protocol, scan, socks, http;
 
 		enabled = self.option(section, 'general', form.Flag, 'enabled', _('فعال کردن برنامه'));
 
@@ -546,14 +553,12 @@ return view.extend({
 		mode.value('socks', _('فقط پراکسی SOCKS5'));
 		mode.default = 'tproxy';
 
-		transparent = self.option(section, 'general', form.Flag, 'transparent', _('عبور دادن ترافیک شبکه از تونل'));
-		transparent.depends({ mode: 'tproxy' });
-		transparent.depends({ mode: 'tun' });
-		transparent.default = '1';
-
+		/* No separate "route the network through the tunnel" switch: switching it
+		 * off did exactly what the SOCKS5-only mode does, so the mode decides. */
 		force = self.option(section, 'general', form.Flag, 'force_with_passwall2', _('اجرا هم‌زمان با Passwall2'),
 			_('به‌طور پیش‌فرض اگر Passwall2 روشن باشد، حالت شفاف گذربین اجرا نمی‌شود تا دو برنامه با هم تداخل نکنند.'));
-		force.depends('transparent', '1');
+		force.depends({ mode: 'tproxy' });
+		force.depends({ mode: 'tun' });
 
 		protocol = self.option(section, 'general', form.ListValue, 'protocol', _('پروتکل تونل'));
 		protocol.value('masque', 'MASQUE (HTTP/3)');
@@ -588,8 +593,20 @@ return view.extend({
 		option.default = '1';
 
 		option = self.option(section, 'routing', form.Flag, 'dns', _('عبور DNS از تونل'),
-			_('با این گزینه نام‌ها از داخل تونل پاسخ می‌گیرند و نام‌های ایرانی از DNS اینترنت خودتان. فقط در حالت شفاف.'));
+			_('با این گزینه دامنه‌ها از داخل تونل پاسخ می‌گیرند و دامنه‌های ایرانی از DNS اینترنت خودتان. فقط در حالت شفاف.'));
 		option.default = '1';
+
+		/* Cloudflare places a WARP exit where the connection to it starts, so a
+		 * second core dials WARP through Tor and these domains leave on a
+		 * Cloudflare address outside Iran. */
+		option = self.option(section, 'routing', form.Flag, 'unblock', _('خروجی غیرایرانی برای سرویس‌های تحریمی'),
+			_('ترافیک دامنه‌های زیر از وارپی عبور می‌کند که از راه Tor وصل شده، پس این سرویس‌ها موقعیت را خارج از ایران می‌بینند. کندتر است، حدود ۳۰ مگابایت حافظه می‌گیرد و اتصال اول حدود دو دقیقه طول می‌کشد. فقط در حالت شفاف و TUN.'));
+		option.default = '0';
+
+		option = self.option(section, 'routing', form.DynamicList, 'unblock_domain', _('دامنه‌های خروجی غیرایرانی'),
+			_('هر دامنه زیردامنه‌هایش را هم در بر می‌گیرد.'));
+		option.datatype = 'hostname';
+		option.depends('unblock', '1');
 
 		option = self.option(section, 'routing', form.Value, 'geoip_url', _('منبع GeoIP'),
 			_('نشانی فایل rule-set. می‌توانید نشانی آینه یا فایل دلخواه خود را بگذارید.'));
