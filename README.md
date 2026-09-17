@@ -94,9 +94,11 @@ gozarbinctl singbox --origin    # own | system | passwall | none
 
 ## نصب سریع
 
-۱. فایل‌های `gozarbin` و `luci-app-gozarbin` متناسب با معماری روتر را از بخش Releases دانلود و روی روتر کپی کنید.
+۱. فایل `gozarbin-openwrt-<نسخه>-<معماری>.tar.gz` متناسب با روتر را از بخش Releases دانلود و روی روتر کپی کنید. شمارهٔ نسخه در نام فایل، قالب بسته را تعیین می‌کند: بستهٔ `24.10.x` از نوع `.ipk` است و با `opkg` نصب می‌شود، بستهٔ `25.12.x` از نوع `.apk` و با `apk`.
 
-۲. روی OpenWrt 24.10 به بعد (که از `apk` استفاده می‌کند):
+> ‏`apk` از OpenWrt **25.12** آمده است؛ ۲۴.۱۰ هنوز `opkg` دارد. اگر روتر شما ۲۴.۱۰.x است، بستهٔ ۲۴.۱۰ را بردارید — لازم نیست شمارهٔ آخر یکی باشد، چون `opkg` فقط معماری بسته را می‌سنجد نه نسخهٔ OpenWrt را. مثلاً بستهٔ ۲۴.۱۰.۸ روی ۲۴.۱۰.۵ هم نصب می‌شود.
+
+۲. روی OpenWrt 25.12 به بعد (که از `apk` استفاده می‌کند):
 
 </div>
 
@@ -106,12 +108,22 @@ apk add --allow-untrusted ./gozarbin-*.apk ./luci-app-gozarbin-*.apk
 
 <div dir="rtl">
 
-روی نسخه‌های قدیمی‌تر با `opkg`:
+روی OpenWrt 24.10.x با `opkg`:
 
 </div>
 
 ```sh
 opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
+```
+
+<div dir="rtl">
+
+اگر `opkg` پیام `incompatible with the architectures configured` داد، فایل با معماری روتر نمی‌خواند. معماری درست را این دستور می‌گوید و باید با نام فایل یکی باشد:
+
+</div>
+
+```sh
+opkg print-architecture
 ```
 
 <div dir="rtl">
@@ -445,8 +457,8 @@ cat /var/run/gozarbin/sing-box.json
 
 ```sh
 gozarbinctl off
-apk del luci-app-gozarbin gozarbin      # OpenWrt 24.10 به بعد
-opkg remove luci-app-gozarbin gozarbin  # نسخه‌های قدیمی‌تر
+apk del luci-app-gozarbin gozarbin      # OpenWrt 25.12 به بعد
+opkg remove luci-app-gozarbin gozarbin  # OpenWrt 24.10.x و قدیمی‌تر
 ```
 
 <div dir="rtl">
