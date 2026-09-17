@@ -106,11 +106,18 @@ body.gozarbin-page .cbi-button {
 	color: inherit;
 }
 
+/* A basis of zero, not auto. The description lives inside this field, so an
+ * auto basis measured the field as wide as its longest description on one line
+ * — always wider than what is left beside the title — and the whole field
+ * wrapped under it: every checkbox, box and menu on a line of its own below its
+ * name. From zero it simply takes the rest of the line, and the description
+ * wraps inside it. */
 .gozarbin-rtl .cbi-value .cbi-value-field,
 .gozarbin-rtl .cbi-section .cbi-value-field {
 	float: none !important;
 	width: auto !important;
-	flex: 1 1 auto !important;
+	flex: 1 1 0 !important;
+	min-width: 0;
 	padding: 0 !important;
 	text-align: right;
 }

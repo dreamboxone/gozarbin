@@ -526,7 +526,7 @@ return view.extend({
 
 	renderForm: function(system) {
 		var map = new form.Map('gozarbin', _('تنظیمات گذربین'),
-			_('پراکسی و تفکیک ترافیک ایران روی روتر. پس از هر تغییر، «ذخیره و اعمال» را بزنید.'));
+			_('پس از هر تغییر، «ذخیره و اعمال» را بزنید.'));
 		var section = map.section(form.NamedSection, 'main', 'gozarbin');
 		section.addremove = false;
 
@@ -588,7 +588,7 @@ return view.extend({
 		option.default = '1';
 
 		option = self.option(section, 'routing', form.Flag, 'dns', _('عبور DNS از تونل'),
-			_('فیلترینگ به پرس‌وجوی DNS جواب جعلی می‌دهد و دستگاه به صفحهٔ فیلتر وصل می‌شود (مثلاً یوتیوب روی تلویزیون). با این گزینه نام‌ها از داخل تونل پاسخ می‌گیرند و نام‌های ایرانی از DNS اینترنت خودتان. فقط در حالت شفاف.'));
+			_('با این گزینه نام‌ها از داخل تونل پاسخ می‌گیرند و نام‌های ایرانی از DNS اینترنت خودتان. فقط در حالت شفاف.'));
 		option.default = '1';
 
 		option = self.option(section, 'routing', form.Value, 'geoip_url', _('منبع GeoIP'),
