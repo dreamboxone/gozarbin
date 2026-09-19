@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gozarbin
 PKG_VERSION:=2.1.4
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_LICENSE:=AGPL-3.0-only
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=dreamboxone
@@ -42,6 +42,7 @@ endef
 # is the package architecture OpenWrt actually distributes against, such as
 # arm_cortex-a7_neon-vfpv4. ARCH remains a fallback for a tree that predates it.
 GOZARBIN_BINARY?=$(firstword $(wildcard 	$(CURDIR)/prebuilt/$(ARCH_PACKAGES)/aether 	$(CURDIR)/prebuilt/$(ARCH)/aether))
+GOZARBIN_PT?=$(firstword $(wildcard $(CURDIR)/prebuilt/$(ARCH_PACKAGES)/pt/lyrebird $(CURDIR)/prebuilt/$(ARCH)/pt/lyrebird))
 
 # GOZARBIN_OBFUSCATE=1 on the make command line strips the shipped shell scripts
 # down to working code with their licence headers, and nothing else, before they
@@ -52,6 +53,7 @@ define Build/Prepare
 	$(call Build/Prepare/Default)
 	@test -n "$(GOZARBIN_BINARY)" -a -f "$(GOZARBIN_BINARY)" || 		(echo "No tunnel core for this target: looked for prebuilt/$(ARCH_PACKAGES)/aether and prebuilt/$(ARCH)/aether" >&2; exit 1)
 	$(CP) "$(GOZARBIN_BINARY)" $(PKG_BUILD_DIR)/aether
+	$(if $(GOZARBIN_PT),$(CP) "$(GOZARBIN_PT)" $(PKG_BUILD_DIR)/lyrebird)
 	echo "$(PKG_VERSION)-r$(PKG_RELEASE)" > $(PKG_BUILD_DIR)/version
 	rm -rf $(PKG_BUILD_DIR)/files
 	$(CP) ./files $(PKG_BUILD_DIR)/files
@@ -80,6 +82,8 @@ endef
 define Package/gozarbin/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/aether $(1)/usr/bin/gozarbin
+	$(if $(GOZARBIN_PT),$(INSTALL_DIR) $(1)/usr/libexec/gozarbin/pt)
+	$(if $(GOZARBIN_PT),$(INSTALL_BIN) $(PKG_BUILD_DIR)/lyrebird $(1)/usr/libexec/gozarbin/pt/lyrebird)
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/bin/gozarbinctl $(1)/usr/bin/gozarbinctl
 	$(INSTALL_DIR) $(1)/usr/share/gozarbin
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/version $(1)/usr/share/gozarbin/version

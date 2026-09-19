@@ -566,6 +566,12 @@ return view.extend({
 		protocol.value('gool', 'WARP-in-WARP (gool)');
 		protocol.value('mim', 'MASQUE-in-MASQUE');
 
+		option = self.option(section, 'general', form.Flag, 'tor_reverse', _('اتصال تونل از راه Tor'),
+			_('فقط با انتخاب شما فعال می‌شود. MASQUE را از راه پل‌های Tor و HTTP/2 وصل می‌کند؛ اتصال اولیه کندتر است و به ابزار پل نیاز دارد.'));
+		option.default = '0';
+		option.depends('protocol', 'masque');
+		option.depends('protocol', 'mim');
+
 		scan = self.option(section, 'general', form.ListValue, 'scan', _('حالت اسکن سرور'),
 			_('turbo سریع‌ترین و ironclad مطمئن‌ترین حالت است.'));
 		scan.value('turbo', _('turbo — اولین سرور پاسخ‌گو'));

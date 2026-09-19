@@ -468,6 +468,17 @@ fn build_candidates(st: &Strategy, ports: &[u16], ip: IpScan) -> Vec<(IpAddr, u1
                 out.push((IpAddr::V4(*a), primary));
             }
         }
+        // A small router can only probe a few peers concurrently. Put the
+        // documented fallback ports on known ingress addresses ahead of the
+        // thousands of sampled addresses, or the deadline expires before a
+        // single fallback port is tried.
+        for &port in ports.iter().skip(1) {
+            for a in &seeds {
+                if seen.insert((IpAddr::V4(*a), port)) {
+                    out.push((IpAddr::V4(*a), port));
+                }
+            }
+        }
         let cidr_hosts: Vec<Vec<Ipv4Addr>> = masque_cidrs_v4()
             .iter()
             .map(|c| {
@@ -517,15 +528,6 @@ fn build_candidates(st: &Strategy, ports: &[u16], ip: IpScan) -> Vec<(IpAddr, u1
         }
     }
 
-    if ip.want_v4() {
-        for a in &seeds {
-            for &port in ports {
-                if port != primary && seen.insert((IpAddr::V4(*a), port)) {
-                    out.push((IpAddr::V4(*a), port));
-                }
-            }
-        }
-    }
     if ip.want_v6() {
         for a in &seeds6 {
             for &port in ports {
@@ -660,6 +662,18 @@ mod tests {
     #[test]
     fn the_documented_masque_fallback_ports_keep_their_documented_order() {
         assert_eq!(MASQUE_PORTS, &[443, 500, 1701, 4500, 4443, 8443, 8095]);
+    }
+
+    #[test]
+    fn fallback_ports_are_probed_before_the_sampled_address_sweep() {
+        let candidates = build_candidates(&ScanMode::Balanced.strategy(), MASQUE_PORTS, IpScan::V4);
+        let seed_count = MASQUE_SEEDS.len();
+        for (index, port) in MASQUE_PORTS.iter().enumerate() {
+            let start = index * seed_count;
+            for (offset, seed) in MASQUE_SEEDS.iter().enumerate() {
+                assert_eq!(candidates[start + offset], (seed.parse().unwrap(), *port));
+            }
+        }
     }
 
     #[test]
