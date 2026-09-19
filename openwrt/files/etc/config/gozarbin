@@ -37,12 +37,16 @@ config gozarbin 'main'
 	# Iranian sites and services go direct, recognised by address (GeoIP) and by
 	# name (GeoSite). One source for both, and for the kernel's fast path too.
 	option geo_enabled '1'
+	list iran_domain 'bale.ai'
+	list iran_domain 'eitaa.com'
+	list iran_domain 'ir'
 	# The network's DNS, resolved through the tunnel while transparent mode is up.
 	# Without it the filter answers names itself and devices connect to the block
 	# page's address, which no proxy can fix afterwards.
 	option dns '1'
 	option dns_port '1822'
 	option dns_server '1.1.1.1'
+	option iran_dns_server ''
 	# Services that refuse Iran — Anthropic, OpenAI, Spotify, Gemini, Meta AI —
 	# reached through a second WARP connection dialled over Tor. Cloudflare places
 	# a WARP exit wherever the connection to it starts, so starting it from a Tor

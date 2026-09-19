@@ -28,6 +28,9 @@ wanted() {
 missing() {
 	local name out=
 	for name in $(wanted); do
+		# nftables is a virtual package on fw4 releases. The installed provider
+		# can be nftables-json or nftables-nojson, so test its actual executable.
+		[ "$name" = nftables ] && command -v nft >/dev/null 2>&1 && continue
 		pkg_installed "$name" || out="$out $name"
 	done
 	echo "${out# }"
@@ -39,7 +42,7 @@ report_json() {
 	printf '{"manager":"%s","packages":[' "$(pkg_manager)"
 	for name in $(wanted); do
 		printf '%s{"name":"%s","installed":%s,"version":"%s"}' \
-			"$sep" "$name" "$(pkg_installed "$name" && echo true || echo false)" "$(pkg_version "$name")"
+			"$sep" "$name" "$(if [ "$name" = nftables ]; then command -v nft >/dev/null 2>&1; else pkg_installed "$name"; fi && echo true || echo false)" "$(pkg_version "$name")"
 		sep=,
 	done
 	printf '],"missing":"%s","complete":%s}\n' "$gone" "$([ -z "$gone" ] && echo true || echo false)"

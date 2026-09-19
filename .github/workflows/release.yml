@@ -38,6 +38,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Match embedded version to release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        working-directory: .
+        run: bash scripts/set-release-version.sh "$GITHUB_REF_NAME"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -121,6 +127,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Match embedded version to release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        working-directory: .
+        run: bash scripts/set-release-version.sh "$GITHUB_REF_NAME"
+
       - name: Install Rust (latest stable via rustup)
         working-directory: /
         run: |
@@ -171,6 +183,12 @@ jobs:
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Match embedded version to release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        working-directory: .
+        run: bash scripts/set-release-version.sh "$GITHUB_REF_NAME"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -256,6 +274,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Match embedded version to release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        working-directory: .
+        run: bash scripts/set-release-version.sh "$GITHUB_REF_NAME"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -329,6 +353,12 @@ jobs:
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Match embedded version to release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        working-directory: .
+        run: bash scripts/set-release-version.sh "$GITHUB_REF_NAME"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -435,35 +465,7 @@ jobs:
       - name: Set package version from Git tag
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
-        run: |
-          set -eux
-
-          VERSION="${GITHUB_REF_NAME#v}"
-
-          echo "Building Gozarbin version: $VERSION"
-
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-
-          sed -i -E \
-            "s/^PKG_VERSION:=.*/PKG_VERSION:=$VERSION/" \
-            openwrt/Makefile
-
-          sed -i -E \
-            "s/^PKG_VERSION:=.*/PKG_VERSION:=$VERSION/" \
-            luci-app-gozarbin/Makefile
-
-          sed -i -E \
-            "s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" \
-            openwrt/Makefile
-
-          sed -i -E \
-            "s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" \
-            luci-app-gozarbin/Makefile
-
-          grep '^PKG_VERSION' openwrt/Makefile
-          grep '^PKG_RELEASE' openwrt/Makefile
-          grep '^PKG_VERSION' luci-app-gozarbin/Makefile
-          grep '^PKG_RELEASE' luci-app-gozarbin/Makefile
+        run: bash scripts/set-release-version.sh "$GITHUB_REF_NAME"
 
       - name: Install SDK dependencies
         run: |

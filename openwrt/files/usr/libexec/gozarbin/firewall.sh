@@ -39,6 +39,10 @@ load_config() {
 	config_get dns_server main dns_server 1.1.1.1
 	config_get_bool accounting main accounting 1
 	config_get_bool geo_enabled main geo_enabled 1
+	config_get iran_dns_server main iran_dns_server ''
+	iran_domains=
+	config_list_foreach main iran_domain add_iran_domain
+	[ -n "$iran_domains" ] || iran_domains='"bale.ai","eitaa.com","ir"'
 	config_get_bool block_ads main block_ads 0
 	config_get_bool unblock main unblock 0
 	config_get unblock_port main unblock_port 1823
@@ -56,6 +60,13 @@ add_unblock() {
 		''|*[!A-Za-z0-9.-]*) return 0 ;;
 	esac
 	unblock_domains="${unblock_domains}${unblock_domains:+,}\"${1#.}\""
+}
+
+add_iran_domain() {
+	case "$1" in
+		''|*[!A-Za-z0-9.-]*) return 0 ;;
+	esac
+	iran_domains="${iran_domains}${iran_domains:+,}\"${1#.}\""
 }
 
 # What the counters watch: the core's SOCKS port, and the non-Iranian exit's
@@ -199,6 +210,10 @@ route_rules() {
 	# A device with a resolver of its own — a TV asking 8.8.8.8 — gets its
 	# answer from the tunnel as well, not from the filter sitting on port 53.
 	rules="${rules},{\"protocol\":\"dns\",\"action\":\"hijack-dns\"}"
+	# Keep essential domestic services ahead of optional ad lists and stale
+	# GeoSite data. Reverse DNS mapping below covers apps without a sniffable SNI.
+	[ "$geo_enabled" = 1 ] &&
+		rules="${rules},{\"domain_suffix\":[$iran_domains],\"outbound\":\"direct\"}"
 	[ "$block_ads" = 1 ] && geo_file geosite-ads >/dev/null &&
 		rules="${rules},{\"rule_set\":[\"geosite-ads\"],\"action\":\"reject\"}"
 	rules="${rules},{\"ip_is_private\":true,\"outbound\":\"direct\"}"
@@ -256,9 +271,13 @@ wan_dns() {
 dns_section() {
 	local servers rules= iran strategy
 	servers="{\"type\":\"https\",\"tag\":\"remote\",\"server\":\"$dns_server\",\"detour\":\"gozarbin\"}"
-	if [ "$geo_enabled" = 1 ] && geo_file geosite-ir >/dev/null && iran=$(wan_dns); then
+	iran=$iran_dns_server
+	[ -n "$iran" ] || iran=$(wan_dns) || true
+	if [ "$geo_enabled" = 1 ] && [ -n "$iran" ]; then
 		servers="${servers},{\"type\":\"udp\",\"tag\":\"iran\",\"server\":\"$iran\"}"
-		rules="{\"rule_set\":[\"geosite-ir\"],\"server\":\"iran\"}"
+		rules="{\"domain_suffix\":[$iran_domains],\"server\":\"iran\"}"
+		geo_file geosite-ir >/dev/null &&
+			rules="${rules},{\"rule_set\":[\"geosite-ir\"],\"server\":\"iran\"}"
 	fi
 	# The tunnel carries what the core was told to carry. Handing out addresses
 	# of the other family only gives devices something to try and time out on.
@@ -267,7 +286,7 @@ dns_section() {
 		v6) strategy=ipv6_only ;;
 		*) strategy=prefer_ipv4 ;;
 	esac
-	printf '{ "servers": [%s], "rules": [%s], "final": "remote", "strategy": "%s" }' \
+	printf '{ "servers": [%s], "rules": [%s], "final": "remote", "strategy": "%s", "reverse_mapping": true }' \
 		"$servers" "$rules" "$strategy"
 }
 
