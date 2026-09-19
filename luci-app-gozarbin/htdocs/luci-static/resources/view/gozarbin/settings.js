@@ -243,8 +243,8 @@ return view.extend({
 			if (tunnel.transport) note.push(tunnel.transport);
 			if (tunnel.profile) note.push(_('استتار: ') + tunnel.profile);
 			if (tunnel.rtt) note.push(_('پینگ: ') + tunnel.rtt);
-			if (tunnel.country) note.push(_('کشور خروجی: ') + ltr(tunnel.country));
-			if (tunnel.colo) note.push(_('مرکز Cloudflare: ') + ltr(tunnel.colo));
+			if (tunnel.country) note.push(_('کشور خروجی: ') + String(tunnel.country));
+			if (tunnel.colo) note.push(_('مرکز Cloudflare: ') + String(tunnel.colo));
 		} else if (tunnel.state === 'failed' || tunnel.state === 'retrying') {
 			note.push(_('تا حالا ') + fails + _(' بار ناموفق'));
 			/* WireGuard and WARP-in-WARP need their UDP ports through; MASQUE
