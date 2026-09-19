@@ -242,6 +242,9 @@ return view.extend({
 				: _('از اسکن تازه'));
 			if (tunnel.transport) note.push(tunnel.transport);
 			if (tunnel.profile) note.push(_('استتار: ') + tunnel.profile);
+			if (tunnel.rtt) note.push(_('پینگ: ') + tunnel.rtt);
+			if (tunnel.country) note.push(_('کشور خروجی: ') + ltr(tunnel.country));
+			if (tunnel.colo) note.push(_('مرکز Cloudflare: ') + ltr(tunnel.colo));
 		} else if (tunnel.state === 'failed' || tunnel.state === 'retrying') {
 			note.push(_('تا حالا ') + fails + _(' بار ناموفق'));
 			/* WireGuard and WARP-in-WARP need their UDP ports through; MASQUE
@@ -571,6 +574,11 @@ return view.extend({
 		option.default = '0';
 		option.depends('protocol', 'masque');
 		option.depends('protocol', 'mim');
+
+		option = self.option(section, 'general', form.Flag, 'tor_scan_fallback', _('Tor خودکار پس از شکست اسکن'),
+			_('اگر اسکن مستقیم سرور پیدا نکند، یک بار با Tor اسکن می‌شود. سرور یافت‌شده دوباره مستقیم آزمایش می‌شود؛ فقط اگر مستقیم کار نکند، اتصال با Tor ادامه می‌یابد.'));
+		option.default = '0';
+		option.depends('protocol', 'masque');
 
 		scan = self.option(section, 'general', form.ListValue, 'scan', _('حالت اسکن سرور'),
 			_('turbo سریع‌ترین و ironclad مطمئن‌ترین حالت است.'));

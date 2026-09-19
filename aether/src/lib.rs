@@ -1211,6 +1211,7 @@ async fn run_masque(
     };
 
     let mut last_good_peer: Option<SocketAddr> = None;
+    let mut tor_fallback_active = false;
 
     loop {
         let peer = if let Some(p) = quick_peer.take() {
@@ -1244,11 +1245,54 @@ async fn run_masque(
                     None => match hunt_masque_peer(&identity, &mode_str, ip).await {
                         Ok(peer) => peer,
                         Err(e) => {
+                            if !tor_fallback_active && automatic_tor_scan_fallback() {
+                                log::warn!(
+                                    "[*] direct MASQUE scan found no gateway; starting Tor for one fallback scan"
+                                );
+                                match tor::start_reverse(tor::state_dir(&lastconn_path)).await {
+                                    Ok(socks) => {
+                                        std::env::set_var("AETHER_UPSTREAM", format!("socks5://{socks}"));
+                                        std::env::set_var("AETHER_MASQUE_HTTP2", "1");
+                                        match hunt_masque_peer(&identity, &mode_str, ip).await {
+                                            Ok(tor_peer) => {
+                                                log::info!("[*] Tor found {tor_peer}; verifying it directly before releasing Tor");
+                                                std::env::remove_var("AETHER_UPSTREAM");
+                                                std::env::remove_var("AETHER_MASQUE_HTTP2");
+                                                if quick_verify_masque_peer(&identity, tor_peer).await {
+                                                    log::info!("[+] {tor_peer} also works directly; Tor released");
+                                                    tor_fallback_active = false;
+                                                    tor_peer
+                                                } else {
+                                                    std::env::set_var("AETHER_UPSTREAM", format!("socks5://{socks}"));
+                                                    std::env::set_var("AETHER_MASQUE_HTTP2", "1");
+                                                    tor_fallback_active = true;
+                                                    log::warn!("[*] {tor_peer} is reachable only through Tor; keeping Tor for this tunnel");
+                                                    tor_peer
+                                                }
+                                            }
+                                            Err(tor_error) => {
+                                                std::env::remove_var("AETHER_UPSTREAM");
+                                                std::env::remove_var("AETHER_MASQUE_HTTP2");
+                                                log::warn!("[-] Tor fallback scan found no gateway: {tor_error}");
+                                                tokio::time::sleep(masque_reconnect_delay()).await;
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                    Err(tor_error) => {
+                                        log::warn!("[-] Tor fallback could not start: {tor_error}");
+                                        log::warn!("[-] no usable MASQUE gateway found: {e}; rescanning shortly");
+                                        tokio::time::sleep(masque_reconnect_delay()).await;
+                                        continue;
+                                    }
+                                }
+                            } else {
                             log::warn!(
                                 "[-] no usable MASQUE gateway found: {e}; rescanning shortly"
                             );
                             tokio::time::sleep(masque_reconnect_delay()).await;
                             continue;
+                            }
                         }
                     },
                 },
@@ -1271,6 +1315,13 @@ async fn run_masque(
 
         tokio::time::sleep(masque_reconnect_delay()).await;
     }
+}
+
+fn automatic_tor_scan_fallback() -> bool {
+    matches!(
+        std::env::var("AETHER_TOR_SCAN_FALLBACK").as_deref(),
+        Ok("1") | Ok("true") | Ok("yes") | Ok("on")
+    ) && tor::mode() == tor::Mode::Off
 }
 
 struct MasqueHop {

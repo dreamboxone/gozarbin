@@ -96,13 +96,37 @@ pidof gozarbin >/dev/null 2>&1 || state=stopped
 # The gateway the log named beats the cached one: it is this run's.
 [ -n "$gateway" ] || gateway="$peer"
 
+# Cloudflare's edge addresses are anycast, so an IP geolocation result would be
+# misleading. Ask through the established SOCKS proxy instead: the trace tells
+# us the actual WARP exit country and colo. Cache it so dashboard polling does
+# not create a new request every few seconds.
+country=
+colo=
+exit_cache=/var/run/gozarbin/exit-location
+if [ "$state" = connected ] && command -v curl >/dev/null 2>&1; then
+	now=$(date +%s 2>/dev/null)
+	then=$(stat -c %Y "$exit_cache" 2>/dev/null)
+	if [ -n "$now" ] && [ -n "$then" ] && [ $((now - then)) -lt 60 ] 2>/dev/null; then
+		. "$exit_cache" 2>/dev/null
+	else
+		trace=$(timeout 5 curl -fsS -x "socks5h://127.0.0.1:$(uci -q get gozarbin.main.socks_port || echo 1819)" \
+			'https://www.cloudflare.com/cdn-cgi/trace' 2>/dev/null)
+		country=$(printf '%s\n' "$trace" | sed -n 's/^loc=\([A-Z][A-Z]\)$/\1/p' | head -n 1)
+		colo=$(printf '%s\n' "$trace" | sed -n 's/^colo=\([A-Za-z0-9-]*\)$/\1/p' | head -n 1)
+		if [ -n "$country" ]; then
+			( umask 077; printf 'country=%s\ncolo=%s\n' "$country" "$colo" > "$exit_cache" )
+		fi
+	fi
+fi
+
 quoteless() { printf '%s' "$1" | tr -d '"\\'; }
 
 protocol=$(uci -q get gozarbin.main.protocol)
 [ -n "$protocol" ] || protocol=masque
 [ "$fails" -ge 0 ] 2>/dev/null || fails=0
 
-printf '{"state":"%s","source":"%s","gateway":"%s","profile":"%s","transport":"%s","rtt":"%s","detail":"%s","fails":%s,"protocol":"%s","cached":"%s"}\n' \
+printf '{"state":"%s","source":"%s","gateway":"%s","profile":"%s","transport":"%s","rtt":"%s","country":"%s","colo":"%s","detail":"%s","fails":%s,"protocol":"%s","cached":"%s"}\n' \
 	"$(quoteless "$state")" "$(quoteless "$source")" "$(quoteless "$gateway")" \
 	"$(quoteless "$profile")" "$(quoteless "$transport")" "$(quoteless "$rtt")" \
-	"$(quoteless "$detail")" "$fails" "$(quoteless "$protocol")" "$(quoteless "$peer")"
+	"$(quoteless "$country")" "$(quoteless "$colo")" "$(quoteless "$detail")" \
+	"$fails" "$(quoteless "$protocol")" "$(quoteless "$peer")"

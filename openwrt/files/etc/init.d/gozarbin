@@ -28,7 +28,7 @@ start_service() {
 	local enabled mode transparent force socks_address socks_port http_port mark
 	local protocol scan ip_mode noize perf log_level quick config_file singbox dns passwall2
 	local unblock unblock_port unblock_tor_port
-	local tor_reverse
+	local tor_reverse tor_scan_fallback tor_scan_env
 	config_load gozarbin
 	# Before the enabled check, so a disabled service can never leave the
 	# network's DNS pointed at it. Nothing happens unless there is a file to
@@ -46,6 +46,7 @@ start_service() {
 	config_get mark main mark 0x0aff
 	config_get protocol main protocol masque
 	config_get_bool tor_reverse main tor_reverse 0
+	config_get_bool tor_scan_fallback main tor_scan_fallback 0
 	config_get scan main scan balanced
 	config_get ip_mode main ip_mode v4
 	config_get noize main noize firewall
@@ -97,11 +98,12 @@ start_service() {
 	case "$protocol" in
 		masque|mim)
 			[ "$tor_reverse" = 1 ] && procd_append_param command --tor-reverse
+			[ "$tor_scan_fallback" = 1 ] && tor_scan_env='AETHER_TOR_SCAN_FALLBACK=1'
 			;;
 	esac
 	[ "$quick" = 1 ] && procd_append_param command --quick-reconnect
 	[ "$http_port" -gt 0 ] 2>/dev/null && procd_append_param command --http-proxy "${socks_address}:${http_port}"
-	procd_set_param env HOME=/etc/gozarbin AETHER_TOR_PT_DIR=/usr/libexec/gozarbin/pt
+	procd_set_param env HOME=/etc/gozarbin AETHER_TOR_PT_DIR=/usr/libexec/gozarbin/pt $tor_scan_env
 	procd_set_param respawn 3600 5 5
 	procd_set_param stdout 1
 	procd_set_param stderr 1
