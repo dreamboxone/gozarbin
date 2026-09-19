@@ -52,6 +52,23 @@ function ltr(text) {
 	return E('span', { 'class': 'ae-num' }, String(text));
 }
 
+function pingMilliseconds(value) {
+	var match = String(value || '').trim().match(/^([0-9.]+)\s*(s|ms|us|µs)$/i);
+	if (!match) return '';
+	var number = Number(match[1]);
+	if (!isFinite(number)) return '';
+	var unit = match[2].toLowerCase();
+	if (unit === 's') number *= 1000;
+	else if (unit === 'us' || unit === 'µs') number /= 1000;
+	return String(Math.max(1, Math.round(number)));
+}
+
+function countryFlag(country) {
+	var code = String(country || '').trim().toUpperCase();
+	if (!/^[A-Z]{2}$/.test(code)) return '';
+	return String.fromCodePoint(code.charCodeAt(0) + 127397, code.charCodeAt(1) + 127397);
+}
+
 /* The figure is its own left-to-right island so its digits stay in order, and
  * the unit is ordinary right-to-left text beside it. Written as one string the
  * whole thing becomes an island and the number lands on the wrong side. */
@@ -242,9 +259,9 @@ return view.extend({
 				: _('از اسکن تازه'));
 			if (tunnel.transport) note.push(tunnel.transport);
 			if (tunnel.profile) note.push(_('استتار: ') + tunnel.profile);
-			if (tunnel.rtt) note.push(_('پینگ: ') + tunnel.rtt);
-			if (tunnel.country) note.push(_('کشور خروجی: ') + String(tunnel.country));
-			if (tunnel.colo) note.push(_('مرکز Cloudflare: ') + String(tunnel.colo));
+			var ping = pingMilliseconds(tunnel.rtt);
+			if (ping) note.push(_('پینگ: ') + ping + _(' میلی‌ثانیه'));
+			if (tunnel.country) note.push(_('کشور خروجی: ') + countryFlag(tunnel.country) + ' ' + String(tunnel.country));
 		} else if (tunnel.state === 'failed' || tunnel.state === 'retrying') {
 			note.push(_('تا حالا ') + fails + _(' بار ناموفق'));
 			/* WireGuard and WARP-in-WARP need their UDP ports through; MASQUE

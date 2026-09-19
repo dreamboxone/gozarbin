@@ -101,7 +101,6 @@ pidof gozarbin >/dev/null 2>&1 || state=stopped
 # us the actual WARP exit country and colo. Cache it so dashboard polling does
 # not create a new request every few seconds.
 country=
-colo=
 exit_cache=/var/run/gozarbin/exit-location
 if [ "$state" = connected ] && command -v curl >/dev/null 2>&1; then
 	now=$(date +%s 2>/dev/null)
@@ -112,9 +111,8 @@ if [ "$state" = connected ] && command -v curl >/dev/null 2>&1; then
 		trace=$(timeout 5 curl -fsS -x "socks5h://127.0.0.1:$(uci -q get gozarbin.main.socks_port || echo 1819)" \
 			'https://www.cloudflare.com/cdn-cgi/trace' 2>/dev/null)
 		country=$(printf '%s\n' "$trace" | sed -n 's/^loc=\([A-Z][A-Z]\)$/\1/p' | head -n 1)
-		colo=$(printf '%s\n' "$trace" | sed -n 's/^colo=\([A-Za-z0-9-]*\)$/\1/p' | head -n 1)
 		if [ -n "$country" ]; then
-			( umask 077; printf 'country=%s\ncolo=%s\n' "$country" "$colo" > "$exit_cache" )
+			( umask 077; printf 'country=%s\n' "$country" > "$exit_cache" )
 		fi
 	fi
 fi
@@ -125,8 +123,8 @@ protocol=$(uci -q get gozarbin.main.protocol)
 [ -n "$protocol" ] || protocol=masque
 [ "$fails" -ge 0 ] 2>/dev/null || fails=0
 
-printf '{"state":"%s","source":"%s","gateway":"%s","profile":"%s","transport":"%s","rtt":"%s","country":"%s","colo":"%s","detail":"%s","fails":%s,"protocol":"%s","cached":"%s"}\n' \
+printf '{"state":"%s","source":"%s","gateway":"%s","profile":"%s","transport":"%s","rtt":"%s","country":"%s","detail":"%s","fails":%s,"protocol":"%s","cached":"%s"}\n' \
 	"$(quoteless "$state")" "$(quoteless "$source")" "$(quoteless "$gateway")" \
 	"$(quoteless "$profile")" "$(quoteless "$transport")" "$(quoteless "$rtt")" \
-	"$(quoteless "$country")" "$(quoteless "$colo")" "$(quoteless "$detail")" \
+	"$(quoteless "$country")" "$(quoteless "$detail")" \
 	"$fails" "$(quoteless "$protocol")" "$(quoteless "$peer")"

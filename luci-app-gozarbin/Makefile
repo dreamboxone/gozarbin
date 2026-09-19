@@ -4,7 +4,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-gozarbin
-PKG_VERSION:=2.1.6
+PKG_VERSION:=2.1.7
 PKG_RELEASE:=1
 PKG_LICENSE:=AGPL-3.0-only
 PKG_MAINTAINER:=dreamboxone
