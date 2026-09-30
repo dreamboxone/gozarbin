@@ -28,6 +28,8 @@ command -v nft >/dev/null 2>&1 && nftables=1 || nftables=0
 [ -n "$singbox_version" ] && singbox=1 || singbox=0
 { [ -c /dev/net/tun ] || pkg_installed kmod-tun; } >/dev/null 2>&1 && tun=1 || tun=0
 ip rule list >/dev/null 2>&1 && iprule=1 || iprule=0
+# The binary, not the package database: it is what the service actually runs.
+[ -x /usr/libexec/gozarbin/pt/psiphon-tunnel-core ] && psiphon=1 || psiphon=0
 
 quoteless() { tr -d '"\\' ; }
 
@@ -36,8 +38,9 @@ release=$(sed -n "s/^DISTRIB_DESCRIPTION='\(.*\)'$/\1/p" /etc/openwrt_release 2>
 arch=$(sed -n "s/^DISTRIB_ARCH='\(.*\)'$/\1/p" /etc/openwrt_release 2>/dev/null | head -n 1 | quoteless)
 core_version=$(printf '%s' "$core_version" | quoteless)
 
-printf '{"gozarbin_version":"%s","core_version":"%s","singbox_version":"%s","singbox_origin":"%s","singbox":%s,"tproxy":%s,"socket":%s,"nftables":%s,"tun":%s,"iprule":%s,"socks":true,"model":"%s","release":"%s","arch":"%s"}\n' \
+printf '{"gozarbin_version":"%s","core_version":"%s","singbox_version":"%s","singbox_origin":"%s","singbox":%s,"tproxy":%s,"socket":%s,"nftables":%s,"tun":%s,"iprule":%s,"psiphon":%s,"socks":true,"model":"%s","release":"%s","arch":"%s"}\n' \
 	"$gozarbin_version" "$core_version" "$singbox_version" "$singbox_origin" \
 	"$(json_bool "$singbox")" "$(json_bool "$tproxy")" "$(json_bool "$socket")" \
 	"$(json_bool "$nftables")" "$(json_bool "$tun")" "$(json_bool "$iprule")" \
+	"$(json_bool "$psiphon")" \
 	"$model" "$release" "$arch"

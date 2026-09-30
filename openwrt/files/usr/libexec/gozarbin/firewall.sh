@@ -46,6 +46,7 @@ load_config() {
 	config_get_bool block_ads main block_ads 0
 	config_get_bool unblock main unblock 0
 	config_get unblock_port main unblock_port 1823
+	config_get psiphon main psiphon off
 	lan_interfaces=
 	config_list_foreach main lan_interface add_lan
 	[ -n "$lan_interfaces" ] || lan_interfaces='"br-lan"'
@@ -202,6 +203,17 @@ route_rules() {
 	# listener are DNS by definition and need no looking at.
 	[ "$mode" = tproxy ] &&
 		rules="{\"inbound\":[\"gozarbin-dns\"],\"action\":\"hijack-dns\"}"
+	# The core marks its own sockets so the TUN routes let them past; Psiphon is
+	# a program of its own and cannot. When it dials out itself — on its own, or
+	# carrying the tunnel — its connections would come back in through the TUN
+	# device and into the tunnel they are meant to carry, so they go out direct.
+	if [ "$mode" = tun ]; then
+		case "$psiphon" in
+			only|reverse)
+				rules="{\"process_path\":[\"/usr/libexec/gozarbin/pt/psiphon-tunnel-core\"],\"outbound\":\"direct\"}"
+				;;
+		esac
+	fi
 	# Without this sing-box only ever sees an address, never a name. Every
 	# GeoSite rule and the whole ad list match on names, so none of them matched
 	# anything: sniffing reads the name out of the TLS handshake or the HTTP

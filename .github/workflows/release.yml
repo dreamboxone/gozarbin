@@ -19,9 +19,9 @@ jobs:
   # arm64 MSVC target has never been verified on a real arm64 Windows
   # machine. macOS is not built here.
   #
-  # This leg builds the pluggable transports first and ships them in a
-  # pt/ folder beside the binary, so tor works out of the box with
-  # nothing for anyone to install by hand.
+  # This leg builds the pluggable transports and psiphon first and ships
+  # them in a pt/ folder beside the binary, so tor and psiphon work out of
+  # the box with nothing for anyone to install by hand.
   # ------------------------------------------------------------------
   desktop:
     name: Build aether-windows-x86_64.zip
@@ -67,6 +67,10 @@ jobs:
       - name: Build pluggable transports
         shell: bash
         run: bash ../pt-build.sh windows amd64 "$PWD/pt"
+
+      - name: Build psiphon
+        shell: bash
+        run: bash ../psiphon-build.sh windows amd64 "$PWD/pt"
 
       - name: Build release binary
         run: cargo build --release --features tor --target $env:TARGET
@@ -145,6 +149,9 @@ jobs:
       - name: Build pluggable transports
         run: bash ../pt-build.sh ${{ matrix.goos }} ${{ matrix.goarch }} "$PWD/pt"
 
+      - name: Build psiphon
+        run: bash ../psiphon-build.sh ${{ matrix.goos }} ${{ matrix.goarch }} "$PWD/pt"
+
       - name: Build release binary
         run: cargo build --release --features tor --target ${{ matrix.target }}
 
@@ -211,6 +218,9 @@ jobs:
 
       - name: Build pluggable transports
         run: bash ../pt-build.sh linux arm "$PWD/pt" 7
+
+      - name: Build psiphon
+        run: bash ../psiphon-build.sh linux arm "$PWD/pt" 7
 
       - name: Build release binary
         run: cargo build --release --features tor --target armv7-unknown-linux-gnueabihf
@@ -303,6 +313,9 @@ jobs:
       - name: Build pluggable transports
         run: bash ../pt-build.sh linux arm "$PWD/pt" 7
 
+      - name: Build psiphon
+        run: bash ../psiphon-build.sh linux arm "$PWD/pt" 7
+
       - name: Build release binary
         run: cargo build --release --features tor --target armv7-unknown-linux-musleabihf
 
@@ -392,6 +405,9 @@ jobs:
 
       - name: Build pluggable transports
         run: bash ../pt-build.sh ${{ matrix.goos }} ${{ matrix.goarch }} "$PWD/pt"
+
+      - name: Build psiphon
+        run: bash ../psiphon-build.sh ${{ matrix.goos }} ${{ matrix.goarch }} "$PWD/pt"
 
       - name: Build release binary
         run: cargo build --release --features tor --target ${{ matrix.target }}
@@ -519,6 +535,14 @@ jobs:
             mkdir -p "package/gozarbin/prebuilt/$arch/pt"
             cp "$GITHUB_WORKSPACE/binary/pt/lyrebird" "package/gozarbin/prebuilt/$arch/pt/lyrebird"
           fi
+          # Psiphon is a package of its own, built only when the core's leg
+          # produced a binary for it.
+          psiphon=0
+          if [ -f "$GITHUB_WORKSPACE/binary/pt/psiphon-tunnel-core" ]; then
+            mkdir -p "package/gozarbin/prebuilt/$arch/pt"
+            cp "$GITHUB_WORKSPACE/binary/pt/psiphon-tunnel-core" "package/gozarbin/prebuilt/$arch/pt/psiphon-tunnel-core"
+            psiphon=1
+          fi
           # The SDK selects every package by default. Clearing the selection and
           # asking for these two lets Kconfig pull in exactly their dependencies.
           sed -i 's/^CONFIG_ALL=y/# CONFIG_ALL is not set/' .config
@@ -526,6 +550,7 @@ jobs:
           sed -i 's/^CONFIG_ALL_NONSHARED=y/# CONFIG_ALL_NONSHARED is not set/' .config
           sed -i -E 's/^CONFIG_PACKAGE_([^=]+)=[ym]/# CONFIG_PACKAGE_\1 is not set/' .config
           printf '\nCONFIG_PACKAGE_gozarbin=m\nCONFIG_PACKAGE_luci-app-gozarbin=m\n' >> .config
+          [ "$psiphon" = 1 ] && printf 'CONFIG_PACKAGE_gozarbin-psiphon=m\n' >> .config
           make defconfig >/dev/null
           make package/gozarbin/compile -j"$(nproc)" V=s
           make package/luci-app-gozarbin/compile -j"$(nproc)" V=s
@@ -537,7 +562,8 @@ jobs:
           mkdir -p "$out"
           find /tmp/sdk/bin/packages -type f \
             \( -name 'gozarbin-*.apk' -o -name 'luci-app-gozarbin-*.apk' \
-               -o -name 'gozarbin_*.ipk' -o -name 'luci-app-gozarbin_*.ipk' \) \
+               -o -name 'gozarbin_*.ipk' -o -name 'gozarbin-psiphon_*.ipk' \
+               -o -name 'luci-app-gozarbin_*.ipk' \) \
             -exec cp -f {} "$out/" \;
           ls -l "$out"
           # Two packages or the leg has not produced what it claims to.
@@ -607,15 +633,21 @@ jobs:
             ### OpenWrt
 
             Grab the `gozarbin-openwrt-<release>-<arch>.tar.gz` that matches your
-            router and install both packages inside it. Twelve architectures,
+            router and install the packages inside it. Twelve architectures,
             each in both formats: `24.10.x` is opkg, `25.12.x` is apk.
 
             ```sh
             # OpenWrt 25.12.x
-            apk add --allow-untrusted ./gozarbin-*.apk ./luci-app-gozarbin-*.apk
+            apk add --allow-untrusted ./gozarbin-2*.apk ./luci-app-gozarbin-*.apk
             # OpenWrt 24.10.x
             opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
             ```
+
+            Psiphon is optional and comes as `gozarbin-psiphon`, about 20 MB:
+            install it too (`apk add --allow-untrusted ./gozarbin-psiphon-*.apk`
+            or `opkg install ./gozarbin-psiphon_*.ipk`) to run Psiphon on its
+            own, inside WARP, or as the way WARP is dialled, with a choice of
+            exit country.
 
             `aarch64_cortex-a53/a72/a76`, `aarch64_generic`,
             `arm_cortex-a5/a7/a8/a9/a15` (the vfp variants) and `x86_64`.
@@ -628,6 +660,7 @@ jobs:
 
             - Three ways to run: transparent TProxy, a TUN interface, or SOCKS5 only.
             - Scans for a gateway that answers from inside Iran, and remembers the one that worked.
+            - Psiphon on its own or chained with WARP either way round, leaving from the country you pick.
             - Live upload and download accounting, read from real nftables counters.
             - Iran IP ranges and sing-box GeoIP/GeoSite rule sets, from any URL you choose.
             - Never touches Passwall2: not its firewall rules, not its sing-box.

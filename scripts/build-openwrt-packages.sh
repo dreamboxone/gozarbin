@@ -4,8 +4,8 @@
 
 set -euo pipefail
 
-if [[ $# -ne 3 ]]; then
-	echo "usage: $0 <sdk-directory> <core-binary> <output-directory>" >&2
+if [[ $# -ne 3 && $# -ne 4 ]]; then
+	echo "usage: $0 <sdk-directory> <core-binary> <output-directory> [psiphon-binary]" >&2
 	exit 2
 fi
 
@@ -25,6 +25,18 @@ make -C "$sdk_dir" defconfig
 arch=$(awk -F= '/^CONFIG_TARGET_ARCH_PACKAGES=/{gsub(/"/, "", $2); print $2}' "$sdk_dir/.config")
 mkdir -p "$sdk_dir/package/gozarbin/prebuilt/$arch"
 cp "$binary" "$sdk_dir/package/gozarbin/prebuilt/$arch/aether"
+# The SDK selects every package it knows of, gozarbin-psiphon included, and
+# that package refuses to build without a binary. So it is built when one is
+# given and deselected when not.
+if [[ -n "${4:-}" ]]; then
+	mkdir -p "$sdk_dir/package/gozarbin/prebuilt/$arch/pt"
+	cp "$4" "$sdk_dir/package/gozarbin/prebuilt/$arch/pt/psiphon-tunnel-core"
+	sed -i '/CONFIG_PACKAGE_gozarbin-psiphon[= ]/d' "$sdk_dir/.config"
+	echo 'CONFIG_PACKAGE_gozarbin-psiphon=m' >> "$sdk_dir/.config"
+else
+	sed -i '/CONFIG_PACKAGE_gozarbin-psiphon[= ]/d' "$sdk_dir/.config"
+	echo '# CONFIG_PACKAGE_gozarbin-psiphon is not set' >> "$sdk_dir/.config"
+fi
 
 make -C "$sdk_dir" defconfig
 # GOZARBIN_OBFUSCATE=1 in the environment strips the shipped scripts before they
@@ -32,4 +44,4 @@ make -C "$sdk_dir" defconfig
 obfuscate=${GOZARBIN_OBFUSCATE:-0}
 make -C "$sdk_dir" package/gozarbin/compile V=s GOZARBIN_OBFUSCATE="$obfuscate"
 make -C "$sdk_dir" package/luci-app-gozarbin/compile V=s GOZARBIN_OBFUSCATE="$obfuscate"
-find "$sdk_dir/bin/packages" -type f \( -name 'gozarbin-*.apk' -o -name 'luci-app-gozarbin-*.apk' -o -name 'gozarbin_*.ipk' -o -name 'luci-app-gozarbin_*.ipk' \) -exec cp -f {} "$output/" \;
+find "$sdk_dir/bin/packages" -type f \( -name 'gozarbin-*.apk' -o -name 'luci-app-gozarbin-*.apk' -o -name 'gozarbin_*.ipk' -o -name 'gozarbin-psiphon_*.ipk' -o -name 'luci-app-gozarbin_*.ipk' \) -exec cp -f {} "$output/" \;

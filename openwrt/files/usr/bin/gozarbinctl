@@ -67,6 +67,28 @@ case "$1" in
 		curl -s --max-time 40 -x "socks5h://127.0.0.1:$port" https://cloudflare.com/cdn-cgi/trace |
 			grep -E '^(ip|loc|warp)='
 		;;
+	psiphon)
+		if [ -z "$2" ]; then
+			printf 'psiphon: %s\nregion: %s\n' "$(uci -q get gozarbin.main.psiphon || echo off)" \
+				"$(uci -q get gozarbin.main.psiphon_region || echo auto)"
+			[ -x /usr/libexec/gozarbin/pt/psiphon-tunnel-core ] || echo 'gozarbin-psiphon is not installed'
+			exit 0
+		fi
+		case "$2" in
+			off|chain|reverse|only) ;;
+			*) echo 'psiphon must be off, chain, reverse or only' >&2; exit 2 ;;
+		esac
+		# The country is optional; "auto" or "-" clears it and lets Psiphon pick.
+		case "$3" in
+			'') ;;
+			auto|-) uci -q delete gozarbin.main.psiphon_region ;;
+			[A-Za-z][A-Za-z]) uci set gozarbin.main.psiphon_region="$(echo "$3" | tr a-z A-Z)" ;;
+			*) echo 'the country is a two-letter code such as DE, or auto' >&2; exit 2 ;;
+		esac
+		uci set gozarbin.main.psiphon="$2"
+		uci commit gozarbin
+		[ "$(uci -q get gozarbin.main.enabled)" = 1 ] && /etc/init.d/gozarbin restart
+		;;
 	mode)
 		[ -n "$2" ] || { uci -q get gozarbin.main.mode; exit 0; }
 		case "$2" in
@@ -100,6 +122,9 @@ Usage: gozarbinctl <command>
                    install or update Gozarbin's own sing-box core;
                    --background detaches it and prints the job state
   mode [name]      show, or set: tproxy | tun | socks
+  psiphon [how [country]]
+                   show, or set: off | chain | reverse | only, and
+                   optionally the exit country (DE, NL, ... or auto)
 USAGE
 		exit 2
 		;;

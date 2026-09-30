@@ -26,7 +26,21 @@ fi
 # The exit core logs as gozarbin-unblock, which the pattern also matches; its own
 # scans and starts would otherwise read as the main tunnel's.
 report=$(logread -e gozarbin 2>/dev/null | grep -v 'gozarbin-unblock[[]' | awk '
-	/Aether v/ { state = "starting"; source = ""; gateway = ""; transport = ""; rtt = ""; detail = ""; fails = 0 }
+	/Aether v/ { state = "starting"; source = ""; gateway = ""; transport = ""; rtt = ""; detail = ""; fails = 0
+		pstate = ""; pserver = ""; regions = "" }
+	# Psiphon has a life of its own beside the WARP tunnel: it comes up, reaches
+	# a server, and can lose it again, whether it carries the tunnel or rides it.
+	/starting psiphon/ { pstate = "starting" }
+	/psiphon lost its tunnel/ { pstate = "starting" }
+	/psiphon is ready/ { pstate = "ready" }
+	/psiphon did not come up in time|psiphon stopped|psiphon would not start|psiphon needs the psiphon-tunnel-core/ {
+		pstate = "failed"
+	}
+	/psiphon reached a server at/ { pserver = $NF }
+	/psiphon can leave from:/ {
+		p = index($0, "psiphon can leave from:")
+		regions = substr($0, p + 24)
+	}
 	/hunting for a working MASQUE gateway/ { state = "scanning"; source = "scan" }
 	/scan mode=/ { state = "scanning"; source = "scan" }
 	/verifying cached (gateway|WireGuard endpoint)/ { state = "verifying"; source = "cache" }
@@ -61,10 +75,12 @@ report=$(logread -e gozarbin 2>/dev/null | grep -v 'gozarbin-unblock[[]' | awk '
 		if (state == "scanning" && fails > 0) state = "retrying"
 		printf "state=%s\nsource=%s\ngateway=%s\ntransport=%s\nrtt=%s\ndetail=%s\nfails=%d\n",
 			state, source, gateway, transport, rtt, detail, fails
+		printf "pstate=%s\npserver=%s\nregions=%s\n", pstate, pserver, regions
 	}
 ')
 
 state=; source=; gateway=; transport=; rtt=; detail=; fails=0
+pstate=; pserver=; regions=
 # Read line by line, not word by word: a transport is "HTTP/3 (QUIC)" and word
 # splitting drops half of it.
 while IFS= read -r line; do
@@ -76,6 +92,9 @@ while IFS= read -r line; do
 		rtt=*) rtt=${line#*=} ;;
 		detail=*) detail=${line#*=} ;;
 		fails=*) fails=${line#*=} ;;
+		pstate=*) pstate=${line#*=} ;;
+		pserver=*) pserver=${line#*=} ;;
+		regions=*) regions=${line#*=} ;;
 	esac
 done <<REPORT
 $report
@@ -95,6 +114,27 @@ pidof gozarbin >/dev/null 2>&1 || state=stopped
 
 # The gateway the log named beats the cached one: it is this run's.
 [ -n "$gateway" ] || gateway="$peer"
+
+# The SOCKS5 port is the final exit, so with Psiphon selected the tunnel is not
+# connected until Psiphon is, whichever way round the two are chained.
+psiphon=$(uci -q get gozarbin.main.psiphon)
+case "$psiphon" in
+	chain|reverse|only) [ -x /usr/libexec/gozarbin/pt/psiphon-tunnel-core ] || psiphon=off ;;
+	*) psiphon=off ;;
+esac
+if [ "$psiphon" != off ] && [ "$state" != stopped ]; then
+	if [ "$pstate" = failed ]; then
+		state=failed; detail=psiphon
+	elif [ "$psiphon" = only ]; then
+		# No WARP here at all; what was cached from an earlier run is not this.
+		gateway=$pserver; source=; transport=; rtt=
+		[ "$pstate" = ready ] && state=connected || state=psiphon
+	elif [ "$pstate" != ready ]; then
+		case "$state" in
+			connected|starting) state=psiphon ;;
+		esac
+	fi
+fi
 
 # Cloudflare's edge addresses are anycast, so an IP geolocation result would be
 # misleading. Ask through the established SOCKS proxy instead: the trace tells
@@ -123,8 +163,10 @@ protocol=$(uci -q get gozarbin.main.protocol)
 [ -n "$protocol" ] || protocol=masque
 [ "$fails" -ge 0 ] 2>/dev/null || fails=0
 
-printf '{"state":"%s","source":"%s","gateway":"%s","profile":"%s","transport":"%s","rtt":"%s","country":"%s","detail":"%s","fails":%s,"protocol":"%s","cached":"%s"}\n' \
+printf '{"state":"%s","source":"%s","gateway":"%s","profile":"%s","transport":"%s","rtt":"%s","country":"%s","detail":"%s","fails":%s,"protocol":"%s","cached":"%s","psiphon":"%s","psiphon_region":"%s","psiphon_regions":"%s"}\n' \
 	"$(quoteless "$state")" "$(quoteless "$source")" "$(quoteless "$gateway")" \
 	"$(quoteless "$profile")" "$(quoteless "$transport")" "$(quoteless "$rtt")" \
 	"$(quoteless "$country")" "$(quoteless "$detail")" \
-	"$fails" "$(quoteless "$protocol")" "$(quoteless "$peer")"
+	"$fails" "$(quoteless "$protocol")" "$(quoteless "$peer")" \
+	"$(quoteless "$psiphon")" "$(quoteless "$(uci -q get gozarbin.main.psiphon_region)")" \
+	"$(quoteless "$regions")"

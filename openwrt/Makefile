@@ -4,7 +4,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gozarbin
-PKG_VERSION:=2.1.7
+PKG_VERSION:=2.2.0
 PKG_RELEASE:=1
 PKG_LICENSE:=AGPL-3.0-only
 PKG_LICENSE_FILES:=LICENSE
@@ -43,6 +43,10 @@ endef
 # arm_cortex-a7_neon-vfpv4. ARCH remains a fallback for a tree that predates it.
 GOZARBIN_BINARY?=$(firstword $(wildcard 	$(CURDIR)/prebuilt/$(ARCH_PACKAGES)/aether 	$(CURDIR)/prebuilt/$(ARCH)/aether))
 GOZARBIN_PT?=$(firstword $(wildcard $(CURDIR)/prebuilt/$(ARCH_PACKAGES)/pt/lyrebird $(CURDIR)/prebuilt/$(ARCH)/pt/lyrebird))
+# Psiphon is some twenty megabytes, more than a small router's flash can spare
+# for something it may never use, so it ships as a package of its own. Selecting
+# that package without a binary for this target is an error, not an empty package.
+GOZARBIN_PSIPHON?=$(firstword $(wildcard $(CURDIR)/prebuilt/$(ARCH_PACKAGES)/pt/psiphon-tunnel-core $(CURDIR)/prebuilt/$(ARCH)/pt/psiphon-tunnel-core))
 
 # GOZARBIN_OBFUSCATE=1 on the make command line strips the shipped shell scripts
 # down to working code with their licence headers, and nothing else, before they
@@ -54,6 +58,7 @@ define Build/Prepare
 	@test -n "$(GOZARBIN_BINARY)" -a -f "$(GOZARBIN_BINARY)" || 		(echo "No tunnel core for this target: looked for prebuilt/$(ARCH_PACKAGES)/aether and prebuilt/$(ARCH)/aether" >&2; exit 1)
 	$(CP) "$(GOZARBIN_BINARY)" $(PKG_BUILD_DIR)/aether
 	$(if $(GOZARBIN_PT),$(CP) "$(GOZARBIN_PT)" $(PKG_BUILD_DIR)/lyrebird)
+	$(if $(GOZARBIN_PSIPHON),$(CP) "$(GOZARBIN_PSIPHON)" $(PKG_BUILD_DIR)/psiphon-tunnel-core)
 	echo "$(PKG_VERSION)-r$(PKG_RELEASE)" > $(PKG_BUILD_DIR)/version
 	rm -rf $(PKG_BUILD_DIR)/files
 	$(CP) ./files $(PKG_BUILD_DIR)/files
@@ -110,4 +115,34 @@ define Package/gozarbin/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/etc/uci-defaults/90-gozarbin $(1)/etc/uci-defaults/90-gozarbin
 endef
 
+define Package/gozarbin-psiphon
+  SECTION:=net
+  CATEGORY:=Network
+  SUBMENU:=Web Servers/Proxies
+  TITLE:=Psiphon transport for Gozarbin
+  URL:=https://github.com/dreamboxone/gozarbin
+  DEPENDS:=+gozarbin
+endef
+
+define Package/gozarbin-psiphon/description
+ The Psiphon client Gozarbin runs on its own, inside the WARP tunnel, or as
+ the way the WARP tunnel is dialled, with a choice of exit country. About
+ 20 MB on flash and 30 to 50 MB of memory while it runs.
+endef
+
+define Package/gozarbin-psiphon/postinst
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
+[ "$$(uci -q get gozarbin.main.psiphon)" != off ] && [ "$$(uci -q get gozarbin.main.enabled)" = 1 ] &&
+	/etc/init.d/gozarbin restart
+exit 0
+endef
+
+define Package/gozarbin-psiphon/install
+	@test -f $(PKG_BUILD_DIR)/psiphon-tunnel-core || 		(echo "No Psiphon binary for this target: looked for prebuilt/$(ARCH_PACKAGES)/pt/psiphon-tunnel-core and prebuilt/$(ARCH)/pt/psiphon-tunnel-core" >&2; exit 1)
+	$(INSTALL_DIR) $(1)/usr/libexec/gozarbin/pt
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/psiphon-tunnel-core $(1)/usr/libexec/gozarbin/pt/psiphon-tunnel-core
+endef
+
 $(eval $(call BuildPackage,gozarbin))
+$(eval $(call BuildPackage,gozarbin-psiphon))

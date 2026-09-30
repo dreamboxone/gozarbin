@@ -46,6 +46,25 @@ var INSTALL_FAILURES = {
 	crashed: _('نصب نیمه‌کاره متوقف شد.')
 };
 
+/* The countries Psiphon usually offers as an exit. The log lists what is on
+ * offer right now, and anything there that is missing here is added by code. */
+var COUNTRIES = {
+	AT: _('اتریش'), AU: _('استرالیا'), BE: _('بلژیک'), BG: _('بلغارستان'),
+	CA: _('کانادا'), CH: _('سوئیس'), CZ: _('چک'), DE: _('آلمان'),
+	DK: _('دانمارک'), EE: _('استونی'), ES: _('اسپانیا'), FI: _('فنلاند'),
+	FR: _('فرانسه'), GB: _('بریتانیا'), HU: _('مجارستان'), IE: _('ایرلند'),
+	IN: _('هند'), IT: _('ایتالیا'), JP: _('ژاپن'), LV: _('لتونی'),
+	NL: _('هلند'), NO: _('نروژ'), PL: _('لهستان'), RO: _('رومانی'),
+	RS: _('صربستان'), SE: _('سوئد'), SG: _('سنگاپور'), SK: _('اسلواکی'),
+	US: _('آمریکا')
+};
+
+var PSIPHON = {
+	chain: _('Psiphon داخل WARP'),
+	reverse: _('WARP از راه Psiphon'),
+	only: _('فقط Psiphon')
+};
+
 var MEGABYTE = 1024 * 1024;
 
 function ltr(text) {
@@ -67,6 +86,19 @@ function countryFlag(country) {
 	var code = String(country || '').trim().toUpperCase();
 	if (!/^[A-Z]{2}$/.test(code)) return '';
 	return String.fromCodePoint(code.charCodeAt(0) + 127397, code.charCodeAt(1) + 127397);
+}
+
+function countryName(country) {
+	var code = String(country || '').trim().toUpperCase();
+	var name = COUNTRIES[code];
+	return countryFlag(code) + ' ' + (name ? name + ' (' + code + ')' : code);
+}
+
+/* "DE NL US" from the log, as the codes it names. */
+function regionCodes(text) {
+	return String(text || '').toUpperCase().split(/[\s,]+/).filter(function(code) {
+		return /^[A-Z]{2}$/.test(code);
+	});
 }
 
 /* The figure is its own left-to-right island so its digits stay in order, and
@@ -198,6 +230,8 @@ return view.extend({
 		health.value.appendChild(badge(
 			system.tun ? _('TUN آماده') : _('TUN نصب نیست'), system.tun ? 'ok' : 'warn'));
 		health.value.appendChild(badge(
+			system.psiphon ? _('Psiphon نصب') : _('Psiphon نصب نیست'), system.psiphon ? 'ok' : 'warn'));
+		health.value.appendChild(badge(
 			passwall.active ? _('Passwall2 فعال') :
 				(passwall.installed ? _('Passwall2 نصب، غیرفعال') : _('Passwall2 نصب نیست')),
 			passwall.active ? 'warn' : 'ok'));
@@ -238,7 +272,8 @@ return view.extend({
 			retrying: { text: _('اسکن ناموفق، تلاش دوباره…'), dot: '' },
 			verifying: { text: _('بررسی سرور قبلی…'), dot: 'ae-dot-warn' },
 			starting: { text: _('در حال شروع…'), dot: 'ae-dot-warn' },
-			failed: { text: _('سروری پیدا نشد'), dot: '' },
+			psiphon: { text: _('در حال اتصال Psiphon…'), dot: 'ae-dot-warn' },
+			failed: { text: tunnel.detail === 'psiphon' ? _('Psiphon وصل نشد') : _('سروری پیدا نشد'), dot: '' },
 			stopped: { text: _('خاموش'), dot: '' }
 		};
 		var shown = states[tunnel.state] || states.stopped;
@@ -253,15 +288,30 @@ return view.extend({
 		}
 
 		var note = [];
+		var psiphon = PSIPHON[tunnel.psiphon];
 		if (tunnel.state === 'connected') {
-			note.push(tunnel.source === 'cache'
-				? _('از سرور ذخیره‌شده، بدون اسکن')
-				: _('از اسکن تازه'));
+			if (tunnel.psiphon !== 'only')
+				note.push(tunnel.source === 'cache'
+					? _('از سرور ذخیره‌شده، بدون اسکن')
+					: _('از اسکن تازه'));
+			if (psiphon) note.push(psiphon);
 			if (tunnel.transport) note.push(tunnel.transport);
-			if (tunnel.profile) note.push(_('استتار: ') + tunnel.profile);
+			if (tunnel.profile && tunnel.psiphon !== 'only') note.push(_('استتار: ') + tunnel.profile);
 			var ping = pingMilliseconds(tunnel.rtt);
 			if (ping) note.push(_('پینگ: ') + ping + _(' میلی‌ثانیه'));
-			if (tunnel.country) note.push(_('کشور خروجی: ') + countryFlag(tunnel.country) + ' ' + String(tunnel.country));
+			if (tunnel.country) note.push(_('کشور خروجی: ') + countryName(tunnel.country));
+			/* Psiphon is asked, not told: a country it has no server in right
+			 * now is quietly replaced by one it has. With WARP dialled through
+			 * Psiphon the exit is Cloudflare's, which places it on its own. */
+			if (psiphon && tunnel.psiphon !== 'reverse' && tunnel.psiphon_region && tunnel.country &&
+			    tunnel.psiphon_region.toUpperCase() !== tunnel.country.toUpperCase())
+				note.push(_('کشور درخواستی ') + countryName(tunnel.psiphon_region) + _(' در دسترس نبود'));
+		} else if (tunnel.state === 'psiphon') {
+			if (psiphon) note.push(psiphon);
+			if (tunnel.psiphon_region) note.push(_('کشور درخواستی: ') + countryName(tunnel.psiphon_region));
+			note.push(_('اتصال اول Psiphon ممکن است تا سه دقیقه طول بکشد'));
+		} else if (tunnel.state === 'failed' && tunnel.detail === 'psiphon') {
+			note.push(_('اگر Psiphon روی این شبکه وصل نمی‌شود، شیوهٔ اتصال Psiphon را CDN کنید'));
 		} else if (tunnel.state === 'failed' || tunnel.state === 'retrying') {
 			note.push(_('تا حالا ') + fails + _(' بار ناموفق'));
 			/* WireGuard and WARP-in-WARP need their UDP ports through; MASQUE
@@ -551,7 +601,7 @@ return view.extend({
 		return option;
 	},
 
-	renderForm: function(system) {
+	renderForm: function(system, tunnel) {
 		var map = new form.Map('gozarbin', _('تنظیمات گذربین'),
 			_('پس از هر تغییر، «ذخیره و اعمال» را بزنید.'));
 		var section = map.section(form.NamedSection, 'main', 'gozarbin');
@@ -562,7 +612,7 @@ return view.extend({
 		section.tab('advanced', _('پیشرفته'));
 
 		var self = this;
-		var option, enabled, mode, force, protocol, scan, socks, http;
+		var option, enabled, mode, force, protocol, psiphon, scan, socks, http;
 
 		enabled = self.option(section, 'general', form.Flag, 'enabled', _('فعال کردن برنامه'));
 
@@ -586,16 +636,67 @@ return view.extend({
 		protocol.value('gool', 'WARP-in-WARP (gool)');
 		protocol.value('mim', 'MASQUE-in-MASQUE');
 
+		/* Psiphon or Tor may dial the tunnel, never both; with Psiphon doing it,
+		 * or standing in for WARP altogether, the Tor options have nothing to do. */
 		option = self.option(section, 'general', form.Flag, 'tor_reverse', _('اتصال تونل از راه Tor'),
 			_('فقط با انتخاب شما فعال می‌شود. MASQUE را از راه پل‌های Tor و HTTP/2 وصل می‌کند؛ اتصال اولیه کندتر است و به ابزار پل نیاز دارد.'));
 		option.default = '0';
-		option.depends('protocol', 'masque');
-		option.depends('protocol', 'mim');
+		[ 'masque', 'mim' ].forEach(function(value) {
+			option.depends({ protocol: value, psiphon: 'off' });
+			option.depends({ protocol: value, psiphon: 'chain' });
+		});
 
 		option = self.option(section, 'general', form.Flag, 'tor_scan_fallback', _('Tor خودکار پس از شکست اسکن'),
 			_('اگر اسکن مستقیم سرور پیدا نکند، یک بار با Tor اسکن می‌شود. سرور یافت‌شده دوباره مستقیم آزمایش می‌شود؛ فقط اگر مستقیم کار نکند، اتصال با Tor ادامه می‌یابد.'));
 		option.default = '0';
-		option.depends('protocol', 'masque');
+		option.depends({ protocol: 'masque', psiphon: 'off' });
+		option.depends({ protocol: 'masque', psiphon: 'chain' });
+
+		psiphon = self.option(section, 'general', form.ListValue, 'psiphon', _('Psiphon'),
+			system.psiphon
+				? _('«داخل WARP»: خروجی Psiphon در کشور انتخابی، و شبکه فقط WARP را می‌بیند. «WARP از راه Psiphon»: خروجی WARP است و شبکه هرگز WARP را نمی‌بیند؛ فقط با MASQUE. «فقط Psiphon»: بدون WARP. پورت SOCKS5 در هر حالت خروجی نهایی است.')
+				: _('بستهٔ gozarbin-psiphon نصب نیست. آن را از همان بایگانی انتشار نصب کنید؛ تا آن موقع این گزینه نادیده گرفته می‌شود.'));
+		psiphon.value('off', _('خاموش'));
+		psiphon.value('chain', _('Psiphon داخل WARP (خروجی Psiphon)'));
+		psiphon.value('reverse', _('WARP از راه Psiphon (خروجی WARP)'));
+		psiphon.value('only', _('فقط Psiphon، بدون WARP'));
+		psiphon.default = 'off';
+		/* Psiphon carries TCP alone; WireGuard and WARP-in-WARP answer on UDP. */
+		psiphon.validate = function(section_id, value) {
+			var chosen = this.section.formvalue(section_id, 'protocol');
+			if (value === 'reverse' && (chosen === 'wg' || chosen === 'gool'))
+				return _('WireGuard و WARP-in-WARP روی UDP کار می‌کنند و Psiphon فقط TCP می‌برد؛ برای این حالت پروتکل را MASQUE کنید.');
+			return true;
+		};
+
+		option = self.option(section, 'general', form.ListValue, 'psiphon_region', _('کشور خروجی Psiphon'),
+			_('Psiphon تلاش می‌کند از این کشور خارج شود؛ اگر آن‌جا سروری نداشته باشد، کشور دیگری را انتخاب می‌کند.'));
+		option.value('', _('خودکار — انتخاب Psiphon'));
+		var offered = regionCodes(tunnel && tunnel.psiphon_regions);
+		var codes = Object.keys(COUNTRIES);
+		offered.forEach(function(code) { if (codes.indexOf(code) < 0) codes.push(code); });
+		var saved = String(uci.get('gozarbin', 'main', 'psiphon_region') || '').toUpperCase();
+		if (/^[A-Z]{2}$/.test(saved) && codes.indexOf(saved) < 0) codes.push(saved);
+		codes.sort(function(a, b) {
+			return String(COUNTRIES[a] || a).localeCompare(String(COUNTRIES[b] || b), 'fa');
+		}).forEach(function(code) {
+			option.value(code, countryName(code) + (offered.indexOf(code) >= 0 ? ' ✓' : ''));
+		});
+		if (offered.length)
+			option.description += ' ' + _('کشورهایی که Psiphon همین حالا ارائه می‌کند با ✓ مشخص شده‌اند.');
+		option.depends('psiphon', 'chain');
+		option.depends('psiphon', 'reverse');
+		option.depends('psiphon', 'only');
+
+		option = self.option(section, 'general', form.ListValue, 'psiphon_mode', _('شیوهٔ اتصال Psiphon'),
+			_('اگر Psiphon وصل نمی‌شود، CDN را امتحان کنید: فقط از راه CDN و پنهان پشت دامنه‌های دیگر وصل می‌شود.'));
+		option.value('auto', _('خودکار'));
+		option.value('cdn', _('فقط از راه CDN'));
+		option.value('direct', _('مستقیم، بدون CDN'));
+		option.default = 'auto';
+		option.depends('psiphon', 'chain');
+		option.depends('psiphon', 'reverse');
+		option.depends('psiphon', 'only');
 
 		scan = self.option(section, 'general', form.ListValue, 'scan', _('حالت اسکن سرور'),
 			_('turbo سریع‌ترین و ironclad مطمئن‌ترین حالت است.'));
@@ -708,6 +809,13 @@ return view.extend({
 		option.datatype = 'range(576,65535)';
 		option.depends({ mode: 'tun' });
 
+		option = self.option(section, 'advanced', form.Value, 'psiphon_port', _('پورت داخلی Psiphon'),
+			_('فقط روی 127.0.0.1. در حالت «Psiphon داخل WARP» تونل WARP این‌جا گوش می‌دهد و Psiphon روی پورت SOCKS5؛ در حالت «WARP از راه Psiphon» خود Psiphon. نباید با پورت‌های دیگر یکی باشد.'));
+		option.datatype = 'port';
+		option.placeholder = '1825';
+		option.depends('psiphon', 'chain');
+		option.depends('psiphon', 'reverse');
+
 		option = self.option(section, 'advanced', form.Value, 'socks_address', _('نشانی شنود پراکسی'),
 			_('پیش‌فرض 127.0.0.1 است و برای کار عادی درست است: حالت شفاف از همین استفاده می‌کند. فقط اگر می‌خواهید دستگاه‌های شبکه مستقیماً به SOCKS5 وصل شوند 0.0.0.0 بگذارید — آن‌وقت پراکسی بدون رمز عبور برای کل شبکه باز می‌شود.'));
 		option.placeholder = '127.0.0.1';
@@ -730,7 +838,7 @@ return view.extend({
 		document.body.classList.add('gozarbin-page');
 
 		var version = system.gozarbin_version ? ' — ' + system.gozarbin_version : '';
-		return this.renderForm(system).then(function(rendered) {
+		return this.renderForm(system, tunnel).then(function(rendered) {
 			return E('div', { 'class': 'gozarbin-rtl', 'dir': 'rtl' }, [
 				E('link', {
 					'rel': 'stylesheet',

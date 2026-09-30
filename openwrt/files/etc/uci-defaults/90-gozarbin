@@ -57,6 +57,9 @@ if [ -n "$(uci -q get gozarbin.main)" ]; then
 			uci add_list gozarbin.main.unblock_domain="$domain"
 		done
 	fi
+	set_default psiphon off
+	set_default psiphon_mode auto
+	set_default psiphon_port 1825
 	set_default unblock 0
 	set_default unblock_port 1823
 	set_default unblock_tor_port 1824
