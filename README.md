@@ -25,6 +25,8 @@
 
 بخش SOCKS5 داخل خود هستهٔ تونل پیاده‌سازی شده است. حالت شفاف و حالت TUN با کمک **sing-box** انجام می‌شود؛ گذربین هستهٔ sing-box خودش را دارد و به هستهٔ Passwall2 دست نمی‌زند — توضیحش [پایین‌تر](#هستهٔ-sing-box) آمده.
 
+تونل پیش‌فرض WARP است (MASQUE، WireGuard و ترکیب‌هایشان). با بستهٔ اختیاری `gozarbin-psiphon`، **Psiphon** هم در دسترس است — به‌تنهایی یا زنجیرشده با WARP از هر دو طرف — و **کشور خروجی** را خودتان انتخاب می‌کنید. توضیحش در بخش [Psiphon و انتخاب کشور](#psiphon-و-انتخاب-کشور) آمده.
+
 ---
 
 ## پیش‌نیازها
@@ -94,19 +96,19 @@ gozarbinctl singbox --origin    # own | system | passwall | none
 
 ## نصب سریع
 
-۱. فایل‌های `gozarbin` و `luci-app-gozarbin` متناسب با معماری روتر را از بخش Releases دانلود و روی روتر کپی کنید.
+۱. فایل `gozarbin-openwrt-<نسخهٔ OpenWrt>-<معماری>.tar.gz` متناسب با روتر را از بخش Releases دانلود کنید، باز کنید و محتوایش را روی روتر کپی کنید.
 
-۲. روی OpenWrt 24.10 به بعد (که از `apk` استفاده می‌کند):
+۲. روی OpenWrt 25.12 (که از `apk` استفاده می‌کند):
 
 </div>
 
 ```sh
-apk add --allow-untrusted ./gozarbin-*.apk ./luci-app-gozarbin-*.apk
+apk add --allow-untrusted ./gozarbin-2*.apk ./luci-app-gozarbin-*.apk
 ```
 
 <div dir="rtl">
 
-روی نسخه‌های قدیمی‌تر با `opkg`:
+روی OpenWrt 24.10 با `opkg`:
 
 </div>
 
@@ -122,7 +124,20 @@ opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
 
 همین. پراکسی SOCKS5 روی `127.0.0.1:1819` بالا می‌آید و ترافیک شبکه از تونل عبور می‌کند. فهرست‌های ایران در اولین اتصال خودکار دریافت می‌شوند.
 
-برای **Psiphon** بستهٔ اختیاری `gozarbin-psiphon` (حدود ۲۰ مگابایت) را هم از همان بایگانی نصب کنید؛ پایین‌تر توضیح داده شده.
+### نصب Psiphon (اختیاری)
+
+‏Psiphon در بستهٔ جداگانهٔ `gozarbin-psiphon` است، چون حدود **۲۰ مگابایت** جا می‌گیرد و روی روترهای کم‌حافظه همیشه جا ندارد. در همان بایگانی است:
+
+</div>
+
+```sh
+apk add --allow-untrusted ./gozarbin-psiphon-*.apk   # OpenWrt 25.12
+opkg install ./gozarbin-psiphon_*.ipk                # OpenWrt 24.10
+```
+
+<div dir="rtl">
+
+بعد از نصب، کارت «پیش‌نیازها» می‌نویسد «Psiphon نصب» و گزینه‌های Psiphon در برگهٔ «عمومی» فعال می‌شوند. اگر Psiphon از قبل در تنظیمات انتخاب شده بود، سرویس خودکار دوباره راه‌اندازی می‌شود.
 
 ---
 
@@ -130,7 +145,7 @@ opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
 
 ### داشبورد بالای صفحه
 
-شش کارت که هر سه ثانیه به‌روز می‌شوند:
+هفت کارت که هر سه ثانیه به‌روز می‌شوند:
 
 | کارت | چه چیزی نشان می‌دهد |
 | --- | --- |
@@ -139,7 +154,8 @@ opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
 | **دریافت (دانلود)**‏ | سرعت لحظه‌ای و مجموع بایت‌های دریافتی |
 | **مصرف کل** | جمع دو جهت و تعداد بسته‌ها |
 | **نوع دستگاه** | مدل روتر، نسخهٔ OpenWrt و معماری |
-| **پیش‌نیازها و Passwall2**‏ | وضعیت هستهٔ sing-box، ماژول‌های کرنل، TUN و Passwall2‏ |
+| **سرور و اسکن** | سرور فعلی، پینگ، کشور خروجی، و در حالت Psiphon وضعیت اتصال آن |
+| **پیش‌نیازها و Passwall2**‏ | وضعیت هستهٔ sing-box، ماژول‌های کرنل، TUN، ‏Psiphon و Passwall2‏ |
 
 اعداد مصرف بر حسب **مگابایت** و **مگابایت بر ثانیه** نوشته می‌شوند و از شمارنده‌های واقعی `nftables` روی مسیر پراکسی خوانده می‌شوند، نه از تخمین. شمارنده‌ها با هر بار راه‌اندازی مجدد سرویس از صفر شروع می‌شوند.
 
@@ -283,7 +299,7 @@ gozarbinctl unblock     # خروجی غیرایرانی الان کجاست (ip 
 
 <div dir="rtl">
 
-### ‏Psiphon و انتخاب کشور
+### Psiphon و انتخاب کشور
 
 با نصب بستهٔ `gozarbin-psiphon`، گزینهٔ **«Psiphon»** در برگهٔ «عمومی» سه حالت دارد:
 
@@ -395,7 +411,7 @@ gozarbinctl psiphon chain NL # Psiphon: off | chain | reverse | only، و کشو
 
 <div dir="rtl">
 
-خود هستهٔ تونل هم ده‌ها گزینهٔ دیگر دارد که با `gozarbin --help` فهرست می‌شوند (Tor، Zero Trust، ECH، تکه‌تکه کردن ClientHello و…).
+خود هستهٔ تونل هم ده‌ها گزینهٔ دیگر دارد که با `gozarbin --help` فهرست می‌شوند (Tor، Psiphon، Zero Trust، ECH، تکه‌تکه کردن ClientHello و…).
 
 ---
 
@@ -409,6 +425,9 @@ gozarbinctl psiphon chain NL # Psiphon: off | chain | reverse | only، و کشو
 uci set gozarbin.main.mode=tun
 uci set gozarbin.main.protocol=wg
 uci set gozarbin.main.geo_enabled=1
+uci set gozarbin.main.psiphon=chain          # off | chain | reverse | only
+uci set gozarbin.main.psiphon_region=DE      # خالی = خودکار
+uci set gozarbin.main.psiphon_mode=auto      # auto | cdn | direct
 uci commit gozarbin
 /etc/init.d/gozarbin restart
 ```
@@ -458,7 +477,24 @@ nslookup www.youtube.com 127.0.0.1
 
 **تونل وصل نمی‌شود**
 
-پروفایل استتار را روی `gfw` و حالت اسکن را روی `thorough` بگذارید. اگر باز هم نشد، پروتکل را به `WireGuard` تغییر دهید.
+پروفایل استتار را روی `gfw` و حالت اسکن را روی `thorough` بگذارید. اگر باز هم نشد، پروتکل را به `WireGuard` تغییر دهید. اگر WARP روی این شبکه اصلاً وصل نمی‌شود، «فقط Psiphon» یا «WARP از راه Psiphon» را امتحان کنید.
+
+**‏Psiphon وصل نمی‌شود یا کارت می‌گوید «Psiphon وصل نشد»**
+
+«شیوهٔ اتصال Psiphon» را روی «فقط از راه CDN» بگذارید. اگر گزینه‌های Psiphon اثری ندارند، بستهٔ `gozarbin-psiphon` نصب نیست — `gozarbinctl psiphon` این را می‌گوید. گزارش‌های Psiphon را این‌طور ببینید:
+
+</div>
+
+```sh
+gozarbinctl psiphon
+logread -e gozarbin | grep -i psiphon | tail -20
+```
+
+<div dir="rtl">
+
+**کشور خروجی با کشوری که انتخاب کردم فرق دارد**
+
+‏Psiphon فقط کشورهایی را می‌دهد که همان لحظه در آن‌ها سرور دارد و اگر کشور انتخابی نبود، کشور دیگری می‌دهد. کشورهای در دسترس در فهرست انتخاب کشور با ✓ مشخص می‌شوند. در حالت «WARP از راه Psiphon» خروجی WARP است و کشورش را Cloudflare تعیین می‌کند، معمولاً نزدیک به کشور Psiphon.
 
 **می‌خواهم ببینم دقیقاً چه قواعدی نصب شده‌اند**
 
@@ -496,12 +532,13 @@ opkg remove luci-app-gozarbin gozarbin  # نسخه‌های قدیمی‌تر
 
 ```sh
 cargo build --release --manifest-path aether/Cargo.toml
-./scripts/build-openwrt-packages.sh <sdk-directory> <core-binary> <output-directory>
+bash psiphon-build.sh linux arm ./pt 7      # اختیاری: Psiphon، مثلاً برای armv7
+./scripts/build-openwrt-packages.sh <sdk-directory> <core-binary> <output-directory> [psiphon-binary]
 ```
 
 <div dir="rtl">
 
-اسکریپت بالا هر دو بستهٔ `gozarbin` و `luci-app-gozarbin` را با OpenWrt SDK می‌سازد و در پوشهٔ خروجی می‌گذارد.
+اسکریپت بالا بسته‌های `gozarbin` و `luci-app-gozarbin` را با OpenWrt SDK می‌سازد و در پوشهٔ خروجی می‌گذارد؛ اگر باینری Psiphon را هم بدهید، بستهٔ `gozarbin-psiphon` هم ساخته می‌شود. ‏`psiphon-build.sh` خودش دقیقاً همان نسخهٔ Go را که Psiphon لازم دارد دریافت می‌کند، چون Psiphon ساخته‌شده با نسخهٔ دیگر هنگام اجرا از کار می‌افتد.
 
 ---
 
