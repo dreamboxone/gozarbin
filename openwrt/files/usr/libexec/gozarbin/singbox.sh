@@ -37,15 +37,34 @@ downloads=https://github.com/SagerNet/sing-box/releases/download
 
 # ---------------------------------------------------------------- the core
 
+# Passwall or Passwall2 itself, not merely its feed. Many routers carry the
+# passwall_packages feed for its newer sing-box without ever installing either
+# proxy. The package or its init script, never /etc/config alone: a removed
+# package can leave its modified config behind.
+passwall_installed() {
+	local name
+	for name in passwall passwall2; do
+		[ -x "/etc/init.d/$name" ] && return 0
+		pkg_installed "luci-app-$name" && return 0
+	done
+	return 1
+}
+
 # Which package a system sing-box came from. apk and opkg both name the feed the
-# package was built from, and a Passwall feed says so in that name.
+# package was built from, and a Passwall feed says so in that name. That core is
+# only Passwall's while Passwall is there to run on it; without it, a sing-box
+# from that feed is nobody's in particular, like one from OpenWrt's own.
 system_origin() {
+	local from_feed=0
 	command -v sing-box >/dev/null 2>&1 || { echo none; return; }
 	pkg_snapshot
 	if printf '%s\n' "$PKG_LIST" | grep -i '^sing-box-[0-9]' | grep -qi passwall; then
-		echo passwall
+		from_feed=1
 	elif command -v opkg >/dev/null 2>&1 &&
 		opkg status sing-box 2>/dev/null | grep -qi 'passwall'; then
+		from_feed=1
+	fi
+	if [ "$from_feed" = 1 ] && passwall_installed; then
 		echo passwall
 	else
 		echo system
