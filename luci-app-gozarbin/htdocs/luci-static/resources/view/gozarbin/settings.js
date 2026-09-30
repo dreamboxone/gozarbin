@@ -672,6 +672,12 @@ return view.extend({
 		option = self.option(section, 'general', form.ListValue, 'psiphon_region', _('کشور خروجی Psiphon'),
 			_('Psiphon تلاش می‌کند از این کشور خارج شود؛ اگر آن‌جا سروری نداشته باشد، کشور دیگری را انتخاب می‌کند.'));
 		option.value('', _('خودکار — انتخاب Psiphon'));
+		/* The blank choice is "automatic", an answer rather than a gap. The
+		 * rmempty = false the helper sets makes LuCI refuse a blank list value
+		 * as "must not be empty"; optional lets it through, and saving it
+		 * deletes the option, which the service and gozarbinctl both read as
+		 * automatic. */
+		option.optional = true;
 		var offered = regionCodes(tunnel && tunnel.psiphon_regions);
 		var codes = Object.keys(COUNTRIES);
 		offered.forEach(function(code) { if (codes.indexOf(code) < 0) codes.push(code); });
