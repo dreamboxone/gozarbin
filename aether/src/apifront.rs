@@ -36,6 +36,7 @@ const ALPN_HTTP1: &[u8] = b"\x08http/1.1";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Fingerprint {
     SplitLegacy,
+    SplitModern,
     Modern,
     ChromeLike,
 }
@@ -44,14 +45,16 @@ impl Fingerprint {
     pub fn label(self) -> &'static str {
         match self {
             Fingerprint::SplitLegacy => "split-tls12",
+            Fingerprint::SplitModern => "split-tls13",
             Fingerprint::Modern => "plain-tls13",
             Fingerprint::ChromeLike => "chrome",
         }
     }
 
-    fn all() -> [Fingerprint; 3] {
+    fn all() -> [Fingerprint; 4] {
         [
             Fingerprint::SplitLegacy,
+            Fingerprint::SplitModern,
             Fingerprint::Modern,
             Fingerprint::ChromeLike,
         ]
@@ -59,12 +62,13 @@ impl Fingerprint {
 
     fn fragments(self) -> FragmentConfig {
         match self {
-            Fingerprint::SplitLegacy => FragmentConfig {
+            Fingerprint::SplitLegacy | Fingerprint::SplitModern => FragmentConfig {
                 enabled: true,
                 size_min: 24,
                 size_max: 48,
                 delay_min_ms: 2,
                 delay_max_ms: 8,
+                sni_split: true,
             },
             _ => FragmentConfig::disabled(),
         }
@@ -87,6 +91,17 @@ impl Fingerprint {
                 builder.set_grease_enabled(false);
                 builder.set_cipher_list(LEGACY_CIPHERS).map_err(tls)?;
                 builder.set_curves_list(LEGACY_GROUPS).map_err(tls)?;
+                builder.set_alpn_protos(ALPN_HTTP1).map_err(tls)?;
+            }
+            Fingerprint::SplitModern => {
+                builder
+                    .set_min_proto_version(Some(SslVersion::TLS1_3))
+                    .map_err(tls)?;
+                builder
+                    .set_max_proto_version(Some(SslVersion::TLS1_3))
+                    .map_err(tls)?;
+                builder.set_grease_enabled(false);
+                builder.set_curves_list(MODERN_GROUPS).map_err(tls)?;
                 builder.set_alpn_protos(ALPN_HTTP1).map_err(tls)?;
             }
             Fingerprint::Modern => {
@@ -473,8 +488,9 @@ mod tests {
     }
 
     #[test]
-    fn only_the_legacy_profile_splits_the_client_hello() {
+    fn only_the_split_profiles_chop_the_client_hello() {
         assert!(Fingerprint::SplitLegacy.fragments().enabled);
+        assert!(Fingerprint::SplitModern.fragments().enabled);
         assert!(!Fingerprint::Modern.fragments().enabled);
         assert!(!Fingerprint::ChromeLike.fragments().enabled);
     }
