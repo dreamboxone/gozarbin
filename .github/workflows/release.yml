@@ -575,14 +575,12 @@ jobs:
             mkdir -p "package/gozarbin/prebuilt/$arch/pt"
             cp "$GITHUB_WORKSPACE/binary/pt/lyrebird" "package/gozarbin/prebuilt/$arch/pt/lyrebird"
           fi
-          # Psiphon is a package of its own, built only when the core's leg
-          # produced a binary for it.
-          psiphon=0
-          if [ -f "$GITHUB_WORKSPACE/binary/pt/psiphon-tunnel-core" ]; then
-            mkdir -p "package/gozarbin/prebuilt/$arch/pt"
-            cp "$GITHUB_WORKSPACE/binary/pt/psiphon-tunnel-core" "package/gozarbin/prebuilt/$arch/pt/psiphon-tunnel-core"
-            psiphon=1
-          fi
+          # Psiphon goes into the gozarbin package itself. Every core leg that
+          # feeds this job builds it, so a missing binary is a broken leg, not
+          # a target to ship without Psiphon.
+          test -f "$GITHUB_WORKSPACE/binary/pt/psiphon-tunnel-core"
+          mkdir -p "package/gozarbin/prebuilt/$arch/pt"
+          cp "$GITHUB_WORKSPACE/binary/pt/psiphon-tunnel-core" "package/gozarbin/prebuilt/$arch/pt/psiphon-tunnel-core"
           # The SDK selects every package by default. Clearing the selection and
           # asking for these two lets Kconfig pull in exactly their dependencies.
           sed -i 's/^CONFIG_ALL=y/# CONFIG_ALL is not set/' .config
@@ -590,7 +588,6 @@ jobs:
           sed -i 's/^CONFIG_ALL_NONSHARED=y/# CONFIG_ALL_NONSHARED is not set/' .config
           sed -i -E 's/^CONFIG_PACKAGE_([^=]+)=[ym]/# CONFIG_PACKAGE_\1 is not set/' .config
           printf '\nCONFIG_PACKAGE_gozarbin=m\nCONFIG_PACKAGE_luci-app-gozarbin=m\n' >> .config
-          [ "$psiphon" = 1 ] && printf 'CONFIG_PACKAGE_gozarbin-psiphon=m\n' >> .config
           make defconfig >/dev/null
           make package/gozarbin/compile -j"$(nproc)" V=s
           make package/luci-app-gozarbin/compile -j"$(nproc)" V=s
@@ -602,7 +599,7 @@ jobs:
           mkdir -p "$out"
           find /tmp/sdk/bin/packages -type f \
             \( -name 'gozarbin-*.apk' -o -name 'luci-app-gozarbin-*.apk' \
-               -o -name 'gozarbin_*.ipk' -o -name 'gozarbin-psiphon_*.ipk' \
+               -o -name 'gozarbin_*.ipk' \
                -o -name 'luci-app-gozarbin_*.ipk' \) \
             -exec cp -f {} "$out/" \;
           ls -l "$out"
@@ -683,11 +680,13 @@ jobs:
             opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
             ```
 
-            Psiphon is optional and comes as `gozarbin-psiphon`, about 20 MB:
-            install it too (`apk add --allow-untrusted ./gozarbin-psiphon-*.apk`
-            or `opkg install ./gozarbin-psiphon_*.ipk`) to run Psiphon on its
-            own, inside WARP, or as the way WARP is dialled, with a choice of
-            exit country.
+            Psiphon is part of the `gozarbin` package: run it on its own,
+            inside WARP, or as the way WARP is dialled, with a choice of exit
+            country. It takes about 20 MB of flash. Upgrading from 2.2.x with
+            `gozarbin-psiphon` installed is fine; the new package drops the old
+            binary, and `apk del gozarbin-psiphon` (or `opkg remove
+            gozarbin-psiphon`) clears the empty package left behind. On a router
+            short of flash, remove `gozarbin-psiphon` before upgrading.
 
             `aarch64_cortex-a53/a72/a76`, `aarch64_generic`,
             `arm_cortex-a5/a7/a8/a9/a15` (the vfp variants) and `x86_64`.

@@ -655,7 +655,7 @@ return view.extend({
 		psiphon = self.option(section, 'general', form.ListValue, 'psiphon', _('Psiphon'),
 			system.psiphon
 				? _('«داخل WARP»: خروجی Psiphon در کشور انتخابی، و شبکه فقط WARP را می‌بیند. «WARP از راه Psiphon»: خروجی WARP است و شبکه هرگز WARP را نمی‌بیند؛ فقط با MASQUE. «فقط Psiphon»: بدون WARP. پورت SOCKS5 در هر حالت خروجی نهایی است.')
-				: _('بستهٔ gozarbin-psiphon نصب نیست. آن را از همان بایگانی انتشار نصب کنید؛ تا آن موقع این گزینه نادیده گرفته می‌شود.'));
+				: _('فایل Psiphon روی این روتر نیست؛ بستهٔ gozarbin را دوباره نصب کنید. تا آن موقع این گزینه نادیده گرفته می‌شود.'));
 		psiphon.value('off', _('خاموش'));
 		psiphon.value('chain', _('Psiphon داخل WARP (خروجی Psiphon)'));
 		psiphon.value('reverse', _('WARP از راه Psiphon (خروجی WARP)'));

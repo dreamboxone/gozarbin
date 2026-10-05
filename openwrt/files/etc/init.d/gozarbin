@@ -9,7 +9,10 @@ USE_PROCD=1
 . /lib/functions.sh
 
 reason_file=/var/run/gozarbin/transparent-off
-psiphon_bin=/usr/libexec/gozarbin/pt/psiphon-tunnel-core
+psiphon_bin=/usr/libexec/gozarbin/psiphon-tunnel-core
+# Where the separate gozarbin-psiphon package kept it, up to 2.2.x. A Psiphon
+# started from there by an older core is still ours to stop.
+psiphon_legacy_bin=/usr/libexec/gozarbin/pt/psiphon-tunnel-core
 
 # The core ends Psiphon when it goes, but a core that was killed outright
 # leaves it behind holding the port the next start needs. Only ours: matched by
@@ -19,7 +22,10 @@ psiphon_bin=/usr/libexec/gozarbin/pt/psiphon-tunnel-core
 stop_psiphon() {
 	local exe pid
 	for exe in /proc/[0-9]*/exe; do
-		[ "$(readlink "$exe" 2>/dev/null)" = "$psiphon_bin" ] || continue
+		case "$(readlink "$exe" 2>/dev/null)" in
+			"$psiphon_bin"|"$psiphon_legacy_bin") ;;
+			*) continue ;;
+		esac
 		pid=${exe#/proc/}
 		pid=${pid%/exe}
 		if [ "$1" = orphans ]; then
@@ -118,14 +124,14 @@ start_service() {
 		fi
 	fi
 
-	# Psiphon comes in its own package, so a setting that asks for it on a router
-	# without it runs the tunnel as if it were off rather than not at all.
+	# Psiphon ships in the package, but a target built without it, or a binary
+	# removed by hand, runs the tunnel as if it were off rather than not at all.
 	case "$psiphon" in
 		chain|reverse|only) ;;
 		*) psiphon=off ;;
 	esac
 	if [ "$psiphon" != off ] && [ ! -x "$psiphon_bin" ]; then
-		logger -t gozarbin "Psiphon is selected but gozarbin-psiphon is not installed; running without it"
+		logger -t gozarbin "Psiphon is selected but $psiphon_bin is missing; running without it"
 		psiphon=off
 	fi
 	# Psiphon carries TCP only, and WireGuard and WARP-in-WARP answer on UDP

@@ -28,7 +28,7 @@ config gozarbin 'main'
 	option protocol 'masque'
 	option tor_reverse '0'
 	option tor_scan_fallback '0'
-	# Psiphon, from the gozarbin-psiphon package. off, chain (WARP carries
+	# Psiphon, shipped in the package. off, chain (WARP carries
 	# Psiphon, the exit is Psiphon's), reverse (WARP dialled through Psiphon, the
 	# exit is WARP's) or only (Psiphon alone, no WARP). The SOCKS5 port above is
 	# always the final exit; in chain mode WARP moves to psiphon_port instead.

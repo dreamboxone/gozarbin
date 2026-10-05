@@ -27,7 +27,7 @@ endef
 
 define Package/gozarbin/description
  SOCKS5 service built on the Aether core, with optional transparent LAN proxying, TUN mode, Iran
- bypass and sing-box rule sets. Installing it pulls in the nftables TProxy and
+ bypass, sing-box rule sets and Psiphon with a choice of exit country. Installing it pulls in the nftables TProxy and
  socket kernel modules, the TUN module and full iproute2. Transparent mode also
  needs a sing-box core, which Gozarbin keeps its own copy of and installs from
  SagerNet's releases: a sing-box belonging to Passwall2 is never used here, and
@@ -43,9 +43,9 @@ endef
 # arm_cortex-a7_neon-vfpv4. ARCH remains a fallback for a tree that predates it.
 GOZARBIN_BINARY?=$(firstword $(wildcard 	$(CURDIR)/prebuilt/$(ARCH_PACKAGES)/aether 	$(CURDIR)/prebuilt/$(ARCH)/aether))
 GOZARBIN_PT?=$(firstword $(wildcard $(CURDIR)/prebuilt/$(ARCH_PACKAGES)/pt/lyrebird $(CURDIR)/prebuilt/$(ARCH)/pt/lyrebird))
-# Psiphon is some twenty megabytes, more than a small router's flash can spare
-# for something it may never use, so it ships as a package of its own. Selecting
-# that package without a binary for this target is an error, not an empty package.
+# Psiphon ships inside the package, so one install has every transport. It is
+# some twenty megabytes on flash; a target built without a binary simply has no
+# Psiphon, and the service runs as if it were switched off.
 GOZARBIN_PSIPHON?=$(firstword $(wildcard $(CURDIR)/prebuilt/$(ARCH_PACKAGES)/pt/psiphon-tunnel-core $(CURDIR)/prebuilt/$(ARCH)/pt/psiphon-tunnel-core))
 
 # GOZARBIN_OBFUSCATE=1 on the make command line strips the shipped shell scripts
@@ -79,6 +79,17 @@ define Package/gozarbin/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 mkdir -p /etc/gozarbin/geo /etc/gozarbin/state
+# Up to 2.2.x Psiphon came in gozarbin-psiphon, under pt/. This package now
+# carries its own copy, so the old one is twenty megabytes of dead weight on
+# flash; drop it and say how to remove the empty package left behind.
+if [ -x /usr/libexec/gozarbin/psiphon-tunnel-core ] && [ -f /usr/libexec/gozarbin/pt/psiphon-tunnel-core ]; then
+	rm -f /usr/libexec/gozarbin/pt/psiphon-tunnel-core
+	if command -v apk >/dev/null 2>&1; then
+		echo "Gozarbin: Psiphon is part of this package now; remove the empty old one with: apk del gozarbin-psiphon"
+	else
+		echo "Gozarbin: Psiphon is part of this package now; remove the empty old one with: opkg remove gozarbin-psiphon"
+	fi
+fi
 missing=$$(/usr/libexec/gozarbin/deps.sh --missing 2>/dev/null)
 [ -n "$$missing" ] && echo "Gozarbin: these dependencies are still missing:$$missing"
 exit 0
@@ -89,6 +100,11 @@ define Package/gozarbin/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/aether $(1)/usr/bin/gozarbin
 	$(if $(GOZARBIN_PT),$(INSTALL_DIR) $(1)/usr/libexec/gozarbin/pt)
 	$(if $(GOZARBIN_PT),$(INSTALL_BIN) $(PKG_BUILD_DIR)/lyrebird $(1)/usr/libexec/gozarbin/pt/lyrebird)
+	$(INSTALL_DIR) $(1)/usr/libexec/gozarbin
+	# Not under pt/, where gozarbin-psiphon kept it: opkg refuses to install a
+	# file another package still owns, so a router upgrading with the old package
+	# on board would fail. A new path never clashes; postinst drops the old copy.
+	$(if $(GOZARBIN_PSIPHON),$(INSTALL_BIN) $(PKG_BUILD_DIR)/psiphon-tunnel-core $(1)/usr/libexec/gozarbin/psiphon-tunnel-core)
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/bin/gozarbinctl $(1)/usr/bin/gozarbinctl
 	$(INSTALL_DIR) $(1)/usr/share/gozarbin
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/version $(1)/usr/share/gozarbin/version
@@ -115,34 +131,4 @@ define Package/gozarbin/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/etc/uci-defaults/90-gozarbin $(1)/etc/uci-defaults/90-gozarbin
 endef
 
-define Package/gozarbin-psiphon
-  SECTION:=net
-  CATEGORY:=Network
-  SUBMENU:=Web Servers/Proxies
-  TITLE:=Psiphon transport for Gozarbin
-  URL:=https://github.com/dreamboxone/gozarbin
-  DEPENDS:=+gozarbin
-endef
-
-define Package/gozarbin-psiphon/description
- The Psiphon client Gozarbin runs on its own, inside the WARP tunnel, or as
- the way the WARP tunnel is dialled, with a choice of exit country. About
- 20 MB on flash and 30 to 50 MB of memory while it runs.
-endef
-
-define Package/gozarbin-psiphon/postinst
-#!/bin/sh
-[ -n "$${IPKG_INSTROOT}" ] && exit 0
-[ "$$(uci -q get gozarbin.main.psiphon)" != off ] && [ "$$(uci -q get gozarbin.main.enabled)" = 1 ] &&
-	/etc/init.d/gozarbin restart
-exit 0
-endef
-
-define Package/gozarbin-psiphon/install
-	@test -f $(PKG_BUILD_DIR)/psiphon-tunnel-core || 		(echo "No Psiphon binary for this target: looked for prebuilt/$(ARCH_PACKAGES)/pt/psiphon-tunnel-core and prebuilt/$(ARCH)/pt/psiphon-tunnel-core" >&2; exit 1)
-	$(INSTALL_DIR) $(1)/usr/libexec/gozarbin/pt
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/psiphon-tunnel-core $(1)/usr/libexec/gozarbin/pt/psiphon-tunnel-core
-endef
-
 $(eval $(call BuildPackage,gozarbin))
-$(eval $(call BuildPackage,gozarbin-psiphon))

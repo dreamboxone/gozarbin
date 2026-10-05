@@ -71,7 +71,7 @@ case "$1" in
 		if [ -z "$2" ]; then
 			printf 'psiphon: %s\nregion: %s\n' "$(uci -q get gozarbin.main.psiphon || echo off)" \
 				"$(uci -q get gozarbin.main.psiphon_region || echo auto)"
-			[ -x /usr/libexec/gozarbin/pt/psiphon-tunnel-core ] || echo 'gozarbin-psiphon is not installed'
+			[ -x /usr/libexec/gozarbin/psiphon-tunnel-core ] || echo 'psiphon-tunnel-core is missing from this install'
 			exit 0
 		fi
 		case "$2" in

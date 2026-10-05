@@ -210,7 +210,7 @@ route_rules() {
 	if [ "$mode" = tun ]; then
 		case "$psiphon" in
 			only|reverse)
-				rules="{\"process_path\":[\"/usr/libexec/gozarbin/pt/psiphon-tunnel-core\"],\"outbound\":\"direct\"}"
+				rules="{\"process_path\":[\"/usr/libexec/gozarbin/psiphon-tunnel-core\"],\"outbound\":\"direct\"}"
 				;;
 		esac
 	fi

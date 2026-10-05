@@ -119,7 +119,7 @@ pidof gozarbin >/dev/null 2>&1 || state=stopped
 # connected until Psiphon is, whichever way round the two are chained.
 psiphon=$(uci -q get gozarbin.main.psiphon)
 case "$psiphon" in
-	chain|reverse|only) [ -x /usr/libexec/gozarbin/pt/psiphon-tunnel-core ] || psiphon=off ;;
+	chain|reverse|only) [ -x /usr/libexec/gozarbin/psiphon-tunnel-core ] || psiphon=off ;;
 	*) psiphon=off ;;
 esac
 if [ "$psiphon" != off ] && [ "$state" != stopped ]; then
