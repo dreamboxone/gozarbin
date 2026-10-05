@@ -36,6 +36,25 @@ stop_psiphon() {
 	return 0
 }
 
+# An IP address for the WARP API. A name the router resolves to a private or
+# Iranian block-page address (10.10.34.x) is not the API, so it is skipped.
+resolve_enroll_address() {
+	local given=$1 ip
+	case "$given" in
+		'') given=api.cloudflareclient.com ;;
+		*:*) echo "$given"; return ;;
+		*[a-zA-Z]*) ;;
+		*) echo "$given"; return ;;
+	esac
+	for ip in $(nslookup "$given" 127.0.0.1 2>/dev/null | sed -n 's/^Address[^:]*: *\([0-9.]*\)$/\1/p'); do
+		case "$ip" in
+			10.*|127.*|0.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) ;;
+			*) echo "$ip"; return ;;
+		esac
+	done
+	echo 141.101.113.10
+}
+
 service_triggers() {
 	procd_add_reload_trigger gozarbin
 	procd_add_reload_trigger firewall
@@ -52,7 +71,7 @@ stand_down() {
 
 start_service() {
 	local enabled mode transparent force socks_address socks_port http_port mark
-	local protocol core_protocol gool_flag scan ip_mode noize perf tls_verify log_level quick config_file singbox dns passwall2
+	local protocol core_protocol gool_flag scan ip_mode noize perf tls_verify enroll_address log_level quick config_file singbox dns passwall2
 	local unblock unblock_port unblock_tor_port
 	local tor_reverse tor_scan_fallback tor_scan_env
 	local psiphon psiphon_region psiphon_mode psiphon_port core_bind psiphon_bind http_flag
@@ -83,6 +102,7 @@ start_service() {
 	config_get noize main noize firewall
 	config_get perf main perf low
 	config_get_bool tls_verify main tls_verify 0
+	config_get enroll_address main enroll_address ''
 	config_get log_level main log_level info
 	config_get_bool quick main quick_reconnect 1
 	config_get_bool dns main dns 1
@@ -183,6 +203,12 @@ start_service() {
 	procd_set_param command /usr/bin/gozarbin --bind "$core_bind" --mark "$mark" --protocol "$core_protocol" --scan "$scan" --ip "$ip_mode" --noize "$noize" --perf "$perf" --log-level "$log_level" --config "$config_file"
 	[ -n "$gool_flag" ] && procd_append_param command "$gool_flag"
 	[ "$tls_verify" = 1 ] && procd_append_param command --tls-verify
+	# The core marks its sockets, and since 2.3.0 it will not let a marked call
+	# to the WARP API look the API's name up outside the mark: without an IP
+	# address here it cannot register or enrol at all. Use the one set, else
+	# what the router resolves now, else an address of Cloudflare's.
+	enroll_address=$(resolve_enroll_address "$enroll_address")
+	procd_append_param command --enroll-address "$enroll_address"
 	# Either Psiphon or Tor dials the tunnel, never both, and a tunnel already
 	# dialled through Psiphon has no use for a Tor scan on top. gool over MASQUE
 	# dials its outer tunnel as MASQUE does, so Tor can carry it too.

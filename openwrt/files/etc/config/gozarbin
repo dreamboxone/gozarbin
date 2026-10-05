@@ -46,6 +46,9 @@ config gozarbin 'main'
 	# API, DoH, the MASQUE edge). Off by default, as in the core: a network
 	# that intercepts TLS would otherwise stop the tunnel from coming up.
 	option tls_verify '0'
+	# Where the calls to the WARP API go, as an IP address. Empty: the address
+	# api.cloudflareclient.com resolves to, else a Cloudflare one.
+	option enroll_address ''
 	option log_level 'info'
 	option singbox_log_level 'warn'
 	option quick_reconnect '1'
