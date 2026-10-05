@@ -661,7 +661,7 @@ return view.extend({
 		psiphon.value('chain', _('Psiphon داخل WARP (خروجی Psiphon)'));
 		psiphon.value('reverse', _('WARP از راه Psiphon (خروجی WARP)'));
 		psiphon.value('only', _('فقط Psiphon، بدون WARP'));
-		psiphon.default = 'off';
+		psiphon.default = 'reverse';
 		/* Psiphon carries TCP alone; WireGuard and WARP-in-WARP answer on UDP. */
 		psiphon.validate = function(section_id, value) {
 			var chosen = this.section.formvalue(section_id, 'protocol');
@@ -671,7 +671,7 @@ return view.extend({
 		};
 
 		option = self.option(section, 'general', form.ListValue, 'psiphon_region', _('کشور خروجی Psiphon'),
-			_('Psiphon تلاش می‌کند از این کشور خارج شود؛ اگر آن‌جا سروری نداشته باشد، کشور دیگری را انتخاب می‌کند.'));
+			_('Psiphon تلاش می‌کند از این کشور خارج شود. اگر الان در آن کشور سروری نداشته باشد، ممکن است اصلاً وصل نشود؛ بهتر است روی «خودکار» بماند.'));
 		option.value('', _('خودکار — انتخاب Psiphon'));
 		/* The blank choice is "automatic", an answer rather than a gap. The
 		 * rmempty = false the helper sets makes LuCI refuse a blank list value

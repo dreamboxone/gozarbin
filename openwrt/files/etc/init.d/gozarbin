@@ -93,7 +93,7 @@ start_service() {
 	config_get protocol main protocol masque
 	config_get_bool tor_reverse main tor_reverse 0
 	config_get_bool tor_scan_fallback main tor_scan_fallback 0
-	config_get psiphon main psiphon off
+	config_get psiphon main psiphon reverse
 	config_get psiphon_region main psiphon_region ''
 	config_get psiphon_mode main psiphon_mode auto
 	config_get psiphon_port main psiphon_port 1825
