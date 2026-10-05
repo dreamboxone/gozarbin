@@ -42,6 +42,10 @@ config gozarbin 'main'
 	option ip_mode 'v4'
 	option noize 'firewall'
 	option perf 'low'
+	# Check the certificate of every TLS server the core talks to (the WARP
+	# API, DoH, the MASQUE edge). Off by default, as in the core: a network
+	# that intercepts TLS would otherwise stop the tunnel from coming up.
+	option tls_verify '0'
 	option log_level 'info'
 	option singbox_log_level 'warn'
 	option quick_reconnect '1'

@@ -779,6 +779,10 @@ return view.extend({
 		option.value('medium', _('متوسط'));
 		option.value('high', _('زیاد — سرور'));
 
+		option = self.option(section, 'advanced', form.Flag, 'tls_verify', _('بررسی گواهی TLS'),
+			_('گواهی سرورهایی را که هسته با آن‌ها TLS برقرار می‌کند (API وارپ، DoH و لبهٔ MASQUE) بررسی می‌کند تا کسی وسط راه نتواند خودش را جای آن‌ها جا بزند. پیش‌فرض خاموش است؛ اگر شبکه TLS را رهگیری کند، با روشن بودنش تونل وصل نمی‌شود.'));
+		option.default = '0';
+
 		option = self.option(section, 'advanced', form.Flag, 'quick_reconnect', _('اتصال سریع با آخرین سرور موفق'));
 		option = self.option(section, 'advanced', form.Flag, 'accounting', _('شمارش مصرف آپلود و دانلود'),
 			_('شمارنده‌های nftables روی مسیر پراکسی. خاموش کردن آن نمایش مصرف را غیرفعال می‌کند.'));

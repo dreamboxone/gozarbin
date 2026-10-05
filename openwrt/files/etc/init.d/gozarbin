@@ -52,7 +52,7 @@ stand_down() {
 
 start_service() {
 	local enabled mode transparent force socks_address socks_port http_port mark
-	local protocol core_protocol gool_flag scan ip_mode noize perf log_level quick config_file singbox dns passwall2
+	local protocol core_protocol gool_flag scan ip_mode noize perf tls_verify log_level quick config_file singbox dns passwall2
 	local unblock unblock_port unblock_tor_port
 	local tor_reverse tor_scan_fallback tor_scan_env
 	local psiphon psiphon_region psiphon_mode psiphon_port core_bind psiphon_bind http_flag
@@ -82,6 +82,7 @@ start_service() {
 	config_get ip_mode main ip_mode v4
 	config_get noize main noize firewall
 	config_get perf main perf low
+	config_get_bool tls_verify main tls_verify 0
 	config_get log_level main log_level info
 	config_get_bool quick main quick_reconnect 1
 	config_get_bool dns main dns 1
@@ -181,6 +182,7 @@ start_service() {
 	procd_open_instance gozarbin
 	procd_set_param command /usr/bin/gozarbin --bind "$core_bind" --mark "$mark" --protocol "$core_protocol" --scan "$scan" --ip "$ip_mode" --noize "$noize" --perf "$perf" --log-level "$log_level" --config "$config_file"
 	[ -n "$gool_flag" ] && procd_append_param command "$gool_flag"
+	[ "$tls_verify" = 1 ] && procd_append_param command --tls-verify
 	# Either Psiphon or Tor dials the tunnel, never both, and a tunnel already
 	# dialled through Psiphon has no use for a Tor scan on top. gool over MASQUE
 	# dials its outer tunnel as MASQUE does, so Tor can carry it too.
