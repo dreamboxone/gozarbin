@@ -52,7 +52,7 @@ stand_down() {
 
 start_service() {
 	local enabled mode transparent force socks_address socks_port http_port mark
-	local protocol scan ip_mode noize perf log_level quick config_file singbox dns passwall2
+	local protocol core_protocol gool_flag scan ip_mode noize perf log_level quick config_file singbox dns passwall2
 	local unblock unblock_port unblock_tor_port
 	local tor_reverse tor_scan_fallback tor_scan_env
 	local psiphon psiphon_region psiphon_mode psiphon_port core_bind psiphon_bind http_flag
@@ -167,11 +167,27 @@ start_service() {
 		only) http_flag=--psiphon-http ;;
 	esac
 
+	# Since core 2.3.0 "gool" carries a WireGuard identity inside MASQUE, for a
+	# foreign exit, and the WireGuard-in-WireGuard it used to mean is
+	# --gool-classic. The setting "gool" keeps its old meaning; the new one is
+	# "gool_masque".
+	core_protocol=$protocol
+	gool_flag=
+	case "$protocol" in
+		gool) gool_flag=--gool-classic ;;
+		gool_masque) core_protocol=gool ;;
+	esac
+
 	procd_open_instance gozarbin
-	procd_set_param command /usr/bin/gozarbin --bind "$core_bind" --mark "$mark" --protocol "$protocol" --scan "$scan" --ip "$ip_mode" --noize "$noize" --perf "$perf" --log-level "$log_level" --config "$config_file"
+	procd_set_param command /usr/bin/gozarbin --bind "$core_bind" --mark "$mark" --protocol "$core_protocol" --scan "$scan" --ip "$ip_mode" --noize "$noize" --perf "$perf" --log-level "$log_level" --config "$config_file"
+	[ -n "$gool_flag" ] && procd_append_param command "$gool_flag"
 	# Either Psiphon or Tor dials the tunnel, never both, and a tunnel already
-	# dialled through Psiphon has no use for a Tor scan on top.
+	# dialled through Psiphon has no use for a Tor scan on top. gool over MASQUE
+	# dials its outer tunnel as MASQUE does, so Tor can carry it too.
 	case "$protocol:$psiphon" in
+		gool_masque:off|gool_masque:chain)
+			[ "$tor_reverse" = 1 ] && procd_append_param command --tor-reverse
+			;;
 		masque:off|mim:off|masque:chain|mim:chain)
 			[ "$tor_reverse" = 1 ] && procd_append_param command --tor-reverse
 			[ "$tor_scan_fallback" = 1 ] && tor_scan_env='AETHER_TOR_SCAN_FALLBACK=1'

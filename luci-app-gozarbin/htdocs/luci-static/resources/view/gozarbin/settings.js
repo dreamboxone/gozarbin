@@ -634,6 +634,7 @@ return view.extend({
 		protocol.value('masque', 'MASQUE (HTTP/3)');
 		protocol.value('wg', 'WireGuard');
 		protocol.value('gool', 'WARP-in-WARP (gool)');
+		protocol.value('gool_masque', _('WireGuard داخل MASQUE (gool، خروجی خارجی)'));
 		protocol.value('mim', 'MASQUE-in-MASQUE');
 
 		/* Psiphon or Tor may dial the tunnel, never both; with Psiphon doing it,
@@ -641,7 +642,7 @@ return view.extend({
 		option = self.option(section, 'general', form.Flag, 'tor_reverse', _('اتصال تونل از راه Tor'),
 			_('فقط با انتخاب شما فعال می‌شود. MASQUE را از راه پل‌های Tor و HTTP/2 وصل می‌کند؛ اتصال اولیه کندتر است و به ابزار پل نیاز دارد.'));
 		option.default = '0';
-		[ 'masque', 'mim' ].forEach(function(value) {
+		[ 'masque', 'mim', 'gool_masque' ].forEach(function(value) {
 			option.depends({ protocol: value, psiphon: 'off' });
 			option.depends({ protocol: value, psiphon: 'chain' });
 		});
