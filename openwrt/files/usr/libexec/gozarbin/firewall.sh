@@ -361,6 +361,10 @@ stop_tun_escape() {
 }
 
 stop_rules() {
+	if [ -x /usr/libexec/gozarbin/history.sh ]; then
+		/usr/libexec/gozarbin/history.sh sample --flush >/dev/null 2>&1
+		/usr/libexec/gozarbin/history.sh reset >/dev/null 2>&1
+	fi
 	nft delete table inet "$table_name" 2>/dev/null || true
 	if [ -n "${mark:-}" ]; then
 		stop_tun_escape

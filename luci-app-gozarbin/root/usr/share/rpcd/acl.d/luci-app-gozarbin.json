@@ -19,6 +19,7 @@
         ]
       },
       "file": {
+		"/usr/libexec/gozarbin/history.sh report": ["exec"],
         "/usr/libexec/gozarbin/passwall2-detect.sh --json": [
           "exec"
         ],

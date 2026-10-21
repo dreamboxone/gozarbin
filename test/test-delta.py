@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory(prefix='gozarbin-delta-test-') as directory:
         assert gzip.decompress(tar.extractfile('data.tar.gz').read()) == old
         assert gzip.decompress(tar.extractfile('control.tar.gz').read()) == b'package metadata'
     print('PASS: standard IPK members and installation data are preserved')
-    archive = release / 'gozarbin-5.7.30-r1.test.apk'
+    archive = release / 'gozarbin-openwrt-25.12.5-test.tar.gz'
     archive.write_bytes(target)
     manifest = builder.index(archive)
     assert b''.join(target[start:start + length] for start, length, _ in manifest['chunks']) == target

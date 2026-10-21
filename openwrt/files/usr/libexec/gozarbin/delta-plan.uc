@@ -5,7 +5,7 @@ import { readfile, open, stat } from 'fs';
 
 function valid(m) {
 	if (type(m) != 'object' || m.format != 1 || type(m.name) != 'string' ||
-	    !match(m.name, /^[A-Za-z0-9_.+-]+\.(apk|ipk)$/) ||
+	    !match(m.name, /^[A-Za-z0-9_.+-]+\.(apk|ipk|tar\.gz)$/) ||
 	    type(m.sha256) != 'string' || !match(m.sha256, /^[0-9a-f]{64}$/) ||
 	    type(m.size) != 'int' || m.size < 1 || m.size > 134217728 ||
 	    type(m.chunks) != 'array' || !length(m.chunks) || length(m.chunks) > 2048)

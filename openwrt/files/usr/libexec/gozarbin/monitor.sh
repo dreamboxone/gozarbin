@@ -112,6 +112,9 @@ ticks=0
 while :; do
 	reconcile
 	fetch_rule_sets
+	if [ $((ticks % 6)) -eq 0 ]; then
+		/usr/libexec/gozarbin/history.sh sample >/dev/null 2>&1
+	fi
 	# The version check decides for itself when a day has passed; asking it every
 	# twenty minutes costs nothing and keeps the traffic total current.
 	if [ $((ticks % 120)) -eq 0 ]; then

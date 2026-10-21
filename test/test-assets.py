@@ -4,7 +4,6 @@
 """Verify the release generator publishes reconstructable standard packages."""
 import gzip
 import hashlib
-import importlib.util
 import io
 import json
 from pathlib import Path
@@ -33,8 +32,9 @@ with tempfile.TemporaryDirectory(prefix='gozarbin-assets-test-') as temporary:
             package = gzip.compress(raw.getvalue())
             name = 'gozarbin_2.2.2-r1_x86_64.ipk'
         with tarfile.open(directory / f'gozarbin-openwrt-{release}-x86_64.tar.gz', 'w:gz') as tar:
-            entry = tarfile.TarInfo(f'bundle/{name}'); entry.size = len(package)
-            tar.addfile(entry, io.BytesIO(package))
+            for package_name in [name, 'luci-app-' + name]:
+                entry = tarfile.TarInfo(f'bundle/{package_name}'); entry.size = len(package)
+                tar.addfile(entry, io.BytesIO(package))
     subprocess.run([sys.executable, str(ROOT / 'scripts/update-assets.py'), str(directory)], check=True)
     for manifest_file in directory.glob('*.chunks.json'):
         manifest = json.loads(manifest_file.read_text())
@@ -44,12 +44,19 @@ with tempfile.TemporaryDirectory(prefix='gozarbin-assets-test-') as temporary:
         assert hashlib.sha256(data).hexdigest() == manifest['sha256']
         for offset, length, sha in manifest['chunks']:
             assert hashlib.sha256(data[offset:offset + length]).hexdigest() == sha
-        if path.suffix == '.apk':
-            assert path.name.startswith('25.12-x86_64-')
-            assert zlib.decompress(data[4:], -15) == content
-        else:
-            assert path.name.startswith('24.10-x86_64-')
-            with tarfile.open(path) as tar:
-                assert gzip.decompress(tar.extractfile('data.tar.gz').read()) == content
+        assert path.name.startswith('gozarbin-openwrt-') and path.name.endswith('.tar.gz')
+        with tarfile.open(path) as bundle:
+            members = bundle.getmembers()
+            assert len(members) == 2
+            assert any('/luci-app-gozarbin' in m.name for m in members)
+            assert any('/gozarbin' in m.name for m in members)
+            for member in members:
+                data = bundle.extractfile(member).read()
+                if member.name.endswith('.apk'):
+                    assert zlib.decompress(data[4:], -15) == content
+                else:
+                    with tarfile.open(fileobj=io.BytesIO(data)) as package:
+                        assert gzip.decompress(package.extractfile('data.tar.gz').read()) == content
+        assert not list(directory.glob('*.ipk')) and not list(directory.glob('*.apk'))
     assert len(list(directory.glob('*.chunks.json'))) == 2
-print('PASS: release bundles produce correctly named APK/IPK assets, exact payloads and verified manifests')
+print('PASS: each target publishes one bundle containing both packages, exact payloads and a verified manifest')

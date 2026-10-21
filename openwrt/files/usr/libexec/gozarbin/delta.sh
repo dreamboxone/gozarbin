@@ -9,7 +9,7 @@ CACHE="${GOZARBIN_DELTA_CACHE:-/etc/gozarbin/update-cache}"
 PLAN="$LIB/delta-plan.uc"
 mode="${1:-}"; url="${2:-}"; dest="${3:-}"; expected="${4:-}"; sums="${5:-}"; key="${6:-}"
 case "$key" in main|luci|psiphon) ;; *) exit 2 ;; esac
-case "$url" in https://github.com/dreamboxone/gozarbin/releases/download/v*/*.apk|https://github.com/dreamboxone/gozarbin/releases/download/v*/*.ipk) ;; *) exit 2 ;; esac
+case "$url" in https://github.com/dreamboxone/gozarbin/releases/download/v*/*.apk|https://github.com/dreamboxone/gozarbin/releases/download/v*/*.ipk|https://github.com/dreamboxone/gozarbin/releases/download/v*/*.tar.gz) ;; *) exit 2 ;; esac
 name="${url##*/}"
 work="${dest}.delta"
 mkdir -p "$work"
@@ -22,6 +22,12 @@ want="$(awk -v name="$name.chunks.json" '$2 == name || $2 == "*" name { print $1
 curl -fsSL --connect-timeout 10 --max-time 45 --max-filesize 524288 -o "$manifest" "$url.chunks.json" 2>/dev/null || exit 2
 [ "$(hash "$manifest")" = "$want" ] || exit 2
 size="$(ucode "$PLAN" validate "$manifest" - "$name" "$expected" 2>/dev/null)" || exit 2
+report() {
+	if [ -n "${GOZARBIN_PROGRESS:-}" ]; then
+		printf '%s %s %s\n' "$1" "$2" "$3" > "$GOZARBIN_PROGRESS.new"
+		mv "$GOZARBIN_PROGRESS.new" "$GOZARBIN_PROGRESS"
+	fi
+}
 
 if [ "$mode" = seed ]; then
 	[ -f "$dest" ] && [ "$(hash "$dest")" = "$expected" ] || exit 2
@@ -41,6 +47,9 @@ if [ "$mode" = seed ]; then
 fi
 [ "$mode" = fetch ] && [ -s "$CACHE/$key.package" ] && [ -s "$CACHE/$key.json" ] || exit 2
 ucode "$PLAN" plan "$manifest" "$CACHE/$key.json" "$name" "$expected" > "$work/plan" 2>/dev/null || exit 2
+remote=$(awk '$1 == "remote" { n += $3 } END { printf "%.0f", n }' "$work/plan")
+downloaded=0
+report 0 "$remote" delta
 : > "$work/package"
 while read -r source offset length; do
 	if [ "$source" = local ]; then
@@ -61,6 +70,9 @@ while read -r source offset length; do
 	fi
 	[ "$(wc -c < "$work/part")" -eq "$length" ] || exit 2
 	cat "$work/part" >> "$work/package"
+	if [ "$source" = remote ]; then downloaded=$((downloaded + length)); fi
+	rm -f "$work/part"
+	report "$downloaded" "$remote" delta
 done < "$work/plan"
 [ "$(wc -c < "$work/package")" -eq "$size" ] && [ "$(hash "$work/package")" = "$expected" ] || exit 2
 mv -f "$work/package" "$dest"

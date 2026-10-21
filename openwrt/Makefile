@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gozarbin
 PKG_VERSION:=5.7.29
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_LICENSE:=AGPL-3.0-only
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=dreamboxone
@@ -110,6 +110,8 @@ define Package/gozarbin/install
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/version $(1)/usr/share/gozarbin/version
 	$(INSTALL_DIR) $(1)/usr/libexec/gozarbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/update.sh $(1)/usr/libexec/gozarbin/update.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/history.sh $(1)/usr/libexec/gozarbin/history.sh
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/history.uc $(1)/usr/libexec/gozarbin/history.uc
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/delta.sh $(1)/usr/libexec/gozarbin/delta.sh
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/delta-plan.uc $(1)/usr/libexec/gozarbin/delta-plan.uc
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/firewall.sh $(1)/usr/libexec/gozarbin/firewall.sh

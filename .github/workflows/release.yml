@@ -651,7 +651,7 @@ jobs:
         run: |
           cd dist
           shopt -s nullglob
-          files=(*.tar.gz *.zip *.apk *.ipk *.chunks.json)
+          files=(*.tar.gz *.zip *.chunks.json)
           for f in "${files[@]}"; do
             sha256sum "$f" > "$f.sha256"
           done
@@ -664,11 +664,20 @@ jobs:
         with:
           draft: false
           prerelease: false
+          make_latest: true
           generate_release_notes: true
           fail_on_unmatched_files: false
           files: dist/**/*
           body: |
             ## Gozarbin for OpenWrt
+
+            ### 5.7.29r2
+
+            - Separate update tab with installed, GitHub and final versions.
+            - Differential downloads from GitHub with download and installation progress.
+            - One archive per OpenWrt target containing both Gozarbin and its matching LuCI package.
+            - Day/night appearance and a traffic chart with 1-, 7- and 30-day history.
+            - Refresh LuCI permissions after installing the interface.
 
             Gozarbin finds a way out of a filtered network and hands it to the
             whole router: transparently, as a TUN interface, or as a plain

@@ -8,6 +8,8 @@
 'require ui';
 'require poll';
 'require uci';
+'require view.gozarbin.appearance as appearance';
+'require view.gozarbin.traffic as trafficui';
 
 var GEO_DEFAULTS = {
 	geoip_url: 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-ir.srs',
@@ -183,9 +185,8 @@ return view.extend({
 		var self = this;
 		var service = card(_('وضعیت سرویس'));
 		var server = card(_('سرور و اسکن'));
-		var usage = card(_('مصرف کل'));
-		var up = card(_('ارسال (آپلود)'), 'ae-card-up');
-		var down = card(_('دریافت (دانلود)'), 'ae-card-down');
+		var usage = trafficui.create();
+		this.traffic = usage;
 		var build = card(_('نوع دستگاه'));
 		var health = card(_('پیش‌نیازها و Passwall2'));
 
@@ -223,11 +224,11 @@ return view.extend({
 			health.note.textContent = _('همهٔ بسته‌های لازم نصب هستند.');
 
 		var dash = E('div', { 'class': 'ae-dash' }, [
-			service.node, server.node, up.node, down.node, usage.node, build.node, health.node
+			service.node, server.node, build.node, health.node
 		]);
 
 		this.state = { time: 0, upload: 0, download: 0, peak: 1 };
-		this.cards = { service: service, server: server, usage: usage, up: up, down: down };
+		this.cards = { service: service, server: server };
 		this.applyTraffic(traffic);
 		this.applyTunnel(tunnel);
 		poll.add(function() {
@@ -239,7 +240,14 @@ return view.extend({
 				if (results[1]) self.applyTunnel(parse(results[1]));
 			});
 		}, 3);
-		return dash;
+		var refreshHistory = function() {
+			return fs.exec('/usr/libexec/gozarbin/history.sh', ['report']).then(function(result) {
+				if (result.code === 0) usage.history(parse(result));
+			}).catch(function() {});
+		};
+		refreshHistory();
+		poll.add(refreshHistory, 30);
+		return E('div', {}, [dash, usage.node]);
 	},
 
 	/* Which server the tunnel is on and how it got there. Without this the page
@@ -341,48 +349,7 @@ return view.extend({
 		var downRate = span > 0 && download >= previous.download ? (download - previous.download) / span : 0;
 		var peak = Math.max(previous.peak || 1, upRate, downRate, 1);
 
-		/* Three different facts, and telling them apart matters: counting turned
-		 * off is the user's doing, counters absent is the service being down,
-		 * and neither should be reported as the other. */
-		if (traffic.accounting === false) {
-			cards.up.value.textContent = _('غیرفعال');
-			cards.down.value.textContent = _('غیرفعال');
-			cards.usage.value.textContent = _('شمارش خاموش است');
-			cards.usage.note.textContent = _('در برگهٔ پیشرفته روشن کنید.');
-			return;
-		}
-
-		if (traffic.counters === false) {
-			cards.up.value.textContent = '—';
-			cards.down.value.textContent = '—';
-			cards.up.note.textContent = '';
-			cards.down.note.textContent = '';
-			cards.up.bar.style.width = '0';
-			cards.down.bar.style.width = '0';
-			cards.usage.value.textContent = '—';
-			cards.usage.note.textContent = running
-				? _('شمارنده‌ها هنوز بالا نیامده‌اند.')
-				: _('سرویس خاموش است؛ شمارش با روشن شدن آن شروع می‌شود.');
-			return;
-		}
-
-		cards.up.value.textContent = '';
-		cards.up.value.appendChild(rate(upRate));
-		cards.up.note.textContent = '';
-		cards.up.note.appendChild(E('span', {}, [ _('مجموع: '), amount(upload) ]));
-		cards.up.bar.style.width = Math.round(upRate / peak * 100) + '%';
-
-		cards.down.value.textContent = '';
-		cards.down.value.appendChild(rate(downRate));
-		cards.down.note.textContent = '';
-		cards.down.note.appendChild(E('span', {}, [ _('مجموع: '), amount(download) ]));
-		cards.down.bar.style.width = Math.round(downRate / peak * 100) + '%';
-
-		cards.usage.value.textContent = '';
-		cards.usage.value.appendChild(amount(upload + download));
-		cards.usage.note.textContent = '';
-		cards.usage.note.appendChild(count(
-			(Number(traffic.upload_packets) || 0) + (Number(traffic.download_packets) || 0)));
+		this.traffic.update(traffic, { upload: upRate, download: downRate });
 
 		this.state = { time: now, upload: upload, download: download, peak: peak };
 	},
@@ -520,52 +487,6 @@ return view.extend({
 			})
 		}, label);
 		return E('div', { 'class': 'ae-action-item' }, [button, feedback]);
-	},
-
-	renderUpdate: function() {
-		var self = this;
-		var status = E('p', { 'class': 'ae-update-state', 'role': 'status', 'aria-live': 'polite' }, _('برای دریافت نسخهٔ جدید، بررسی را بزنید.'));
-		var labels = {
-			idle: _('آمادهٔ بررسی'), starting: _('در حال آماده‌سازی…'), checking: _('در حال بررسی نسخهٔ جدید…'),
-			available: _('نسخهٔ جدید آمادهٔ دریافت است'), current: _('آخرین نسخه نصب است'),
-			downloading: _('در حال دریافت تغییرات…'), installing: _('در حال نصب بسته‌ها…'),
-			done: _('به‌روزرسانی انجام شد؛ صفحه را تازه کنید.'), error: _('به‌روزرسانی ناموفق بود؛ اتصال و فضای خالی روتر را بررسی کنید.')
-		};
-		var busy = false, available = false;
-		var check, install;
-		function refresh() {
-			return fs.exec('/usr/bin/gozarbinctl', ['update', 'status']).then(function(result) {
-				if (result.code !== 0) throw new Error(result.stderr || _('دریافت وضعیت ناموفق بود'));
-				var s = parse(result);
-				busy = ['starting', 'checking', 'downloading', 'installing'].indexOf(s.state) >= 0;
-				available = s.state === 'available';
-				status.textContent = (labels[s.state] || labels.idle) + (s.detail && /^v[0-9.]+$/.test(s.detail) ? ' (' + s.detail + ')' : '');
-				check.querySelector('button').disabled = busy;
-				install.querySelector('button').disabled = busy || !available;
-			}).catch(function(error) { status.textContent = error.message; });
-		}
-		function start(action) {
-			status.textContent = labels.starting;
-			check.querySelector('button').disabled = true;
-			install.querySelector('button').disabled = true;
-			return fs.exec('/usr/bin/gozarbinctl', ['update', action]).then(function(result) {
-				if (result.code !== 0) throw new Error(result.stderr || labels.error);
-				return refresh();
-			}).catch(function(error) {
-				status.textContent = error.message;
-				check.querySelector('button').disabled = false;
-			});
-		}
-		check = self.action(_('بررسی نسخهٔ جدید'), 'neutral', function() { return start('check'); });
-		install = self.action(_('به‌روزرسانی برنامه'), 'apply', function() { return start('install'); });
-		install.querySelector('button').disabled = true;
-		poll.add(refresh, 3);
-		refresh();
-		return E('section', { 'class': 'ae-update' }, [
-			E('h3', {}, _('به‌روزرسانی گذربین')),
-			E('p', {}, _('بخش‌های مشترک از بستهٔ قبلی استفاده می‌شوند؛ در اولین به‌روزرسانی یا نبود دادهٔ مشترک، بستهٔ کامل دریافت می‌شود. تنظیمات حفظ می‌شوند.')),
-			E('div', { 'class': 'ae-actions' }, [check, install]), status
-		]);
 	},
 
 	renderActions: function() {
@@ -881,7 +802,7 @@ return view.extend({
 		 * are positioned in pixels and end up ten thousand of them off-screen. */
 		document.body.classList.add('gozarbin-page');
 
-		var version = system.gozarbin_version ? ' — ' + system.gozarbin_version : '';
+		var version = system.gozarbin_version ? ' — ' + system.gozarbin_version.replace(/-r/, 'r') : '';
 		return this.renderForm(system, tunnel).then(function(rendered) {
 			return E('div', { 'class': 'gozarbin-rtl', 'dir': 'rtl' }, [
 				E('link', {
@@ -895,15 +816,15 @@ return view.extend({
 				}),
 				E('div', { 'class': 'ae-hero' }, [
 					E('div', {}, [E('h2', {}, _('گذربین')),
-						E('p', {}, _('اتصال امن، مدیریت شبکه و پایش زنده'))]),
-					E('span', { 'class': 'ae-version ae-num' }, version.replace(' — ', '') || 'Gozarbin')
+						E('p', {}, _('دوست روزهای سخت اینترنتی در روتر شما'))]),
+					E('span', { 'class': 'ae-version ae-num' }, version.replace(' — ', '') || 'Gozarbin'),
+					appearance.toggle()
 				]),
 				self.renderDashboard(system, passwall, deps, traffic, tunnel),
 				self.renderMarkNotice(passwall),
 				self.renderCoreNotice(system, core),
 				self.renderActions(),
 				E('div', { 'class': 'ae-action-messages', 'aria-live': 'polite' }),
-				self.renderUpdate(),
 				rendered
 			]);
 		});

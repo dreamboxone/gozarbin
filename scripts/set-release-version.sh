@@ -6,18 +6,20 @@ set -euo pipefail
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 version=${1:-$(node "$repo_dir/scripts/solar-version.cjs")}
 version=${version#v}
-[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+[[ "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)(r([1-9][0-9]*))?$ ]] || {
 	echo "Invalid release version: $1" >&2
 	exit 2
 }
+release=${BASH_REMATCH[3]:-1}
+version=${BASH_REMATCH[1]}
 
 sed -i -E "0,/^version = \"[0-9]+\.[0-9]+\.[0-9]+\"/s//version = \"$version\"/" "$repo_dir/aether/Cargo.toml"
 sed -i -E "/^name = \"aether\"\r?$/{n;s/^version = \"[0-9]+\.[0-9]+\.[0-9]+\"(\r?)$/version = \"$version\"\1/;}" "$repo_dir/aether/Cargo.lock"
-sed -i -E "s/^PKG_VERSION:=.*/PKG_VERSION:=$version/; s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" \
+sed -i -E "s/^PKG_VERSION:=.*/PKG_VERSION:=$version/; s/^PKG_RELEASE:=.*/PKG_RELEASE:=$release/" \
 	"$repo_dir/openwrt/Makefile" "$repo_dir/luci-app-gozarbin/Makefile"
 
 test "$(sed -n 's/^version = "\([0-9.]*\)"/\1/p' "$repo_dir/aether/Cargo.toml" | head -n 1)" = "$version"
 test "$(sed -n '/^name = "aether"\r\?$/ { n; s/^version = "\([0-9.]*\)".*/\1/p; }' "$repo_dir/aether/Cargo.lock")" = "$version"
 test "$(sed -n 's/^PKG_VERSION:=//p' "$repo_dir/openwrt/Makefile")" = "$version"
 test "$(sed -n 's/^PKG_VERSION:=//p' "$repo_dir/luci-app-gozarbin/Makefile")" = "$version"
-printf 'Release source and package version: %s\n' "$version"
+printf 'Release source and package version: %sr%s\n' "$version" "$release"

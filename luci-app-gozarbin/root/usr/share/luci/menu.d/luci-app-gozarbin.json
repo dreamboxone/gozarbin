@@ -3,13 +3,22 @@
     "title": "گذربین",
     "order": 45,
     "action": {
-      "type": "view",
-      "path": "gozarbin/settings"
+      "type": "firstchild"
     },
     "depends": {
       "acl": [
         "luci-app-gozarbin"
       ]
     }
+  },
+  "admin/services/gozarbin/settings": {
+    "title": "تنظیمات",
+    "order": 10,
+    "action": { "type": "view", "path": "gozarbin/settings" }
+  },
+  "admin/services/gozarbin/update": {
+    "title": "به‌روزرسانی",
+    "order": 20,
+    "action": { "type": "view", "path": "gozarbin/update" }
   }
 }
