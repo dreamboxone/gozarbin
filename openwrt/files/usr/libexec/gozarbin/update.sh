@@ -70,7 +70,6 @@ fi
 fetch "$BASE/$tag/SHA256SUMS.txt" "$work/sums" 60
 names=''
 keys='main luci'
-if pkg_installed gozarbin-psiphon; then keys="$keys psiphon"; fi
 for key in $keys; do
 	case "$key" in main) prefix=gozarbin ;; luci) prefix=luci-app-gozarbin ;; psiphon) prefix=gozarbin-psiphon ;; esac
 	case "$manager" in
