@@ -633,17 +633,25 @@ jobs:
       contents: write
     if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/') }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
 
+      - name: Prepare packages for in-app differential updates
+        run: python3 scripts/update-assets.py dist
+
       - name: Generate checksums
         run: |
           cd dist
           shopt -s nullglob
-          files=(*.tar.gz *.zip)
+          files=(*.tar.gz *.zip *.apk *.ipk *.chunks.json)
           for f in "${files[@]}"; do
             sha256sum "$f" > "$f.sha256"
           done

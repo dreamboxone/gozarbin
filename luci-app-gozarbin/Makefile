@@ -81,6 +81,8 @@ define Package/luci-app-gozarbin/install
 	chmod 0644 $(1)/www/luci-static/resources/view/gozarbin/$(VIEW).js
 	@grep -q 'view/gozarbin/$(CSS)' $(1)/www/luci-static/resources/view/gozarbin/$(VIEW).js || 		{ echo "the stylesheet reference was not rewritten" >&2; exit 1; }
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/gozarbin/gozarbin.css $(1)/www/luci-static/resources/view/gozarbin/$(CSS)
+	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/gozarbin/fonts
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/gozarbin/fonts/* $(1)/www/luci-static/resources/view/gozarbin/fonts/
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	sed 's#gozarbin/settings#gozarbin/$(VIEW)#' ./root/usr/share/luci/menu.d/luci-app-gozarbin.json 		> $(1)/usr/share/luci/menu.d/luci-app-gozarbin.json
 	chmod 0644 $(1)/usr/share/luci/menu.d/luci-app-gozarbin.json

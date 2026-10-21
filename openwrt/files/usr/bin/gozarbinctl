@@ -3,6 +3,7 @@
 # Copyright (C) 2026 dreamboxone
 
 case "$1" in
+	update) exec /usr/libexec/gozarbin/update.sh "${2:-status}" ;;
 	on)
 		uci set gozarbin.main.enabled=1
 		uci commit gozarbin
@@ -114,6 +115,8 @@ Usage: gozarbinctl <command>
   deps [--json]    dependency report
   install-deps     install whatever dependency is missing
   update-geo       refresh the GeoIP, GeoSite and ad rule sets
+  update [check|install|status]
+                   check or install the latest compatible release with delta downloads
   dns [on|off|state]
                    whether the network's DNS goes through the tunnel
   unblock          where the non-Iranian exit lands (ip, country)

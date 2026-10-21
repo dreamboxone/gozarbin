@@ -140,34 +140,16 @@ function parse(result, fallback) {
 	catch (e) { return fallback || {}; }
 }
 
-/* LuCI writes its notifications in the page's own direction and labels the
- * dismiss button in English when no translation is installed. Both are fixed
- * here so a Persian message reads as one.
- *
- * Only ever one of ours on screen: pressing a button twice is a question asked
- * twice, not two things to be told about, and a column of identical messages
- * buries the one that differs. */
+/* Operation feedback stays below the controls on every LuCI theme. */
 function notify(message, kind) {
-	document.querySelectorAll('.alert-message.gozarbin-note').forEach(function(old) {
-		old.parentNode && old.parentNode.removeChild(old);
-	});
-	/* LuCI appends the class verbatim, so an absent one lands as "undefined". */
-	var node = ui.addNotification(null, E('p', {}, message), kind || 'info');
-	try {
-		if (!node || !node.querySelectorAll) {
-			var all = document.querySelectorAll('.alert-message');
-			node = all.length ? all[all.length - 1] : null;
-		}
-		if (!node) return null;
-		node.classList.add('gozarbin-note');
-		node.setAttribute('dir', 'rtl');
-		node.querySelectorAll('button, .btn').forEach(function(button) {
-			button.textContent = _('بستن');
-		});
-	} catch (e) {}
-	return node;
+	var target = document.querySelector('.ae-action-messages');
+	if (!target) return null;
+	target.replaceChildren(E('div', {
+		'class': 'ae-inline-message ae-message-' + (kind || 'info'),
+		'role': kind === 'error' ? 'alert' : 'status', 'dir': 'rtl'
+	}, message));
+	return target;
 }
-
 function card(label, klass) {
 	var value = E('div', { 'class': 'ae-card-value' }, '—');
 	var note = E('div', { 'class': 'ae-card-note' }, '');
@@ -507,7 +489,7 @@ return view.extend({
 					E('div', {}, why),
 					progress
 				]),
-				this.action(_('نصب هسته'), 'apply', install)
+				this.action(_('نصب'), 'apply', install)
 			]);
 		}
 
@@ -529,10 +511,61 @@ return view.extend({
 	},
 
 	action: function(label, style, handler) {
-		return E('button', {
+		var feedback = E('div', { 'class': 'ae-button-message', 'aria-live': 'polite' });
+		var button = E('button', {
 			'class': 'cbi-button cbi-button-' + style,
-			'click': ui.createHandlerFn(this, handler)
+			'type': 'button',
+			'click': ui.createHandlerFn(this, function() {
+				return handler.apply(this, arguments);
+			})
 		}, label);
+		return E('div', { 'class': 'ae-action-item' }, [button, feedback]);
+	},
+
+	renderUpdate: function() {
+		var self = this;
+		var status = E('p', { 'class': 'ae-update-state', 'role': 'status', 'aria-live': 'polite' }, _('برای دریافت نسخهٔ جدید، بررسی را بزنید.'));
+		var labels = {
+			idle: _('آمادهٔ بررسی'), starting: _('در حال آماده‌سازی…'), checking: _('در حال بررسی نسخهٔ جدید…'),
+			available: _('نسخهٔ جدید آمادهٔ دریافت است'), current: _('آخرین نسخه نصب است'),
+			downloading: _('در حال دریافت تغییرات…'), installing: _('در حال نصب بسته‌ها…'),
+			done: _('به‌روزرسانی انجام شد؛ صفحه را تازه کنید.'), error: _('به‌روزرسانی ناموفق بود؛ اتصال و فضای خالی روتر را بررسی کنید.')
+		};
+		var busy = false, available = false;
+		var check, install;
+		function refresh() {
+			return fs.exec('/usr/bin/gozarbinctl', ['update', 'status']).then(function(result) {
+				if (result.code !== 0) throw new Error(result.stderr || _('دریافت وضعیت ناموفق بود'));
+				var s = parse(result);
+				busy = ['starting', 'checking', 'downloading', 'installing'].indexOf(s.state) >= 0;
+				available = s.state === 'available';
+				status.textContent = (labels[s.state] || labels.idle) + (s.detail && /^v[0-9.]+$/.test(s.detail) ? ' (' + s.detail + ')' : '');
+				check.querySelector('button').disabled = busy;
+				install.querySelector('button').disabled = busy || !available;
+			}).catch(function(error) { status.textContent = error.message; });
+		}
+		function start(action) {
+			status.textContent = labels.starting;
+			check.querySelector('button').disabled = true;
+			install.querySelector('button').disabled = true;
+			return fs.exec('/usr/bin/gozarbinctl', ['update', action]).then(function(result) {
+				if (result.code !== 0) throw new Error(result.stderr || labels.error);
+				return refresh();
+			}).catch(function(error) {
+				status.textContent = error.message;
+				check.querySelector('button').disabled = false;
+			});
+		}
+		check = self.action(_('بررسی نسخهٔ جدید'), 'neutral', function() { return start('check'); });
+		install = self.action(_('به‌روزرسانی برنامه'), 'apply', function() { return start('install'); });
+		install.querySelector('button').disabled = true;
+		poll.add(refresh, 3);
+		refresh();
+		return E('section', { 'class': 'ae-update' }, [
+			E('h3', {}, _('به‌روزرسانی گذربین')),
+			E('p', {}, _('بخش‌های مشترک از بستهٔ قبلی استفاده می‌شوند؛ در اولین به‌روزرسانی یا نبود دادهٔ مشترک، بستهٔ کامل دریافت می‌شود. تنظیمات حفظ می‌شوند.')),
+			E('div', { 'class': 'ae-actions' }, [check, install]), status
+		]);
 	},
 
 	renderActions: function() {
@@ -860,11 +893,17 @@ return view.extend({
 					 * the file it points at can change under it. */
 					'href': L.resource('view/gozarbin/gozarbin.css')
 				}),
-				E('h2', {}, _('گذربین') + version),
+				E('div', { 'class': 'ae-hero' }, [
+					E('div', {}, [E('h2', {}, _('گذربین')),
+						E('p', {}, _('اتصال امن، مدیریت شبکه و پایش زنده'))]),
+					E('span', { 'class': 'ae-version ae-num' }, version.replace(' — ', '') || 'Gozarbin')
+				]),
 				self.renderDashboard(system, passwall, deps, traffic, tunnel),
 				self.renderMarkNotice(passwall),
 				self.renderCoreNotice(system, core),
 				self.renderActions(),
+				E('div', { 'class': 'ae-action-messages', 'aria-live': 'polite' }),
+				self.renderUpdate(),
 				rendered
 			]);
 		});

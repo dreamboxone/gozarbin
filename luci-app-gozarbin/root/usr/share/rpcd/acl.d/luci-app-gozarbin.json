@@ -39,6 +39,9 @@
         ],
         "/usr/libexec/gozarbin/singbox.sh --install-status": [
           "exec"
+        ],
+        "/usr/bin/gozarbinctl update status": [
+          "exec"
         ]
       }
     },
@@ -88,6 +91,12 @@
           "exec"
         ],
         "/usr/bin/gozarbinctl install-singbox --background": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl update check": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl update install": [
           "exec"
         ]
       }

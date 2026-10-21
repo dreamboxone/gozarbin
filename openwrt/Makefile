@@ -22,7 +22,7 @@ define Package/gozarbin
   # Passwall2's own core, and depending on it would tie Gozarbin's upgrades to it.
   # Gozarbin installs a core of its own instead; see files/usr/libexec/gozarbin/singbox.sh.
   DEPENDS:=+ca-bundle +libustream-mbedtls +ip-full +nftables +kmod-nft-tproxy \
-	+kmod-nft-socket +kmod-tun
+	+kmod-nft-socket +kmod-tun +curl +jsonfilter +ucode +ucode-mod-fs
 endef
 
 define Package/gozarbin/description
@@ -109,6 +109,9 @@ define Package/gozarbin/install
 	$(INSTALL_DIR) $(1)/usr/share/gozarbin
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/version $(1)/usr/share/gozarbin/version
 	$(INSTALL_DIR) $(1)/usr/libexec/gozarbin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/update.sh $(1)/usr/libexec/gozarbin/update.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/delta.sh $(1)/usr/libexec/gozarbin/delta.sh
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/delta-plan.uc $(1)/usr/libexec/gozarbin/delta-plan.uc
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/firewall.sh $(1)/usr/libexec/gozarbin/firewall.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/passwall2-detect.sh $(1)/usr/libexec/gozarbin/passwall2-detect.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/system-info.sh $(1)/usr/libexec/gozarbin/system-info.sh
