@@ -116,13 +116,18 @@ gozarbinctl singbox --origin    # own | system | passwall | none
 
 ## نصب سریع
 
-۱. فایل `gozarbin-openwrt-<نسخهٔ OpenWrt>-<معماری>.tar.gz` متناسب با روتر را از بخش Releases دانلود کنید، باز کنید و محتوایش را روی روتر کپی کنید.
+۱. فایل `gozarbin-openwrt-<نسخهٔ OpenWrt>-<معماری>.tar.gz` متناسب با روتر را از [آخرین انتشار](https://github.com/dreamboxone/gozarbin/releases/latest) دانلود کنید و در `/tmp` روتر قرار دهید. فایل Source code یا بستهٔ انتشار قدیمی را انتخاب نکنید. هر آرشیو شامل بستهٔ برنامه و LuCI همان نسخه است.
+
+در دستورهای زیر نام دقیق فایل دانلودشده را به‌جای مقدار `archive` قرار دهید. دستورها را در یک نشست SSH اجرا کنید؛ بسته‌ها در پوشهٔ داخلی آرشیو هستند.
 
 ۲. روی OpenWrt 25.12 (که از `apk` استفاده می‌کند):
 
 </div>
 
 ```sh
+cd /tmp
+archive='gozarbin-openwrt-25.12.5-arm_cortex-a7_neon-vfpv4.tar.gz'
+tar -xzf "$archive" && cd "${archive%.tar.gz}" || exit 1
 apk add --allow-untrusted ./gozarbin-[0-9]*.apk ./luci-app-gozarbin-*.apk
 ```
 
@@ -133,6 +138,9 @@ apk add --allow-untrusted ./gozarbin-[0-9]*.apk ./luci-app-gozarbin-*.apk
 </div>
 
 ```sh
+cd /tmp
+archive='gozarbin-openwrt-24.10.5-arm_cortex-a7_neon-vfpv4.tar.gz'
+tar -xzf "$archive" && cd "${archive%.tar.gz}" || exit 1
 opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
 ```
 

@@ -47,6 +47,7 @@ case "${1:-}" in
 		exit 0 ;;
 	check|install)
 		mkdir "$RUN/lock" 2>/dev/null || { echo 'An update is already running' >&2; exit 1; }
+		rm -f "$RUN/latest"
 		state starting
 		rm -f "$RUN/progress" "$RUN/download-path"
 		# rpcd terminates the request's process group; the worker needs its own.
@@ -79,9 +80,20 @@ case "$arch" in ''|*[!A-Za-z0-9_-]*) exit 1 ;; esac
 series=$(printf '%s' "$DISTRIB_RELEASE" | cut -d. -f1,2)
 case "$series" in *[!0-9.]*|'') exit 1 ;; esac
 state checking
-fetch https://api.github.com/repos/dreamboxone/gozarbin/releases/latest "$work/release.json" 45
-tag=$(jsonfilter -i "$work/release.json" -e '@.tag_name')
-echo "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(r[1-9][0-9]*)?$' || exit 1
+tag=''
+valid_tag() { printf '%s\n' "$1" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(r[1-9][0-9]*)?$'; }
+if fetch https://api.github.com/repos/dreamboxone/gozarbin/releases/latest "$work/release.json" 45; then
+	tag=$(jsonfilter -i "$work/release.json" -e '@.tag_name' 2>/dev/null || true)
+fi
+if ! valid_tag "$tag"; then
+	if fetch https://github.com/dreamboxone/gozarbin/releases/latest "$work/release.html" 45; then
+		tag=$(grep -o 'https://github.com/dreamboxone/gozarbin/releases/tag/v[0-9][0-9.r]*' "$work/release.html" | head -n1 | sed 's|.*/||')
+	fi
+fi
+if ! valid_tag "$tag"; then
+	rm -f "$RUN/latest"
+	state error network; success=1; exit 1
+fi
 printf '%s' "${tag#v}" > "$RUN/latest"
 target=${tag#v}
 case "$target" in *r*) target=$(printf '%s' "$target" | sed 's/r/-r/') ;; *) target="$target-r1" ;; esac
@@ -107,7 +119,7 @@ state downloading bundle
 export GOZARBIN_PROGRESS="$RUN/progress"
 printf '%s' "$work/$name" > "$RUN/download-path"
 if ! "$LIB/delta.sh" fetch "$BASE/$tag/$name" "$work/$name" "$expected" "$work/sums" main; then
-	total=$(jsonfilter -i "$work/release.json" -e "@.assets[@.name=\"$name\"].size")
+	total=$(jsonfilter -i "$work/release.json" -e "@.assets[@.name=\"$name\"].size" 2>/dev/null || true)
 	case "$total" in ''|*[!0-9]*) total=0 ;; esac
 	printf '0 %s full\n' "$total" > "$RUN/progress"
 	fetch "$BASE/$tag/$name" "$work/$name" 600

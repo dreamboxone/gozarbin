@@ -3,6 +3,9 @@
  */
 'use strict';
 'require baseclass';
+'require view.gozarbin.i18n as i18n';
+
+var _ = i18n.tr;
 
 function size(bytes) {
 	var n = Math.max(0, Number(bytes) || 0), units = ['B', 'KB', 'MB', 'GB', 'TB'], i = 0;
@@ -37,7 +40,7 @@ return baseclass.extend({
 			upload.textContent = size(sumUp); download.textContent = size(sumDown); total.textContent = size(sumUp + sumDown);
 			chart.replaceChildren();
 			values.forEach(function(row, i) {
-				var label = new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', month: 'short', day: 'numeric',
+				var label = new Intl.DateTimeFormat(i18n.locale(), { timeZone: 'Asia/Tehran', month: 'short', day: 'numeric',
 					hour: days === 1 ? '2-digit' : undefined }).format(new Date((start + i * step) * 1000));
 				var a = E('span', { 'class': 'ae-traffic-download' }); a.style.height = (row[1] / peak * 100) + '%';
 				var b = E('span', { 'class': 'ae-traffic-upload' }); b.style.height = (row[0] / peak * 100) + '%';

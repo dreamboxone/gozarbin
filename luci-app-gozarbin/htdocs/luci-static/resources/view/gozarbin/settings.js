@@ -10,6 +10,9 @@
 'require uci';
 'require view.gozarbin.appearance as appearance';
 'require view.gozarbin.traffic as trafficui';
+'require view.gozarbin.i18n as i18n';
+
+var _ = i18n.tr;
 
 var GEO_DEFAULTS = {
 	geoip_url: 'https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-ir.srs',
@@ -131,10 +134,10 @@ function duration(seconds) {
 	var s = Math.max(0, Math.floor(Number(seconds) || 0));
 	var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600);
 	var m = Math.floor(s % 3600 / 60);
-	if (d > 0) return d + ' روز و ' + h + ' ساعت';
-	if (h > 0) return h + ' ساعت و ' + m + ' دقیقه';
-	if (m > 0) return m + ' دقیقه و ' + (s % 60) + ' ثانیه';
-	return s + ' ثانیه';
+	if (d > 0) return d + _(' روز و ') + h + _(' ساعت');
+	if (h > 0) return h + _(' ساعت و ') + m + _(' دقیقه');
+	if (m > 0) return m + _(' دقیقه و ') + (s % 60) + _(' ثانیه');
+	return s + _(' ثانیه');
 }
 
 function parse(result, fallback) {
@@ -148,7 +151,7 @@ function notify(message, kind) {
 	if (!target) return null;
 	target.replaceChildren(E('div', {
 		'class': 'ae-inline-message ae-message-' + (kind || 'info'),
-		'role': kind === 'error' ? 'alert' : 'status', 'dir': 'rtl'
+		'role': kind === 'error' ? 'alert' : 'status', 'dir': i18n.dir()
 	}, message));
 	return target;
 }
@@ -804,7 +807,7 @@ return view.extend({
 
 		var version = system.gozarbin_version ? ' — ' + system.gozarbin_version.replace(/-r/, 'r') : '';
 		return this.renderForm(system, tunnel).then(function(rendered) {
-			return E('div', { 'class': 'gozarbin-rtl', 'dir': 'rtl' }, [
+			return E('div', { 'class': 'gozarbin-rtl', 'dir': i18n.dir(), 'lang': i18n.get() }, [
 				E('link', {
 					'rel': 'stylesheet',
 					/* The package build rewrites this path to the file name
@@ -815,17 +818,18 @@ return view.extend({
 					'href': L.resource('view/gozarbin/gozarbin.css')
 				}),
 				E('div', { 'class': 'ae-hero' }, [
-					E('div', {}, [E('h2', {}, _('گذربین')),
+					E('div', { 'class': 'ae-brand' }, [E('h2', {}, [_('گذربین'),
+						E('bdi', { 'class': 'ae-version ae-num' }, version.replace(' — ', '') || 'Gozarbin')]),
 						E('p', {}, _('دوست روزهای سخت اینترنتی در روتر شما'))]),
-					E('span', { 'class': 'ae-version ae-num' }, version.replace(' — ', '') || 'Gozarbin'),
-					appearance.toggle()
+					appearance.controls()
 				]),
+				appearance.nav('settings'),
 				self.renderDashboard(system, passwall, deps, traffic, tunnel),
 				self.renderMarkNotice(passwall),
 				self.renderCoreNotice(system, core),
 				self.renderActions(),
 				E('div', { 'class': 'ae-action-messages', 'aria-live': 'polite' }),
-				rendered
+				rendered, appearance.footer()
 			]);
 		});
 	}

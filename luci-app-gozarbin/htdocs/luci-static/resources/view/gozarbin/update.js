@@ -7,6 +7,9 @@
 'require ui';
 'require poll';
 'require view.gozarbin.appearance as appearance';
+'require view.gozarbin.i18n as i18n';
+
+var _ = i18n.tr;
 
 function version(value) {
 	return String(value || '—').replace(/^v/, '').replace(/-r/, 'r');
@@ -29,6 +32,7 @@ return view.extend({
 	render: function() {
 		document.body.classList.add('gozarbin-page');
 		var current = E('bdi', { 'class': 'ae-version-value' }, '—');
+		var headerVersion = E('bdi', { 'class': 'ae-version ae-num' }, '—');
 		var latest = E('bdi', { 'class': 'ae-version-value' }, '—');
 		var finalVersion = E('bdi', { 'class': 'ae-version-value' }, '—');
 		var status = E('div', { 'class': 'ae-update-state ae-inline-message', 'role': 'status', 'aria-live': 'polite' }, _('برای بررسی انتشار جدید GitHub، دکمهٔ بررسی را بزنید.'));
@@ -36,6 +40,7 @@ return view.extend({
 		var download = progress(_('درصد دانلود'));
 		var installProgress = progress(_('پیشرفت مراحل نصب'));
 		var busy = false;
+		var releaseState = E('span', { 'class': 'ae-release-state' });
 		var labels = {
 			idle: _('آمادهٔ بررسی'), starting: _('در حال آماده‌سازی…'), checking: _('در حال بررسی GitHub…'),
 			available: _('نسخهٔ جدید آمادهٔ دریافت است'), current: _('نسخهٔ نصب‌شده به‌روز است'),
@@ -54,10 +59,13 @@ return view.extend({
 		function apply(state) {
 			busy = ['starting', 'checking', 'downloading', 'installing'].indexOf(state.state) >= 0;
 			current.textContent = version(state.current);
-			latest.textContent = version(state.latest);
+			headerVersion.textContent = version(state.current);
+			latest.textContent = ['starting', 'checking'].indexOf(state.state) >= 0 || state.detail === 'network' ? '—' : version(state.latest);
 			finalVersion.textContent = version(state.final);
 			status.textContent = labels[state.state] || labels.idle;
+			releaseState.textContent = state.state === 'available' ? _('نسخهٔ جدید آماده است') : state.state === 'current' ? _('آخرین نسخه نصب است') : '';
 			if (state.detail === 'space') status.textContent = _('فضای موقت کافی برای دریافت و باز کردن بسته وجود ندارد.');
+			if (state.detail === 'network') status.textContent = _('ارتباط با GitHub پس از چند تلاش برقرار نشد؛ اتصال اینترنت و DNS روتر را بررسی کنید و دوباره دکمهٔ بررسی را بزنید. آخرین نسخه تأیید نشده است.');
 			if (state.detail === 'version') status.textContent = _('نصب تمام شد اما نسخهٔ نصب‌شده با نسخهٔ مقصد مطابقت ندارد.');
 			download.set(state.download_percent);
 			installProgress.set(state.install_percent);
@@ -85,21 +93,27 @@ return view.extend({
 		check = E('button', { 'type': 'button', 'class': 'cbi-button cbi-button-neutral',
 			'click': ui.createHandlerFn(this, function() { return start('check'); }) }, _('بررسی نسخهٔ جدید'));
 		install = E('button', { 'type': 'button', 'class': 'cbi-button cbi-button-apply', 'disabled': true,
-			'click': ui.createHandlerFn(this, function() { return start('install'); }) }, _('دانلود و به‌روزرسانی تفاضلی'));
+			'click': ui.createHandlerFn(this, function() { return start('install'); }) }, _('به‌روزرسانی'));
 		function row(label, value) { return E('div', { 'class': 'ae-version-row' }, [E('strong', {}, label), value]); }
 		poll.add(refresh, 1);
 		refresh();
-		return E('div', { 'class': 'gozarbin-rtl', 'dir': 'rtl' }, [
+		return E('div', { 'class': 'gozarbin-rtl', 'dir': i18n.dir(), 'lang': i18n.get() }, [
 			E('link', { 'rel': 'stylesheet', 'href': L.resource('view/gozarbin/gozarbin.css') }),
-			E('div', { 'class': 'ae-hero' }, [E('div', {}, [E('h2', {}, _('به‌روزرسانی گذربین')),
-				E('p', {}, _('دوست روزهای سخت اینترنتی در روتر شما'))]), appearance.toggle()]),
+			E('div', { 'class': 'ae-hero' }, [E('div', { 'class': 'ae-brand' }, [E('h2', {}, [_('گذربین'), headerVersion]),
+				E('p', {}, _('دوست روزهای سخت اینترنتی در روتر شما'))]), appearance.controls()]),
+			appearance.nav('update'),
 			E('section', { 'class': 'ae-update' }, [
-				row(_('نسخهٔ فعلی'), current), row(_('آخرین نسخه در GitHub'), latest), row(_('نسخهٔ نهایی پس از نصب'), finalVersion),
-				E('p', {}, _('منبع دریافت: Releases مخزن dreamboxone/gozarbin در GitHub. گذربین و LuCI متناظر از یک بسته دریافت می‌شوند.')),
-				E('div', { 'class': 'ae-actions' }, [check, install]),
+				E('h3', {}, _('به‌روزرسانی برنامه')),
+				E('div', { 'class': 'ae-app-row' }, [
+					E('strong', {}, _('گذربین')),
+					E('div', { 'class': 'ae-app-versions' }, [
+						E('span', { 'class': 'ae-installed-version' }, [E('small', {}, _('نسخهٔ نصب‌شده')), current]),
+						E('span', { 'class': 'ae-published-version' }, [E('small', {}, _('آخرین بررسی GitHub')), latest]), releaseState]),
+					E('div', { 'class': 'ae-actions' }, [check, install])]),
 				status, transfer, download.node, installProgress.node,
+				row(_('نسخهٔ نهایی پس از نصب'), finalVersion),
 				E('p', {}, _('در اولین به‌روزرسانی یا نبود بخش مشترک کافی، بستهٔ کامل دریافت می‌شود. درصد نصب بر اساس پایان مراحل نصب بسته‌ها، بررسی نسخه و راه‌اندازی سرویس است. تنظیمات حفظ می‌شوند.'))
-			])
+			]), appearance.footer()
 		]);
 	}
 });

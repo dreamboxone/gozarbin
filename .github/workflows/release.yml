@@ -671,7 +671,16 @@ jobs:
           body: |
             ## Gozarbin for OpenWrt
 
-            ### 5.7.29r2
+            ### 5.7.29r3
+
+            - Persian, English, Russian and Simplified Chinese, selectable beside the appearance control.
+            - Zirgozar-style interface and update page, with the version beside the application name.
+            - Responsive layout checked at mobile, tablet and desktop widths.
+            - Telegram group link below the application pages.
+            - Complete archive extraction and package installation instructions.
+            - Retry temporary DNS and connection failures automatically.
+            - Fall back to the GitHub release page when the API is unavailable.
+            - Clear stale version results when GitHub cannot be reached.
 
             - Separate update tab with installed, GitHub and final versions.
             - Differential downloads from GitHub with download and installation progress.
@@ -691,6 +700,9 @@ jobs:
             each in both formats: `24.10.x` is opkg, `25.12.x` is apk.
 
             ```sh
+            # Replace this with the exact downloaded archive filename.
+            archive='gozarbin-openwrt-<release>-<arch>.tar.gz'
+            tar -xzf "$archive" && cd "${archive%.tar.gz}" || exit 1
             # OpenWrt 25.12.x
             apk add --allow-untrusted ./gozarbin-[0-9]*.apk ./luci-app-gozarbin-*.apk
             # OpenWrt 24.10.x

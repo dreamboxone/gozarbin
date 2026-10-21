@@ -15,10 +15,23 @@
 
 socks_endpoint() {
 	local port
-	port=$(uci -q get gozarbin.main.socks_port)
+	port=$(uci -q get gozarbin.main.socks_port || true)
 	[ -n "$port" ] || port=1819
-	netstat -ln 2>/dev/null | grep -q "127[.]0[.]0[.]1:$port[[:space:]]" || return 1
+	netstat -ln 2>/dev/null | grep -q "127[.]0[.]0[.]1:${port}[[:space:]]" || return 1
 	printf '127.0.0.1:%s' "$port"
+}
+
+fetch_curl() {
+	local attempt=1 result
+	while :; do
+		if curl --connect-timeout 10 "$@"; then return 0; else result=$?; fi
+		case "$result" in 5|6|7|18|28|35|52|55|56) ;;
+			*) return "$result" ;;
+		esac
+		[ "$attempt" -lt 3 ] || return "$result"
+		sleep "$attempt"
+		attempt=$((attempt + 1))
+	done
 }
 
 # fetch <url> <destination|-> <seconds>
@@ -45,7 +58,7 @@ fetch() {
 		body="$dest.part"
 		rm -f "$body"
 	fi
-	if curl -fsSL --max-time "$timeout" --speed-limit 5000 --speed-time 30 -o "$body" "$url"; then
+	if fetch_curl -fsSL --max-time "$timeout" --speed-limit 5000 --speed-time 30 -o "$body" "$url"; then
 		fetch_deliver "$body" "$dest"
 		return
 	fi
@@ -53,7 +66,7 @@ fetch() {
 		command -v fetch_notice >/dev/null 2>&1 && fetch_notice "$socks"
 		# stderr: when the destination is stdout, stdout is the file.
 		echo "  direct fetch failed; going through the tunnel at $socks" >&2
-		if curl -fsSL --max-time "$timeout" -x "socks5h://$socks" -o "$body" "$url"; then
+		if fetch_curl -fsSL --max-time "$timeout" -x "socks5h://$socks" -o "$body" "$url"; then
 			fetch_deliver "$body" "$dest"
 			return
 		fi

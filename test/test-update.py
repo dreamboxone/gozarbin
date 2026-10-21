@@ -131,6 +131,26 @@ python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("tag_na
     assert snapshot['download_percent'] == 100
     print('PASS: same-day r2 upgrades r1 and reports the verified final installed version')
 
+    original_fetch = (lib / 'fetch.sh').read_text()
+    version.write_text('5.7.29-r1\n')
+    (lib / 'fetch.sh').write_text('''fetch() {
+case "$1" in
+https://api.github.com/*) return 1 ;;
+https://github.com/dreamboxone/gozarbin/releases/latest)
+printf '<meta property="og:url" content="https://github.com/dreamboxone/gozarbin/releases/tag/v5.7.29r2">' > "$2" ;;
+*) cp "$TEST_RELEASE/${1##*/}" "$2" ;; esac
+}
+''')
+    assert run('check').returncode == 0 and state() == 'available'
+    assert run('install').returncode == 0 and state() == 'done'
+    print('PASS: API outage falls back to GitHub page and installs verified bundle')
+    (lib / 'fetch.sh').write_text('fetch() { return 1; }\n')
+    assert run('check').returncode != 0
+    snapshot = json.loads((runtime / 'state.json').read_text())
+    assert snapshot['detail'] == 'network' and snapshot['latest'] == ''
+    print('PASS: unavailable GitHub clears stale latest version and reports network failure')
+    (lib / 'fetch.sh').write_text(original_fetch)
+
     (runtime / 'state.json').write_text('{"state":"downloading"}')
     partial = base / 'partial.tar.gz'
     (base / 'partial.tar.gz.delta').mkdir()
