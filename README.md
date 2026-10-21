@@ -123,7 +123,7 @@ gozarbinctl singbox --origin    # own | system | passwall | none
 </div>
 
 ```sh
-apk add --allow-untrusted ./gozarbin-2*.apk ./luci-app-gozarbin-*.apk
+apk add --allow-untrusted ./gozarbin-[0-9]*.apk ./luci-app-gozarbin-*.apk
 ```
 
 <div dir="rtl">

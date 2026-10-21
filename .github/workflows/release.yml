@@ -692,7 +692,7 @@ jobs:
 
             ```sh
             # OpenWrt 25.12.x
-            apk add --allow-untrusted ./gozarbin-2*.apk ./luci-app-gozarbin-*.apk
+            apk add --allow-untrusted ./gozarbin-[0-9]*.apk ./luci-app-gozarbin-*.apk
             # OpenWrt 24.10.x
             opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
             ```
