@@ -18,7 +18,8 @@ output=$3
 mkdir -p "$output" "$sdk_dir/package"
 rm -rf "$sdk_dir/package/gozarbin" "$sdk_dir/package/luci-app-gozarbin"
 cp -a "$repo_dir/openwrt" "$sdk_dir/package/gozarbin"
-cp -a "$repo_dir/luci-app-gozarbin" "$sdk_dir/package/luci-app-gozarbin"
+cp -a "$repo_dir/luci-app-gozarbin" "$sdk_dir/package/gozarbin/luci"
+rm -f "$sdk_dir/package/gozarbin/luci/Makefile"
 rm -f "$sdk_dir/tmp/.packageinfo" "$sdk_dir/tmp/.packagedeps"
 
 make -C "$sdk_dir" defconfig
@@ -37,5 +38,4 @@ make -C "$sdk_dir" defconfig
 # are installed into the packages.
 obfuscate=${GOZARBIN_OBFUSCATE:-0}
 make -C "$sdk_dir" package/gozarbin/compile V=s GOZARBIN_OBFUSCATE="$obfuscate"
-make -C "$sdk_dir" package/luci-app-gozarbin/compile V=s GOZARBIN_OBFUSCATE="$obfuscate"
-find "$sdk_dir/bin/packages" -type f \( -name 'gozarbin-*.apk' -o -name 'luci-app-gozarbin-*.apk' -o -name 'gozarbin_*.ipk' -o -name 'luci-app-gozarbin_*.ipk' \) -exec cp -f {} "$output/" \;
+find "$sdk_dir/bin/packages" -type f \( -name 'gozarbin-*.apk' -o -name 'gozarbin_*.ipk' \) -exec cp -f {} "$output/" \;

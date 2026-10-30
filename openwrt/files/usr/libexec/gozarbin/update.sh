@@ -6,16 +6,28 @@ LIB="${GOZARBIN_LIB:-/usr/libexec/gozarbin}"
 RUN="${GOZARBIN_UPDATE_RUN:-/var/run/gozarbin-update}"
 BASE=https://github.com/dreamboxone/gozarbin/releases/download
 mkdir -p "$RUN"
+MAINTENANCE=/var/run/gozarbin-maintenance.lock
+release_guard() {
+	[ "$(cat "$MAINTENANCE/owner" 2>/dev/null || true)" = "$RUN" ] || return 0
+	rm -f "$MAINTENANCE/owner"
+	rmdir "$MAINTENANCE" 2>/dev/null || true
+}
+claim_guard() {
+	mkdir "$MAINTENANCE" 2>/dev/null || return 1
+	printf '%s' "$RUN" > "$MAINTENANCE/owner"
+}
 download_percent=0
 install_percent=0
 emit_state() {
 	current=$(cat /usr/share/gozarbin/version 2>/dev/null || true)
 	latest=$(cat "$RUN/latest" 2>/dev/null || true)
+	prerelease=$(cat "$RUN/prerelease" 2>/dev/null || true)
+	[ "$prerelease" = true ] || prerelease=false
 	current=$(printf '%s' "$current" | sed 's/-r/r/')
 	final=''
 	[ "$1" != 'done' ] || final="$current"
-	printf '{"state":"%s","detail":"%s","current":"%s","latest":"%s","final":"%s","download_percent":%s,"install_percent":%s,"downloaded":%s,"total":%s,"method":"%s"}\n' \
-		"$1" "${2:-}" "$current" "$latest" "$final" "$download_percent" "$install_percent" "${downloaded:-0}" "${total:-0}" "${method:-}"
+	printf '{"state":"%s","detail":"%s","current":"%s","latest":"%s","final":"%s","download_percent":%s,"install_percent":%s,"downloaded":%s,"total":%s,"method":"%s","prerelease":%s}\n' \
+		"$1" "${2:-}" "$current" "$latest" "$final" "$download_percent" "$install_percent" "${downloaded:-0}" "${total:-0}" "${method:-}" "$prerelease"
 }
 state() {
 	emit_state "$1" "${2:-}" > "$RUN/state.new"
@@ -27,6 +39,7 @@ case "${1:-}" in
 			pid=$(cat "$RUN/pid")
 			if ! kill -0 "$pid" 2>/dev/null; then
 				state error interrupted
+				release_guard
 				rm -f "$RUN/pid"
 				rmdir "$RUN/lock" 2>/dev/null || true
 			fi
@@ -46,8 +59,11 @@ case "${1:-}" in
 		fi
 		exit 0 ;;
 	check|install)
+		[ ! -d /var/run/gozarbin-aether/lock ] || { echo 'A core operation is already running' >&2; exit 1; }
+		[ ! -d /var/run/gozarbin-singbox/lock ] || { echo 'A core operation is already running' >&2; exit 1; }
 		mkdir "$RUN/lock" 2>/dev/null || { echo 'An update is already running' >&2; exit 1; }
-		rm -f "$RUN/latest"
+		claim_guard || { rmdir "$RUN/lock"; echo 'Another update is running' >&2; exit 1; }
+		rm -f "$RUN/latest" "$RUN/prerelease"
 		state starting
 		rm -f "$RUN/progress" "$RUN/download-path"
 		# rpcd terminates the request's process group; the worker needs its own.
@@ -60,6 +76,7 @@ work=$(mktemp -d "$RUN/work.XXXXXX")
 echo "$$" > "$RUN/pid"
 success=0
 cleanup() {
+	release_guard
 	[ "$success" = 1 ] || state error failed
 	rm -rf "$work"
 	rm -f "$RUN/pid"
@@ -68,6 +85,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 . "$LIB/fetch.sh"
+. "$LIB/releases.sh"
 . "$LIB/packages.sh"
 manager=$(pkg_manager)
 . /etc/openwrt_release
@@ -82,11 +100,12 @@ case "$series" in *[!0-9.]*|'') exit 1 ;; esac
 state checking
 tag=''
 valid_tag() { printf '%s\n' "$1" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(r[1-9][0-9]*)?$'; }
-if fetch https://api.github.com/repos/dreamboxone/gozarbin/releases/latest "$work/release.json" 45; then
-	tag=$(jsonfilter -i "$work/release.json" -e '@.tag_name' 2>/dev/null || true)
+rm -f "$RUN/prerelease"
+if fetch 'https://api.github.com/repos/dreamboxone/gozarbin/releases?per_page=20' "$work/release.json" 45; then
+	tag=$(select_release "$work/release.json" || true)
 fi
 if ! valid_tag "$tag"; then
-	if fetch https://github.com/dreamboxone/gozarbin/releases/latest "$work/release.html" 45; then
+	if fetch https://github.com/dreamboxone/gozarbin/releases "$work/release.html" 45; then
 		tag=$(grep -o 'https://github.com/dreamboxone/gozarbin/releases/tag/v[0-9][0-9.r]*' "$work/release.html" | head -n1 | sed 's|.*/||')
 	fi
 fi
@@ -108,7 +127,9 @@ else
 	[ "$(apk version -t "$target" "$current")" = '>' ] || { state current "$tag"; success=1; exit 0; }
 fi
 fetch "$BASE/$tag/SHA256SUMS.txt" "$work/sums" 60
-name=$(awk '{print $2}' "$work/sums" | grep -E "^gozarbin-openwrt-${series}[.][0-9]+-${arch}[.]tar[.]gz$")
+case "$manager" in opkg) ext=ipk ;; apk) ext=apk ;; esac
+name=$(awk '{print $2}' "$work/sums" | grep -E "^gozarbin-openwrt-${series}[.][0-9]+-${arch}[.]$ext$" || true)
+[ -n "$name" ] || name=$(awk '{print $2}' "$work/sums" | grep -E "^gozarbin-openwrt-${series}[.][0-9]+-${arch}[.]tar[.]gz$" || true)
 [ "$(printf '%s\n' "$name" | wc -l)" -eq 1 ] && [ -n "$name" ] || exit 1
 if [ "$1" = worker-check ]; then state available "$tag"; success=1; exit 0; fi
 free=$(df -Pk "$RUN" | awk 'END {print $4}')
@@ -130,31 +151,35 @@ if [ -s "$RUN/progress" ]; then
 	read -r downloaded total method < "$RUN/progress"
 	downloaded=$total
 fi
-# Inspect every entry before extraction: only the two regular package files
-# directly inside the target directory may be installed.
-folder=${name%.tar.gz}
-folder_pattern=$(printf '%s' "$folder" | sed 's/[.]/[.]/g')
-tar -tzf "$work/$name" > "$work/entries"
-[ "$(wc -l < "$work/entries")" -eq 2 ] || exit 1
-case "$manager" in opkg) ext=ipk ;; apk) ext=apk ;; esac
-for prefix in gozarbin luci-app-gozarbin; do
-	count=$(grep -Ec "^$folder_pattern/${prefix}[-_][0-9][A-Za-z0-9_.+-]*[.]$ext$" "$work/entries" || true)
-	[ "$count" = 1 ] || exit 1
-done
-tar -tvzf "$work/$name" > "$work/types"
-[ "$(grep -c '^-' "$work/types")" -eq 2 ] || exit 1
-mkdir "$work/packages"
-tar -xzf "$work/$name" -C "$work/packages"
+# New releases are one architecture package including LuCI. Older verified
+# two-package archives remain installable during the transition.
+case "$name" in
+	*."$ext") set -- "$work/$name" ;;
+	*.tar.gz)
+		folder=${name%.tar.gz}
+		folder_pattern=$(printf '%s' "$folder" | sed 's/[.]/[.]/g')
+		tar -tzf "$work/$name" > "$work/entries"
+		[ "$(wc -l < "$work/entries")" -eq 2 ] || exit 1
+		for prefix in gozarbin luci-app-gozarbin; do
+			count=$(grep -Ec "^$folder_pattern/${prefix}[-_][0-9][A-Za-z0-9_.+-]*[.]$ext$" "$work/entries" || true)
+			[ "$count" = 1 ] || exit 1
+		done
+		tar -tvzf "$work/$name" > "$work/types"
+		[ "$(grep -c '^-' "$work/types")" -eq 2 ] || exit 1
+		mkdir "$work/packages"
+		tar -xzf "$work/$name" -C "$work/packages"
+		set -- "$work/packages/$folder/"*."$ext"
+		;;
+	*) exit 1 ;;
+esac
 state installing
 # The package manager keeps conffiles and owns all installed paths.
-for prefix in gozarbin luci-app-gozarbin; do
-	case "$manager" in
-		opkg) opkg install "$work/packages/$folder/${prefix}_"*.ipk ;;
-		apk) apk add --allow-untrusted "$work/packages/$folder/${prefix}-"*.apk ;;
-	esac
-	install_percent=$((install_percent + 40))
-	state installing "$prefix"
-done
+case "$manager" in
+	opkg) opkg install "$@" ;;
+	apk) apk add --allow-untrusted "$@" ;;
+esac
+install_percent=80
+state installing package
 installed=$(cat /usr/share/gozarbin/version)
 [ "$installed" = "$target" ] || { state error version; success=1; exit 1; }
 install_percent=90

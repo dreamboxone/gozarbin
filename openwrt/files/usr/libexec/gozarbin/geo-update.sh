@@ -10,7 +10,7 @@ set -e
 . /lib/functions.sh
 . /usr/libexec/gozarbin/fetch.sh
 
-geo_dir=/etc/gozarbin/geo
+geo_dir=${GOZARBIN_GEO_DIR:-/etc/gozarbin/geo}
 mkdir -p "$geo_dir"
 
 # The defaults live here as well as in /etc/config/gozarbin, so a config that was
@@ -42,17 +42,31 @@ download_set() {
 	else
 		grep -q '"rules"' "$tmp" || { rm -f "$tmp"; echo "not a rule set source: $url" >&2; return 1; }
 	fi
-	rm -f "$geo_dir/$name.srs" "$geo_dir/$name.json"
-	mv "$tmp" "$geo_dir/$name.$ext"
+	cp "$tmp" "$geo_dir/.$name.$$.$ext"
+	mv "$geo_dir/.$name.$$.$ext" "$geo_dir/$name.$ext"
+	rm -f "$tmp"
+	case "$ext" in srs) rm -f "$geo_dir/$name.json" ;; json) rm -f "$geo_dir/$name.srs" ;; esac
+	date +%s > "$geo_dir/.$name.updated.$$"
+	mv "$geo_dir/.$name.updated.$$" "$geo_dir/.$name.updated"
+	changed=1
 	echo "updated $name.$ext ($(wc -c < "$geo_dir/$name.$ext") bytes)"
 }
 
 status=0
-download_set "$geoip_url" geoip-ir || status=1
-download_set "$geosite_url" geosite-ir || status=1
-[ "$block_ads" = 1 ] && { download_set "$ads_url" geosite-ads || status=1; }
+changed=0
+case "${1:-all}" in
+	geoip) download_set "$geoip_url" geoip-ir || status=1 ;;
+	geosite) download_set "$geosite_url" geosite-ir || status=1 ;;
+	ads) download_set "$ads_url" geosite-ads || status=1 ;;
+	all)
+		download_set "$geoip_url" geoip-ir || status=1
+		download_set "$geosite_url" geosite-ir || status=1
+		[ "$block_ads" != 1 ] || { download_set "$ads_url" geosite-ads || status=1; } ;;
+	*) exit 2 ;;
+esac
 
-date +%s > "$geo_dir/.updated"
-[ "$(uci -q get gozarbin.main.enabled)" = 1 ] && /etc/init.d/gozarbin reload >/dev/null 2>&1 || true
-logger -t gozarbin 'geo rule sets updated'
+if [ "$status" = 0 ]; then date +%s > "$geo_dir/.updated"; fi
+[ "$changed" != 1 ] || { [ "$(uci -q get gozarbin.main.enabled)" != 1 ] || /etc/init.d/gozarbin reload >/dev/null 2>&1 || true; }
+if [ "$status" = 0 ]; then logger -t gozarbin 'geo rule sets updated'
+else logger -t gozarbin 'geo rule set download failed'; fi
 exit "$status"

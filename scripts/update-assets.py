@@ -13,6 +13,12 @@ from package_chunks import normalize, index, compress_ranges
 
 
 def build(directory):
+    for package in list(directory.glob('gozarbin-openwrt-*.apk')) + list(directory.glob('gozarbin-openwrt-*.ipk')):
+        if not re.fullmatch(r'gozarbin-openwrt-\d+\.\d+\.\d+-.+\.(apk|ipk)', package.name):
+            raise ValueError(f'Unexpected package: {package.name}')
+        normalize(package)
+        package.with_name(package.name + '.chunks.json').write_text(
+            json.dumps(index(package), separators=(',', ':')), encoding='utf-8')
     for archive in directory.glob('gozarbin-openwrt-*.tar.gz'):
         match = re.fullmatch(r'gozarbin-openwrt-(\d+\.\d+)\.\d+-(.+)\.tar\.gz', archive.name)
         if not match:

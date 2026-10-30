@@ -32,7 +32,8 @@ for name in gozarbin luci-app-gozarbin; do
 	fi
 done
 cp -a "$repo/openwrt" "$sdk/package/gozarbin"
-cp -a "$repo/luci-app-gozarbin" "$sdk/package/luci-app-gozarbin"
+cp -a "$repo/luci-app-gozarbin" "$sdk/package/gozarbin/luci"
+rm -f "$sdk/package/gozarbin/luci/Makefile"
 mkdir -p "$sdk/package/gozarbin/prebuilt/$arch/pt"
 cp "$core" "$sdk/package/gozarbin/prebuilt/$arch/aether"
 cp "$pt" "$sdk/package/gozarbin/prebuilt/$arch/pt/lyrebird"
@@ -46,11 +47,10 @@ sed -i 's/^CONFIG_ALL_KMODS=y/# CONFIG_ALL_KMODS is not set/' .config
 sed -i 's/^CONFIG_ALL_NONSHARED=y/# CONFIG_ALL_NONSHARED is not set/' .config
 sed -i 's/^CONFIG_TARGET_ALL_PROFILES=y/# CONFIG_TARGET_ALL_PROFILES is not set/' .config
 sed -i -E 's/^CONFIG_PACKAGE_([^=]+)=[ym]/# CONFIG_PACKAGE_\1 is not set/' .config
-printf '\nCONFIG_PACKAGE_gozarbin=m\nCONFIG_PACKAGE_luci-app-gozarbin=m\n' >> .config
+printf '\nCONFIG_PACKAGE_gozarbin=m\n' >> .config
 make defconfig >/dev/null
-make package/gozarbin/clean package/luci-app-gozarbin/clean >/dev/null
+make package/gozarbin/clean >/dev/null
 make package/gozarbin/compile -j2 V=sc
-make package/luci-app-gozarbin/compile -j2 V=sc
 mkdir -p "$out"
-find bin/packages -type f \( -name 'gozarbin-*.apk' -o -name 'luci-app-gozarbin-*.apk' \) -exec cp -f {} "$out"/ \;
+find bin/packages -type f \( -name 'gozarbin-*.apk' \) -exec cp -f {} "$out"/ \;
 find "$out" -maxdepth 1 -type f -name '*.apk' -print

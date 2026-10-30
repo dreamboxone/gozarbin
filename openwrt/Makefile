@@ -4,13 +4,16 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gozarbin
-PKG_VERSION:=5.7.29
-PKG_RELEASE:=3
+PKG_VERSION:=5.8.8
+PKG_RELEASE:=2
 PKG_LICENSE:=AGPL-3.0-only
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=dreamboxone
 
 include $(INCLUDE_DIR)/package.mk
+include $(CURDIR)/luci.mk
+
+LUCI_SOURCE:=$(firstword $(wildcard $(CURDIR)/luci $(CURDIR)/../luci-app-gozarbin))
 
 define Package/gozarbin
   SECTION:=net
@@ -18,10 +21,12 @@ define Package/gozarbin
   SUBMENU:=Web Servers/Proxies
   TITLE:=Gozarbin censorship-circumvention client for OpenWrt
   URL:=https://github.com/dreamboxone/gozarbin
+  PROVIDES:=luci-app-gozarbin
+  REPLACES:=luci-app-gozarbin
   # No +sing-box here on purpose. On a router with Passwall2 that package is
   # Passwall2's own core, and depending on it would tie Gozarbin's upgrades to it.
   # Gozarbin installs a core of its own instead; see files/usr/libexec/gozarbin/singbox.sh.
-  DEPENDS:=+ca-bundle +libustream-mbedtls +ip-full +nftables +kmod-nft-tproxy \
+  DEPENDS:=+luci-base +rpcd-mod-file +ca-bundle +libustream-mbedtls +ip-full +nftables +kmod-nft-tproxy \
 	+kmod-nft-socket +kmod-tun +curl +jsonfilter +ucode +ucode-mod-fs
 endef
 
@@ -56,13 +61,17 @@ GOZARBIN_OBFUSCATE?=0
 define Build/Prepare
 	$(call Build/Prepare/Default)
 	@test -n "$(GOZARBIN_BINARY)" -a -f "$(GOZARBIN_BINARY)" || 		(echo "No tunnel core for this target: looked for prebuilt/$(ARCH_PACKAGES)/aether and prebuilt/$(ARCH)/aether" >&2; exit 1)
+	$(CP) ./LICENSE ./NOTICE $(PKG_BUILD_DIR)/
 	$(CP) "$(GOZARBIN_BINARY)" $(PKG_BUILD_DIR)/aether
 	$(if $(GOZARBIN_PT),$(CP) "$(GOZARBIN_PT)" $(PKG_BUILD_DIR)/lyrebird)
 	$(if $(GOZARBIN_PSIPHON),$(CP) "$(GOZARBIN_PSIPHON)" $(PKG_BUILD_DIR)/psiphon-tunnel-core)
 	echo "$(PKG_VERSION)-r$(PKG_RELEASE)" > $(PKG_BUILD_DIR)/version
 	rm -rf $(PKG_BUILD_DIR)/files
 	$(CP) ./files $(PKG_BUILD_DIR)/files
-	$(if $(filter 1,$(GOZARBIN_OBFUSCATE)),python3 ./tools/obfuscate.py $(PKG_BUILD_DIR)/files)
+	@test -d "$(LUCI_SOURCE)/htdocs" || { echo "LuCI sources are required for the unified package" >&2; exit 1; }
+	rm -rf $(PKG_BUILD_DIR)/luci
+	$(CP) "$(LUCI_SOURCE)" $(PKG_BUILD_DIR)/luci
+	$(if $(filter 1,$(GOZARBIN_OBFUSCATE)),python3 ./tools/obfuscate.py $(PKG_BUILD_DIR)/files $(PKG_BUILD_DIR)/luci/htdocs)
 endef
 
 define Package/gozarbin/conffiles
@@ -90,26 +99,41 @@ if [ -x /usr/libexec/gozarbin/psiphon-tunnel-core ] && [ -f /usr/libexec/gozarbi
 		echo "Gozarbin: Psiphon is part of this package now; remove the empty old one with: opkg remove gozarbin-psiphon"
 	fi
 fi
-missing=$$(/usr/libexec/gozarbin/deps.sh --missing 2>/dev/null)
+touch /www/luci-static/resources/view/gozarbin/*.js /www/luci-static/resources/view/gozarbin/*.css 2>/dev/null
+rm -f /tmp/luci-indexcache.*.json
+if [ -x /etc/init.d/rpcd ]; then
+	setsid /bin/sh -c 'sleep 2; /etc/init.d/rpcd reload' </dev/null >/dev/null 2>&1 &
+fi
+missing=$(/usr/libexec/gozarbin/deps.sh --missing 2>/dev/null)
 [ -n "$$missing" ] && echo "Gozarbin: these dependencies are still missing:$$missing"
 exit 0
 endef
 
 define Package/gozarbin/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/aether $(1)/usr/bin/gozarbin
-	$(if $(GOZARBIN_PT),$(INSTALL_DIR) $(1)/usr/libexec/gozarbin/pt)
-	$(if $(GOZARBIN_PT),$(INSTALL_BIN) $(PKG_BUILD_DIR)/lyrebird $(1)/usr/libexec/gozarbin/pt/lyrebird)
+	$(INSTALL_DIR) $(1)/usr/libexec/gozarbin/cores/aether/bundled/pt
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/aether $(1)/usr/libexec/gozarbin/cores/aether/bundled/gozarbin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/bin/gozarbin $(1)/usr/bin/gozarbin
+	$(if $(GOZARBIN_PT),$(INSTALL_BIN) $(PKG_BUILD_DIR)/lyrebird $(1)/usr/libexec/gozarbin/cores/aether/bundled/pt/lyrebird)
 	$(INSTALL_DIR) $(1)/usr/libexec/gozarbin
 	# Not under pt/, where gozarbin-psiphon kept it: opkg refuses to install a
 	# file another package still owns, so a router upgrading with the old package
 	# on board would fail. A new path never clashes; postinst drops the old copy.
-	$(if $(GOZARBIN_PSIPHON),$(INSTALL_BIN) $(PKG_BUILD_DIR)/psiphon-tunnel-core $(1)/usr/libexec/gozarbin/psiphon-tunnel-core)
+	$(if $(GOZARBIN_PSIPHON),$(INSTALL_BIN) $(PKG_BUILD_DIR)/psiphon-tunnel-core $(1)/usr/libexec/gozarbin/cores/aether/bundled/pt/psiphon-tunnel-core)
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/bin/gozarbinctl $(1)/usr/bin/gozarbinctl
+	$(INSTALL_DIR) $(1)/usr/share/licenses/gozarbin
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/LICENSE $(1)/usr/share/licenses/gozarbin/LICENSE
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/NOTICE $(1)/usr/share/licenses/gozarbin/NOTICE
 	$(INSTALL_DIR) $(1)/usr/share/gozarbin
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/version $(1)/usr/share/gozarbin/version
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/share/gozarbin/core-options.json $(1)/usr/share/gozarbin/core-options.json
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/share/gozarbin/aether-upstream-version $(1)/usr/share/gozarbin/aether-upstream-version
 	$(INSTALL_DIR) $(1)/usr/libexec/gozarbin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/aether-core.sh $(1)/usr/libexec/gozarbin/aether-core.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/singbox-core.sh $(1)/usr/libexec/gozarbin/singbox-core.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/geo-core.sh $(1)/usr/libexec/gozarbin/geo-core.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/update.sh $(1)/usr/libexec/gozarbin/update.sh
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/releases.sh $(1)/usr/libexec/gozarbin/releases.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/history.sh $(1)/usr/libexec/gozarbin/history.sh
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/history.uc $(1)/usr/libexec/gozarbin/history.uc
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/delta.sh $(1)/usr/libexec/gozarbin/delta.sh
@@ -122,6 +146,9 @@ define Package/gozarbin/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/geo-update.sh $(1)/usr/libexec/gozarbin/geo-update.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/traffic.sh $(1)/usr/libexec/gozarbin/traffic.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/tunnel.sh $(1)/usr/libexec/gozarbin/tunnel.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/logs.sh $(1)/usr/libexec/gozarbin/logs.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/dashboard.sh $(1)/usr/libexec/gozarbin/dashboard.sh
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/connectivity.sh $(1)/usr/libexec/gozarbin/connectivity.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/deps.sh $(1)/usr/libexec/gozarbin/deps.sh
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/packages.sh $(1)/usr/libexec/gozarbin/packages.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/gozarbin/singbox.sh $(1)/usr/libexec/gozarbin/singbox.sh
@@ -134,6 +161,7 @@ define Package/gozarbin/install
 	$(INSTALL_DIR) $(1)/etc/gozarbin/state
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/etc/uci-defaults/90-gozarbin $(1)/etc/uci-defaults/90-gozarbin
+	$(call Gozarbin/InstallLuCI,$(1))
 endef
 
 $(eval $(call BuildPackage,gozarbin))

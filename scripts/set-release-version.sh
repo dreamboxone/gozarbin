@@ -13,13 +13,16 @@ version=${version#v}
 release=${BASH_REMATCH[3]:-1}
 version=${BASH_REMATCH[1]}
 
-sed -i -E "0,/^version = \"[0-9]+\.[0-9]+\.[0-9]+\"/s//version = \"$version\"/" "$repo_dir/aether/Cargo.toml"
-sed -i -E "/^name = \"aether\"\r?$/{n;s/^version = \"[0-9]+\.[0-9]+\.[0-9]+\"(\r?)$/version = \"$version\"\1/;}" "$repo_dir/aether/Cargo.lock"
+core_version=$(tr -d '\r\n' < "$repo_dir/openwrt/files/usr/share/gozarbin/aether-upstream-version")
+[[ "$core_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 2
+sed -i -E "0,/^version = \"[0-9]+\.[0-9]+\.[0-9]+\"/s//version = \"$core_version\"/" "$repo_dir/aether/Cargo.toml"
+sed -i -E "/^name = \"aether\"\r?$/{n;s/^version = \"[0-9]+\.[0-9]+\.[0-9]+\"(\r?)$/version = \"$core_version\"\1/;}" "$repo_dir/aether/Cargo.lock"
 sed -i -E "s/^PKG_VERSION:=.*/PKG_VERSION:=$version/; s/^PKG_RELEASE:=.*/PKG_RELEASE:=$release/" \
 	"$repo_dir/openwrt/Makefile" "$repo_dir/luci-app-gozarbin/Makefile"
 
-test "$(sed -n 's/^version = "\([0-9.]*\)"/\1/p' "$repo_dir/aether/Cargo.toml" | head -n 1)" = "$version"
-test "$(sed -n '/^name = "aether"\r\?$/ { n; s/^version = "\([0-9.]*\)".*/\1/p; }' "$repo_dir/aether/Cargo.lock")" = "$version"
+test "$(sed -n 's/^version = "\([0-9.]*\)"/\1/p' "$repo_dir/aether/Cargo.toml" | head -n 1)" = "$core_version"
+test "$(sed -n '/^name = "aether"\r\?$/ { n; s/^version = "\([0-9.]*\)".*/\1/p; }' "$repo_dir/aether/Cargo.lock")" = "$core_version"
 test "$(sed -n 's/^PKG_VERSION:=//p' "$repo_dir/openwrt/Makefile")" = "$version"
 test "$(sed -n 's/^PKG_VERSION:=//p' "$repo_dir/luci-app-gozarbin/Makefile")" = "$version"
 printf 'Release source and package version: %sr%s\n' "$version" "$release"
+printf 'Aether core version: %s\n' "$core_version"

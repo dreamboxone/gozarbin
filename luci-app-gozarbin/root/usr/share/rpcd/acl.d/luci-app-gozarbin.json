@@ -19,7 +19,9 @@
         ]
       },
       "file": {
-		"/usr/libexec/gozarbin/history.sh report": ["exec"],
+        "/usr/libexec/gozarbin/history.sh report": [
+          "exec"
+        ],
         "/usr/libexec/gozarbin/passwall2-detect.sh --json": [
           "exec"
         ],
@@ -42,6 +44,30 @@
           "exec"
         ],
         "/usr/bin/gozarbinctl update status": [
+          "exec"
+        ],
+        "/usr/share/gozarbin/core-options.json": [
+          "read"
+        ],
+        "/usr/libexec/gozarbin/aether-core.sh status": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/singbox-core.sh status": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/geo-core.sh status": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/logs.sh runtime": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/logs.sh core": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/dashboard.sh": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/connectivity.sh status": [
           "exec"
         ]
       }
@@ -98,6 +124,48 @@
           "exec"
         ],
         "/usr/bin/gozarbinctl update install": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/aether-core.sh check": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/aether-core.sh install": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/aether-core.sh register": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/aether-core.sh clear-psiphon": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/singbox-core.sh check": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/singbox-core.sh install": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/geo-core.sh update": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl on": [
+          "exec"
+        ],
+        "/usr/bin/gozarbinctl off": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/logs.sh clear-runtime": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/logs.sh clear-core": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/geo-core.sh update geoip": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/geo-core.sh update geosite": [
+          "exec"
+        ],
+        "/usr/libexec/gozarbin/geo-core.sh update ads": [
           "exec"
         ]
       }

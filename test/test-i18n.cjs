@@ -8,7 +8,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../luci-app-gozarbin/htdocs/luci-static/resources/view/gozarbin');
 const source = fs.readFileSync(path.join(root, 'i18n.js'), 'utf8');
 const keys = new Set();
-for (const name of ['settings', 'update', 'traffic', 'appearance']) {
+for (const name of ['settings', 'update', 'traffic', 'appearance', 'core-update']) {
     const view = fs.readFileSync(path.join(root, name + '.js'), 'utf8');
     for (const match of view.matchAll(/_\('((?:[^'\\]|\\.)*)'\)/g)) keys.add(match[1]);
 }
@@ -17,6 +17,10 @@ for (const language of ['fa', 'en', 'ru', 'zh']) {
         { extend: value => value }, { localStorage: { getItem: () => language } });
     assert.equal(module.get(), language);
     assert.equal(module.dir(), language === 'fa' ? 'rtl' : 'ltr');
+    if (language === 'fa') {
+        assert.equal(module.tr('سوئد'), 'سوئد');
+        assert.equal(module.tr('شیوهٔ اتصال Psiphon'), 'شیوه اتصال سایفون');
+    }
     for (const key of keys) {
         const value = module.tr(key);
         assert.equal(typeof value, 'string');

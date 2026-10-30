@@ -23,7 +23,7 @@ stop_psiphon() {
 	local exe pid
 	for exe in /proc/[0-9]*/exe; do
 		case "$(readlink "$exe" 2>/dev/null)" in
-			"$psiphon_bin"|"$psiphon_legacy_bin") ;;
+			"$psiphon_bin"|"$psiphon_legacy_bin"|/usr/libexec/gozarbin/cores/aether/*/pt/psiphon-tunnel-core|/usr/libexec/gozarbin/cores/aether/releases/*/pt/psiphon-tunnel-core) ;;
 			*) continue ;;
 		esac
 		pid=${exe#/proc/}
@@ -39,20 +39,23 @@ stop_psiphon() {
 # An IP address for the WARP API. A name the router resolves to a private or
 # Iranian block-page address (10.10.34.x) is not the API, so it is skipped.
 resolve_enroll_address() {
-	local given=$1 ip
+	local given=$1 ip port= original=$1
 	case "$given" in
 		'') given=api.cloudflareclient.com ;;
-		*:*) echo "$given"; return ;;
+		\[*|*:*:*) echo "$given"; return ;;
+		*:*)
+			port=${given##*:}; given=${given%:*}
+			case "$given" in *[a-zA-Z]*) ;; *) echo "$original"; return ;; esac ;;
 		*[a-zA-Z]*) ;;
 		*) echo "$given"; return ;;
 	esac
 	for ip in $(nslookup "$given" 127.0.0.1 2>/dev/null | sed -n 's/^Address[^:]*: *\([0-9.]*\)$/\1/p'); do
 		case "$ip" in
 			10.*|127.*|0.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) ;;
-			*) echo "$ip"; return ;;
+			*) printf '%s%s\n' "$ip" "${port:+:$port}"; return ;;
 		esac
 	done
-	echo 141.101.113.10
+	printf '141.101.113.10%s\n' "${port:+:$port}"
 }
 
 service_triggers() {
@@ -70,10 +73,11 @@ stand_down() {
 }
 
 start_service() {
-	local enabled mode transparent force socks_address socks_port http_port mark
+	local enabled mode transparent socks_address socks_port http_port mark
 	local protocol core_protocol gool_flag scan ip_mode noize perf tls_verify enroll_address log_level quick config_file singbox dns passwall2
 	local unblock unblock_port unblock_tor_port
-	local tor_reverse tor_scan_fallback tor_scan_env
+	local tor tor_reverse tor_port tor_bind tor_scan_fallback tor_scan_env
+	local masque_transport outer_peer inner_peer peer core_binary core_pt core_help option_env option_key option_value
 	local psiphon psiphon_region psiphon_mode psiphon_port core_bind psiphon_bind http_flag
 	config_load gozarbin
 	# Before the enabled check, so a disabled service can never leave the
@@ -82,16 +86,28 @@ start_service() {
 	/usr/libexec/gozarbin/dns.sh off
 	config_get_bool enabled main enabled 0
 	[ "$enabled" = 1 ] || return 0
+	local conflict
+	conflict=$(/usr/libexec/gozarbin/passwall2-detect.sh --conflict 2>/dev/null || true)
+	if [ -n "$conflict" ]; then
+		logger -t gozarbin "$conflict is active; simultaneous operation is disabled"
+		return 1
+	fi
 	config_get mode main mode tproxy
 	# The mode alone decides: transparent unless it is SOCKS5-only, below.
 	transparent=1
-	config_get_bool force main force_with_passwall2 0
 	config_get socks_address main socks_address 127.0.0.1
 	config_get socks_port main socks_port 1819
 	config_get http_port main http_port 0
 	config_get mark main mark 0x0aff
 	config_get protocol main protocol masque
 	config_get_bool tor_reverse main tor_reverse 0
+	config_get tor main tor ''
+	[ -n "$tor" ] || { if [ "$tor_reverse" = 1 ]; then tor=reverse; else tor=off; fi; }
+	config_get tor_port main tor_port 1826
+	config_get masque_transport main masque_transport h2
+	config_get outer_peer main outer_peer ''
+	config_get inner_peer main inner_peer ''
+	config_get peer main peer ''
 	config_get_bool tor_scan_fallback main tor_scan_fallback 0
 	config_get psiphon main psiphon reverse
 	config_get psiphon_region main psiphon_region ''
@@ -135,9 +151,7 @@ start_service() {
 	/usr/libexec/gozarbin/passwall2-detect.sh --active >/dev/null 2>&1 && passwall2=1
 
 	if [ "$transparent" = 1 ]; then
-		if [ "$passwall2" = 1 ] && [ "$force" != 1 ]; then
-			stand_down passwall2 'Passwall2 is active; transparent mode was not started'
-		elif ! /usr/libexec/gozarbin/deps.sh --check; then
+		if ! /usr/libexec/gozarbin/deps.sh --check; then
 			stand_down dependencies \
 				"missing dependencies for transparent mode:$(/usr/libexec/gozarbin/deps.sh --missing)"
 		elif [ -z "$singbox" ]; then
@@ -145,6 +159,14 @@ start_service() {
 		fi
 	fi
 
+	core_binary=$(/usr/libexec/gozarbin/aether-core.sh path 2>/dev/null)
+	[ -x "$core_binary" ] || core_binary=/usr/bin/gozarbin
+	core_help=$("$core_binary" --help 2>/dev/null)
+	core_pt=$(/usr/libexec/gozarbin/aether-core.sh pt-path 2>/dev/null)
+	[ -n "$core_pt" ] || core_pt=/usr/libexec/gozarbin/pt
+	psiphon_bin=$(/usr/libexec/gozarbin/aether-core.sh psiphon-path 2>/dev/null)
+	[ -x "$psiphon_bin" ] || psiphon_bin=/usr/libexec/gozarbin/psiphon-tunnel-core
+	config_get psiphon_bin main core_psiphon_bin "$psiphon_bin"
 	# Psiphon ships in the package, but a target built without it, or a binary
 	# removed by hand, runs the tunnel as if it were off rather than not at all.
 	case "$psiphon" in
@@ -171,6 +193,10 @@ start_service() {
 		*) psiphon_region= ;;
 	esac
 	stop_psiphon orphans
+	if [ "$tor" != off ] && [ "$psiphon" != off ]; then
+		logger -t gozarbin 'Tor and Psiphon cannot both be selected; refusing to start'
+		return 1
+	fi
 
 	# The SOCKS5 port is always the final exit, whatever sits behind it, so
 	# sing-box, the counters and anyone pointed at the port need no telling. In
@@ -178,6 +204,7 @@ start_service() {
 	# to its own port on loopback.
 	core_bind="${socks_address}:${socks_port}"
 	psiphon_bind="127.0.0.1:${psiphon_port}"
+	tor_bind="127.0.0.1:${tor_port}"
 	http_flag=--http-proxy
 	case "$psiphon" in
 		chain)
@@ -186,6 +213,10 @@ start_service() {
 			http_flag=--psiphon-http
 			;;
 		only) http_flag=--psiphon-http ;;
+	esac
+	case "$tor" in
+		chain) core_bind="127.0.0.1:${tor_port}"; tor_bind="${socks_address}:${socks_port}"; http_flag=--tor-http ;;
+		only) http_flag=--tor-http ;;
 	esac
 
 	# Since core 2.3.0 "gool" carries a WireGuard identity inside MASQUE, for a
@@ -200,27 +231,42 @@ start_service() {
 	esac
 
 	procd_open_instance gozarbin
-	procd_set_param command /usr/bin/gozarbin --bind "$core_bind" --mark "$mark" --protocol "$core_protocol" --scan "$scan" --ip "$ip_mode" --noize "$noize" --perf "$perf" --log-level "$log_level" --config "$config_file"
+	[ "$scan" != stealth ] || scan=verified
+	procd_set_param command "$core_binary" --bind "$core_bind" --mark "$mark" --protocol "$core_protocol" --scan "$scan" --ip "$ip_mode" --noize "$noize" --perf "$perf" --log-level "$log_level" --config "$config_file"
 	[ -n "$gool_flag" ] && procd_append_param command "$gool_flag"
+	case "$masque_transport" in h2) procd_append_param command --h2 ;; h3) procd_append_param command --h3 ;; esac
+	case "$protocol" in
+		gool)
+			[ -z "$outer_peer" ] || procd_append_param command --wiw-outer "$outer_peer"
+			[ -z "$inner_peer" ] || procd_append_param command --wiw-inner "$inner_peer" ;;
+		mim)
+			[ -z "$outer_peer" ] || procd_append_param command --mim-outer "$outer_peer"
+			[ -z "$inner_peer" ] || procd_append_param command --mim-inner "$inner_peer" ;;
+		gool_masque)
+			[ -z "$outer_peer" ] || procd_append_param command --peer "$outer_peer"
+			[ -z "$inner_peer" ] || procd_append_param command --gool-peer "$inner_peer" ;;
+		*) [ -z "$peer" ] || procd_append_param command --peer "$peer" ;;
+	esac
 	[ "$tls_verify" = 1 ] && procd_append_param command --tls-verify
 	# The core marks its sockets, and since 2.3.0 it will not let a marked call
 	# to the WARP API look the API's name up outside the mark: without an IP
 	# address here it cannot register or enrol at all. Use the one set, else
 	# what the router resolves now, else an address of Cloudflare's.
 	enroll_address=$(resolve_enroll_address "$enroll_address")
-	procd_append_param command --enroll-address "$enroll_address"
+	if printf '%s' "$core_help" | grep -q -- '--api-address'; then
+		procd_append_param command --api-address "$enroll_address"
+	else
+		procd_append_param command --enroll-address "$enroll_address"
+	fi
 	# Either Psiphon or Tor dials the tunnel, never both, and a tunnel already
 	# dialled through Psiphon has no use for a Tor scan on top. gool over MASQUE
 	# dials its outer tunnel as MASQUE does, so Tor can carry it too.
-	case "$protocol:$psiphon" in
-		gool_masque:off|gool_masque:chain)
-			[ "$tor_reverse" = 1 ] && procd_append_param command --tor-reverse
-			;;
-		masque:off|mim:off|masque:chain|mim:chain)
-			[ "$tor_reverse" = 1 ] && procd_append_param command --tor-reverse
-			[ "$tor_scan_fallback" = 1 ] && tor_scan_env='AETHER_TOR_SCAN_FALLBACK=1'
-			;;
+	case "$tor" in
+		chain) procd_append_param command --tor --tor-bind "$tor_bind" ;;
+		reverse) procd_append_param command --tor-reverse --tor-bind "$tor_bind" ;;
+		only) procd_append_param command --tor-only ;;
 	esac
+	[ "$tor_scan_fallback" != 1 ] || tor_scan_env='AETHER_TOR_SCAN_FALLBACK=1'
 	if [ "$psiphon" != off ]; then
 		case "$psiphon" in
 			chain) procd_append_param command --psiphon --psiphon-bind "$psiphon_bind" ;;
@@ -229,12 +275,19 @@ start_service() {
 		esac
 		procd_append_param command --psiphon-mode "$psiphon_mode" --psiphon-bin "$psiphon_bin"
 		# Psiphon's data store is rewritten as it runs; RAM spares the flash.
-		procd_append_param command --psiphon-dir /var/run/gozarbin/psiphon
+		config_get option_value main core_psiphon_dir /var/run/gozarbin/psiphon
+		procd_append_param command --psiphon-dir "$option_value"
 		[ -n "$psiphon_region" ] && procd_append_param command --psiphon-region "$psiphon_region"
 	fi
 	[ "$quick" = 1 ] && procd_append_param command --quick-reconnect
 	[ "$http_port" -gt 0 ] 2>/dev/null && procd_append_param command "$http_flag" "${socks_address}:${http_port}"
-	procd_set_param env HOME=/etc/gozarbin AETHER_TOR_PT_DIR=/usr/libexec/gozarbin/pt $tor_scan_env
+	procd_set_param env HOME=/etc/gozarbin AETHER_TOR_PT_DIR="$core_pt" $tor_scan_env
+	for option_env in $(jsonfilter -i /usr/share/gozarbin/core-options.json -e '@.options[*].env' 2>/dev/null); do
+		case "$option_env" in AETHER_[A-Z0-9_]*) ;; *) continue ;; esac
+		option_key=core_$(printf '%s' "${option_env#AETHER_}" | tr A-Z a-z)
+		config_get option_value main "$option_key" ''
+		[ -z "$option_value" ] || procd_append_param env "$option_env=$option_value"
+	done
 	procd_set_param respawn 3600 5 5
 	procd_set_param stdout 1
 	procd_set_param stderr 1
@@ -305,7 +358,7 @@ start_service() {
 	# would read as one core doing both. Tor's directory cache lives in RAM,
 	# because it rewrites megabytes a day and this router's flash has to last.
 	if [ "$unblock" = 1 ] && [ -n "$(uci -q get gozarbin.main.unblock_domain)" ]; then
-		ln -sf /usr/bin/gozarbin /var/run/gozarbin/gozarbin-unblock
+		ln -sf "$core_binary" /var/run/gozarbin/gozarbin-unblock
 		mkdir -p /var/run/gozarbin/unblock-tor
 		procd_open_instance unblock
 		procd_set_param command /var/run/gozarbin/gozarbin-unblock --tor-reverse \

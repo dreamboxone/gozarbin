@@ -37,11 +37,12 @@ with tempfile.TemporaryDirectory(prefix='gozarbin-update-test-') as temporary:
     archive = bundle('24.10.8', 'ipk')
     (release / 'latest').write_text('{"tag_name":"v2.2.2"}')
     (lib / 'fetch.sh').write_text('''fetch() {
-case "$1" in */latest) cp "$TEST_RELEASE/latest" "$2" ;;
+case "$1" in */latest|*/releases?per_page=20) cp "$TEST_RELEASE/latest" "$2" ;;
 *) cp "$TEST_RELEASE/${1##*/}" "$2" ;; esac
 }
 ''')
     (lib / 'packages.sh').write_text('pkg_manager() { echo "${TEST_MANAGER:-opkg}"; }\npkg_installed() { return 1; }\n')
+    (lib / 'releases.sh').write_text((ROOT / 'openwrt/files/usr/libexec/gozarbin/releases.sh').read_text())
     (lib / 'delta.sh').write_text('#!/bin/sh\necho "$1" >> "$TEST_DELTA_LOG"\nexit 2\n')
     (lib / 'delta.sh').chmod(0o755)
     (binaries / 'opkg').write_text('''#!/bin/sh
@@ -59,8 +60,13 @@ add) echo "${TEST_TARGET:-2.2.2-r1}" > "$TEST_VERSION"; shift; printf '%s\\n' "$
 esac
 ''')
     (binaries / 'uci').write_text('#!/bin/sh\necho 0\n')
-    (binaries / 'jsonfilter').write_text('''#!/bin/sh
-python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("tag_name", "") if sys.argv[2]=="@.tag_name" else d.get("state", ""))' "$2" "$4"
+    (binaries / 'jsonfilter').write_text(r'''#!/usr/bin/env python3
+import json,re,sys
+args=sys.argv
+value=json.load(open(args[args.index('-i')+1]))
+expr=args[args.index('-e')+1][1:]
+for key,index in re.findall(r'\.([\w]+)|\[(\d+)\]',expr): value=value[key] if key else value[int(index)]
+print(json.dumps(value) if isinstance(value,(dict,list,bool)) else value)
 ''')
     for binary in binaries.iterdir(): binary.chmod(0o755)
     worker = base / 'update.sh'
@@ -136,7 +142,7 @@ python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("tag_na
     (lib / 'fetch.sh').write_text('''fetch() {
 case "$1" in
 https://api.github.com/*) return 1 ;;
-https://github.com/dreamboxone/gozarbin/releases/latest)
+https://github.com/dreamboxone/gozarbin/releases)
 printf '<meta property="og:url" content="https://github.com/dreamboxone/gozarbin/releases/tag/v5.7.29r2">' > "$2" ;;
 *) cp "$TEST_RELEASE/${1##*/}" "$2" ;; esac
 }
@@ -162,5 +168,31 @@ printf '<meta property="og:url" content="https://github.com/dreamboxone/gozarbin
     snapshot = json.loads(result.stdout)
     assert snapshot['download_percent'] == 75 and snapshot['downloaded'] == 150
     print('PASS: live delta progress includes completed ranges and the active partial download')
+
+    (release / 'latest').write_text(json.dumps([
+        {'tag_name': 'v99.0.0', 'draft': True},
+        {'tag_name': 'v5.7.29r2', 'draft': False, 'prerelease': True},
+        {'tag_name': 'v5.7.29r1', 'draft': False, 'prerelease': False}]))
+    version.write_text('5.7.29-r1\n')
+    assert run('check').returncode == 0 and state() == 'available'
+    assert json.loads((runtime / 'state.json').read_text())['prerelease'] is True
+    (release / 'latest').write_text('{"tag_name":"v5.7.29r2"}')
+    print('PASS: published app prereleases are offered and labelled; drafts are ignored')
+
+    for manager, release_number, extension in [('opkg', '24.10.8', 'ipk'), ('apk', '25.12.5', 'apk')]:
+        env['TEST_MANAGER'] = manager
+        env['TEST_TARGET'] = '5.7.29-r2'
+        system.write_text("DISTRIB_RELEASE='" + release_number + "'\nDISTRIB_ARCH='arm_cortex-a7_neon-vfpv4'\n")
+        version.write_text('5.7.29-r1\n')
+        if (base / 'installed').exists(): (base / 'installed').unlink()
+        filename = 'gozarbin-openwrt-' + release_number + '-arm_cortex-a7_neon-vfpv4.' + extension
+        data = b'unified core and LuCI package'
+        (release / filename).write_bytes(data)
+        (release / 'SHA256SUMS.txt').write_text(hashlib.sha256(data).hexdigest() + '  ' + filename + '\n')
+        result = run('install')
+        assert result.returncode == 0 and state() == 'done', (result.stdout, result.stderr)
+        installed = (base / 'installed').read_text()
+        assert installed.count('.' + extension) == 1 and 'luci-app-gozarbin' not in installed
+        print('PASS: unified ' + extension.upper() + ' installs as one package and supports delta fetch/seed')
 
 print('All update worker tests passed')

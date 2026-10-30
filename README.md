@@ -11,17 +11,23 @@
 
 راهنمای کامل نصب و استفاده. اگر فقط می‌خواهید شروع کنید، [نصب سریع](#نصب-سریع) کافی است؛ باقی متن توضیح تک‌تک امکانات است.
 
+هسته با Aether `2.4.0` در کامیت بالادست `d58f9d5` همگام شده است؛ شمارهٔ نسخهٔ
+بسته‌های گذربین مستقل می‌ماند. این ارتقا اصلاحات ثبت WARP، شنونده‌های پایدار
+پراکسی، اتصال Psiphon از پشت پراکسی و بررسی گواهی MASQUE برای Zero Trust را دارد.
+سرویس OpenWrt گزینهٔ `enroll_address` ذخیره‌شده را با آرگومان جدید `--api-address`
+به هسته می‌فرستد؛ تنظیمات موجود حفظ می‌شوند.
+
 رابط فارسی برای موبایل و تم Material تنظیم شده است. پیام‌های عملیات زیر دکمه‌ها
 نمایش داده می‌شوند. جزئیات [به‌روزرسانی داخلی تفاضلی](Docs/internal-update.md)
-و [بررسی تغییرات جدید Aether](Docs/upstream-review-2026-10-21.md) نیز در دسترس است.
+و [تطبیق کامل تنظیمات اتر](Docs/aether-compatibility.md) نیز در دسترس است.
 
 از نسخهٔ `5.7.29` شمارهٔ انتشار از تاریخ شمسی تهران گرفته می‌شود:
 `(سال − ۱۴۰۰).ماه.روز`؛ برای نمونه ۱۴۰۵/۷/۲۹ برابر `5.7.29` است.
 اجرای `bash scripts/set-release-version.sh` بدون آرگومان، نسخهٔ روز را در سورس
-و بسته‌ها تنظیم می‌کند. برای ویرایش مجدد در همان روز، پسوند `rN` اضافه می‌شود؛
+بسته‌ها تنظیم می‌کند؛ شماره هسته اتر مستقل می‌ماند. برای ویرایش مجدد در همان روز، پسوند `rN` اضافه می‌شود؛
 برای نمونه `bash scripts/set-release-version.sh 5.7.29r2` ویرایش دوم را آماده می‌کند.
 برچسب انتشار با پیشوند `v` ساخته می‌شود. سربرگ «به‌روزرسانی» نسخهٔ فعلی، آخرین
-نسخهٔ GitHub، درصد دریافت و مراحل نصب و نسخهٔ نهایی را نمایش می‌دهد.
+انتشارهای GitHub شامل Pre-release و مراحل فعال دریافت و نصب را نمایش می‌دهد.
 
 در ویرایش `5.7.29r2`، دکمهٔ روز و شب در سربرگ قرار دارد و انتخاب آن در مرورگر
 ذخیره می‌شود. کارت یکپارچهٔ مصرف ترافیک بازه‌های ۱ روز، ۷ روز و ۳۰ روز را نشان
@@ -116,7 +122,7 @@ gozarbinctl singbox --origin    # own | system | passwall | none
 
 ## نصب سریع
 
-۱. فایل `gozarbin-openwrt-<نسخهٔ OpenWrt>-<معماری>.tar.gz` متناسب با روتر را از [آخرین انتشار](https://github.com/dreamboxone/gozarbin/releases/latest) دانلود کنید و در `/tmp` روتر قرار دهید. فایل Source code یا بستهٔ انتشار قدیمی را انتخاب نکنید. هر آرشیو شامل بستهٔ برنامه و LuCI همان نسخه است.
+۱. فایل `gozarbin-openwrt-<نسخه OpenWrt>-<معماری>.apk` یا فایل `.ipk` متناسب با روتر را از [آخرین انتشار](https://github.com/dreamboxone/gozarbin/releases/latest) دانلود کنید و در `/tmp` روتر قرار دهید. فایل Source code یا بستهٔ انتشار قدیمی را انتخاب نکنید. هر فایل APK یا IPK شامل برنامه و رابط LuCI همان نسخه است.
 
 در دستورهای زیر نام دقیق فایل دانلودشده را به‌جای مقدار `archive` قرار دهید. دستورها را در یک نشست SSH اجرا کنید؛ بسته‌ها در پوشهٔ داخلی آرشیو هستند.
 
@@ -126,9 +132,7 @@ gozarbinctl singbox --origin    # own | system | passwall | none
 
 ```sh
 cd /tmp
-archive='gozarbin-openwrt-25.12.5-arm_cortex-a7_neon-vfpv4.tar.gz'
-tar -xzf "$archive" && cd "${archive%.tar.gz}" || exit 1
-apk add --allow-untrusted ./gozarbin-[0-9]*.apk ./luci-app-gozarbin-*.apk
+apk add --allow-untrusted ./gozarbin-openwrt-25.12.5-arm_cortex-a7_neon-vfpv4.apk
 ```
 
 <div dir="rtl">
@@ -139,9 +143,7 @@ apk add --allow-untrusted ./gozarbin-[0-9]*.apk ./luci-app-gozarbin-*.apk
 
 ```sh
 cd /tmp
-archive='gozarbin-openwrt-24.10.5-arm_cortex-a7_neon-vfpv4.tar.gz'
-tar -xzf "$archive" && cd "${archive%.tar.gz}" || exit 1
-opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
+opkg install ./gozarbin-openwrt-24.10.8-arm_cortex-a7_neon-vfpv4.ipk
 ```
 
 <div dir="rtl">
@@ -545,8 +547,8 @@ cat /var/run/gozarbin/sing-box.json
 
 ```sh
 gozarbinctl off
-apk del luci-app-gozarbin gozarbin      # OpenWrt 24.10 به بعد
-opkg remove luci-app-gozarbin gozarbin  # نسخه‌های قدیمی‌تر
+apk del gozarbin      # OpenWrt 24.10 به بعد
+opkg remove gozarbin  # نسخه‌های قدیمی‌تر
 ```
 
 <div dir="rtl">
@@ -567,7 +569,7 @@ bash psiphon-build.sh linux arm ./pt 7      # اختیاری: Psiphon، مثلا
 
 <div dir="rtl">
 
-اسکریپت بالا بسته‌های `gozarbin` و `luci-app-gozarbin` را با OpenWrt SDK می‌سازد و در پوشهٔ خروجی می‌گذارد؛ اگر باینری Psiphon را هم بدهید، داخل همان بستهٔ `gozarbin` قرار می‌گیرد. ‏`psiphon-build.sh` خودش دقیقاً همان نسخهٔ Go را که Psiphon لازم دارد دریافت می‌کند، چون Psiphon ساخته‌شده با نسخهٔ دیگر هنگام اجرا از کار می‌افتد.
+اسکریپت بالا بسته یکپارچه `gozarbin` شامل LuCI را با OpenWrt SDK می‌سازد و در پوشهٔ خروجی می‌گذارد؛ اگر باینری Psiphon را هم بدهید، داخل همان بستهٔ `gozarbin` قرار می‌گیرد. ‏`psiphon-build.sh` خودش دقیقاً همان نسخهٔ Go را که Psiphon لازم دارد دریافت می‌کند، چون Psiphon ساخته‌شده با نسخهٔ دیگر هنگام اجرا از کار می‌افتد.
 
 ---
 

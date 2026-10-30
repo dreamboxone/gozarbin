@@ -8,16 +8,15 @@
 # what Gozarbin runs. A sing-box that came from a Passwall feed is never used and
 # never upgraded: it belongs to Passwall2, it is the engine Passwall2 is running
 # on right now, and replacing it underneath a working setup to satisfy a proxy
-# the user may not even have switched on is not ours to do. A sing-box from the
-# ordinary OpenWrt feed is nobody's in particular, so that one is borrowed when
-# Gozarbin has no core of its own yet.
+# the user may not even have switched on is not ours to do. System cores are
+# never borrowed; only Gozarbin's private core directories are used.
 #
 # The version check looks once a day, and only after a hundred megabytes have
 # actually gone through the tunnel: a router that has barely passed traffic has
 # not earned a request over someone's metered link. It never reports a failure.
 # Offline, blocked, between tunnels — all normal here, and none of it is news.
 
-own=/usr/libexec/gozarbin/sing-box
+own=/usr/libexec/gozarbin/cores/singbox/bundled/sing-box
 run_dir=/var/run/gozarbin
 job_file="$run_dir/install.json"
 job_pid="$run_dir/install.pid"
@@ -37,43 +36,10 @@ downloads=https://github.com/SagerNet/sing-box/releases/download
 
 # ---------------------------------------------------------------- the core
 
-# Passwall or Passwall2 itself, not merely its feed. Many routers carry the
-# passwall_packages feed for its newer sing-box without ever installing either
-# proxy. The package or its init script, never /etc/config alone: a removed
-# package can leave its modified config behind.
-passwall_installed() {
-	local name
-	for name in passwall passwall2; do
-		[ -x "/etc/init.d/$name" ] && return 0
-		pkg_installed "luci-app-$name" && return 0
-	done
-	return 1
-}
-
-# Which package a system sing-box came from. apk and opkg both name the feed the
-# package was built from, and a Passwall feed says so in that name. That core is
-# only Passwall's while Passwall is there to run on it; without it, a sing-box
-# from that feed is nobody's in particular, like one from OpenWrt's own.
-system_origin() {
-	local from_feed=0
-	command -v sing-box >/dev/null 2>&1 || { echo none; return; }
-	pkg_snapshot
-	if printf '%s\n' "$PKG_LIST" | grep -i '^sing-box-[0-9]' | grep -qi passwall; then
-		from_feed=1
-	elif command -v opkg >/dev/null 2>&1 &&
-		opkg status sing-box 2>/dev/null | grep -qi 'passwall'; then
-		from_feed=1
-	fi
-	if [ "$from_feed" = 1 ] && passwall_installed; then
-		echo passwall
-	else
-		echo system
-	fi
-}
-
 origin() {
+	[ -x /usr/libexec/gozarbin/cores/singbox/current/sing-box ] && { echo own; return; }
 	[ -x "$own" ] && { echo own; return; }
-	system_origin
+	echo none
 }
 
 # The config firewall.sh writes needs sing-box 1.12: the DNS servers are in the
@@ -91,9 +57,13 @@ usable() {
 # The binary Gozarbin runs, or nothing, which callers must treat as "no core".
 path() {
 	local binary
+	if [ -x /usr/libexec/gozarbin/cores/singbox/current/sing-box ]; then
+		binary=/usr/libexec/gozarbin/cores/singbox/current/sing-box
+		usable "$binary" || return 1
+		printf '%s' "$binary"; return
+	fi
 	case "$(origin)" in
 		own) binary="$own" ;;
-		system) binary=$(command -v sing-box) ;;
 		*) return 1 ;;
 	esac
 	usable "$binary" || return 1
@@ -102,6 +72,10 @@ path() {
 
 version_of() {
 	[ -n "$1" ] && [ -x "$1" ] || return 1
+	case "$1" in
+		/usr/libexec/gozarbin/cores/singbox/bundled/sing-box|/usr/libexec/gozarbin/cores/singbox/current/sing-box)
+			/usr/libexec/gozarbin/singbox-core.sh version; return ;;
+	esac
 	"$1" version 2>/dev/null | sed -n 's/^sing-box version \([0-9][0-9.]*\).*/\1/p' | head -n 1
 }
 

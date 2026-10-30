@@ -5,6 +5,8 @@
 case "$1" in
 	update) exec /usr/libexec/gozarbin/update.sh "${2:-status}" ;;
 	on)
+		conflict=$(/usr/libexec/gozarbin/passwall2-detect.sh --conflict 2>/dev/null || true)
+		[ -z "$conflict" ] || { printf 'conflict:%s\n' "$conflict" >&2; exit 1; }
 		uci set gozarbin.main.enabled=1
 		uci commit gozarbin
 		/etc/init.d/gozarbin enable
@@ -46,13 +48,8 @@ case "$1" in
 			"$(/usr/libexec/gozarbin/singbox.sh --origin 2>/dev/null)"
 		;;
 	singbox) exec /usr/libexec/gozarbin/singbox.sh "${2:---state}" "$3" ;;
-	install-singbox)
-		# --background returns as soon as the work is detached. The settings page
-		# cannot hold one request open for a seventy-megabyte download, and a
-		# terminal has no reason to: from here, watching it is the point.
-		[ "$2" = --background ] && exec /usr/libexec/gozarbin/singbox.sh --install-async "$3"
-		exec /usr/libexec/gozarbin/singbox.sh --install "$2"
-		;;
+	install-singbox) exec /usr/libexec/gozarbin/singbox-core.sh install ;;
+
 	traffic) exec /usr/libexec/gozarbin/traffic.sh ;;
 	deps) exec /usr/libexec/gozarbin/deps.sh "${2:---json}" ;;
 	install-deps) exec /usr/libexec/gozarbin/deps.sh --install ;;
@@ -72,7 +69,7 @@ case "$1" in
 		if [ -z "$2" ]; then
 			printf 'psiphon: %s\nregion: %s\n' "$(uci -q get gozarbin.main.psiphon || echo off)" \
 				"$(uci -q get gozarbin.main.psiphon_region || echo auto)"
-			[ -x /usr/libexec/gozarbin/psiphon-tunnel-core ] || echo 'psiphon-tunnel-core is missing from this install'
+			[ -x "$(/usr/libexec/gozarbin/aether-core.sh psiphon-path 2>/dev/null)" ] || echo 'psiphon-tunnel-core is missing from this install'
 			exit 0
 		fi
 		case "$2" in

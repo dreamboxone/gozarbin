@@ -16,7 +16,9 @@ json_bool() { [ "$1" = 1 ] && echo true || echo false; }
 # into the package at build time is there even when the database is unreadable.
 gozarbin_version=$([ -r "$version_file" ] && head -n 1 "$version_file")
 [ -n "$gozarbin_version" ] || gozarbin_version=$(pkg_version gozarbin)
-core_version=$(/usr/bin/gozarbin --version 2>/dev/null | head -n 1 | tr -d '\r')
+core_binary=$(/usr/libexec/gozarbin/aether-core.sh path 2>/dev/null)
+[ -x "$core_binary" ] || core_binary=/usr/bin/gozarbin
+core_version=$(/usr/libexec/gozarbin/aether-core.sh version 2>/dev/null)
 # Never the package version: on a router running Passwall2 that is Passwall2's
 # core, which Gozarbin does not use.
 singbox_version=$(/usr/libexec/gozarbin/singbox.sh --version 2>/dev/null)
@@ -29,7 +31,8 @@ command -v nft >/dev/null 2>&1 && nftables=1 || nftables=0
 { [ -c /dev/net/tun ] || pkg_installed kmod-tun; } >/dev/null 2>&1 && tun=1 || tun=0
 ip rule list >/dev/null 2>&1 && iprule=1 || iprule=0
 # The binary, not the package database: it is what the service actually runs.
-[ -x /usr/libexec/gozarbin/psiphon-tunnel-core ] && psiphon=1 || psiphon=0
+psiphon_path=$(/usr/libexec/gozarbin/aether-core.sh psiphon-path 2>/dev/null)
+[ -x "$psiphon_path" ] && psiphon=1 || psiphon=0
 
 quoteless() { tr -d '"\\' ; }
 

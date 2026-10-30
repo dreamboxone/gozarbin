@@ -3,6 +3,7 @@
  */
 'use strict';
 'require baseclass';
+'require view.gozarbin.appearance as appearance';
 'require view.gozarbin.i18n as i18n';
 
 var _ = i18n.tr;
@@ -11,6 +12,10 @@ function size(bytes) {
 	var n = Math.max(0, Number(bytes) || 0), units = ['B', 'KB', 'MB', 'GB', 'TB'], i = 0;
 	while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
 	return n.toFixed(i && n < 100 ? 2 : 0) + ' ' + units[i];
+}
+
+function gigabytes(bytes) {
+	return (Math.max(0, Number(bytes) || 0) / 1000000000).toFixed(2);
 }
 
 return baseclass.extend({
@@ -37,7 +42,7 @@ return baseclass.extend({
 			});
 			var sumUp = 0, sumDown = 0, peak = 1;
 			values.forEach(function(row) { sumUp += row[0]; sumDown += row[1]; peak = Math.max(peak, row[0] + row[1]); });
-			upload.textContent = size(sumUp); download.textContent = size(sumDown); total.textContent = size(sumUp + sumDown);
+			upload.textContent = gigabytes(sumUp); download.textContent = gigabytes(sumDown); total.textContent = gigabytes(sumUp + sumDown);
 			chart.replaceChildren();
 			values.forEach(function(row, i) {
 				var label = new Intl.DateTimeFormat(i18n.locale(), { timeZone: 'Asia/Tehran', month: 'short', day: 'numeric',
@@ -50,15 +55,19 @@ return baseclass.extend({
 				' · ' + _('تاریخچه از زمان فعال‌شدن ثبت می‌شود؛ داده‌ای برای روزهای قبل ساخته نمی‌شود.');
 			buttons.forEach(function(button) { button.setAttribute('aria-pressed', String(Number(button.dataset.days) === days)); });
 		}
-		[1, 7, 30].forEach(function(value) {
-			var button = E('button', { 'type': 'button', 'class': 'ae-range-button', 'data-days': value }, value + _(' روز'));
+		[1, 7, 30].forEach(function(value, index) {
+			var button = E('button', { 'type': 'button', 'class': 'ae-range-button', 'data-days': value,
+				'title': value + _(' روز') }, i18n.get() === 'fa' ? ['۱ر', '۷ر', '۳۰ر'][index] : ['1d', '1w', '1m'][index]);
 			button.addEventListener('click', function() { days = value; draw(); }); buttons.push(button);
 		});
-		var node = E('section', { 'class': 'ae-traffic ae-update' }, [
-			E('div', { 'class': 'ae-traffic-head' }, [E('h3', {}, _('مصرف ترافیک')), E('div', { 'class': 'ae-ranges' }, buttons)]),
-			E('div', { 'class': 'ae-traffic-metrics' }, [metric(_('مجموع بازه'), total), metric(_('دریافت بازه'), download), metric(_('ارسال بازه'), upload)]),
-			chart, note,
-			E('div', { 'class': 'ae-traffic-live' }, [metric(_('↓ دریافت لحظه‌ای'), down), metric(_('↑ ارسال لحظه‌ای'), up)])
+		var node = E('section', { 'class': 'ae-traffic ae-card' }, [
+			E('h3', { 'class': 'ae-card-label' }, [appearance.icon('traffic'), E('span', {}, _('مصرف (گیگابایت)'))]),
+			E('div', { 'class': 'ae-traffic-metrics' }, [metric(_('ارسال'), upload), metric(_('دریافت'), download), metric(_('مجموع'), total)]),
+			E('div', { 'class': 'ae-ranges', 'role': 'group', 'aria-label': _('مصرف ترافیک') }, buttons),
+			E('details', { 'class': 'ae-traffic-details' }, [
+				E('summary', {}, _('نمودار مصرف ارسال و دریافت')), chart, note,
+				E('div', { 'class': 'ae-traffic-live' }, [metric(_('↓ دریافت لحظه‌ای'), down), metric(_('↑ ارسال لحظه‌ای'), up)])
+			])
 		]);
 		draw();
 		return { node: node, history: function(value) { history = value || { hours: [] }; draw(); },

@@ -38,7 +38,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Match embedded version to release tag
+      - name: Set package release version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         working-directory: .
@@ -131,7 +131,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Match embedded version to release tag
+      - name: Set package release version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         working-directory: .
@@ -191,7 +191,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Match embedded version to release tag
+      - name: Set package release version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         working-directory: .
@@ -284,7 +284,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Match embedded version to release tag
+      - name: Set package release version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         working-directory: .
@@ -387,7 +387,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Match embedded version to release tag
+      - name: Set package release version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         working-directory: .
@@ -563,7 +563,8 @@ jobs:
           set -eux
           sdk=/tmp/sdk
           cp -a openwrt "$sdk/package/gozarbin"
-          cp -a luci-app-gozarbin "$sdk/package/luci-app-gozarbin"
+          cp -a luci-app-gozarbin "$sdk/package/gozarbin/luci"
+          rm -f "$sdk/package/gozarbin/luci/Makefile"
           cd "$sdk"
           make defconfig >/dev/null
           arch=$(awk -F= '/^CONFIG_TARGET_ARCH_PACKAGES=/{gsub(/"/, "", $2); print $2}' .config)
@@ -587,10 +588,9 @@ jobs:
           sed -i 's/^CONFIG_ALL_KMODS=y/# CONFIG_ALL_KMODS is not set/' .config
           sed -i 's/^CONFIG_ALL_NONSHARED=y/# CONFIG_ALL_NONSHARED is not set/' .config
           sed -i -E 's/^CONFIG_PACKAGE_([^=]+)=[ym]/# CONFIG_PACKAGE_\1 is not set/' .config
-          printf '\nCONFIG_PACKAGE_gozarbin=m\nCONFIG_PACKAGE_luci-app-gozarbin=m\n' >> .config
+          printf '\nCONFIG_PACKAGE_gozarbin=m\n' >> .config
           make defconfig >/dev/null
           make package/gozarbin/compile -j"$(nproc)" V=s
-          make package/luci-app-gozarbin/compile -j"$(nproc)" V=s
 
       - name: Collect the packages
         id: collect
@@ -598,15 +598,15 @@ jobs:
           out="gozarbin-openwrt-${{ matrix.release }}-${{ matrix.arch }}"
           mkdir -p "$out"
           find /tmp/sdk/bin/packages -type f \
-            \( -name 'gozarbin-*.apk' -o -name 'luci-app-gozarbin-*.apk' \
+            \( -name 'gozarbin-*.apk' \
                -o -name 'gozarbin_*.ipk' \
-               -o -name 'luci-app-gozarbin_*.ipk' \) \
+               \) \
             -exec cp -f {} "$out/" \;
           ls -l "$out"
-          # Two packages or the leg has not produced what it claims to.
-          test "$(ls -1 "$out" | wc -l)" -ge 2
-          tar -czf "$out.tar.gz" "$out"
-          echo "archive=$out.tar.gz" >> "$GITHUB_OUTPUT"
+          # The architecture package includes the matching LuCI interface.
+          test "$(ls -1 "$out" | wc -l)" -eq 1
+          cp "$out/"* "$out.${{ matrix.format }}"
+          echo "archive=$out.${{ matrix.format }}" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -651,7 +651,7 @@ jobs:
         run: |
           cd dist
           shopt -s nullglob
-          files=(*.tar.gz *.zip *.chunks.json)
+          files=(*.tar.gz *.zip *.apk *.ipk *.chunks.json)
           for f in "${files[@]}"; do
             sha256sum "$f" > "$f.sha256"
           done
@@ -671,22 +671,15 @@ jobs:
           body: |
             ## Gozarbin for OpenWrt
 
-            ### 5.7.29r3
+            ### 5.8.8r2
 
-            - Persian, English, Russian and Simplified Chinese, selectable beside the appearance control.
-            - Zirgozar-style interface and update page, with the version beside the application name.
-            - Responsive layout checked at mobile, tablet and desktop widths.
-            - Telegram group link below the application pages.
-            - Complete archive extraction and package installation instructions.
-            - Retry temporary DNS and connection failures automatically.
-            - Fall back to the GitHub release page when the API is unavailable.
-            - Clear stale version results when GitHub cannot be reached.
-
-            - Separate update tab with installed, GitHub and final versions.
-            - Differential downloads from GitHub with download and installation progress.
-            - One archive per OpenWrt target containing both Gozarbin and its matching LuCI package.
-            - Day/night appearance and a traffic chart with 1-, 7- and 30-day history.
-            - Refresh LuCI permissions after installing the interface.
+            - Aether 2.4.0 with the complete public settings exposed in the interface.
+            - One architecture package containing Gozarbin and LuCI, with differential updates.
+            - Separate verified updates for private Aether and sing-box cores.
+            - Basic settings, rule management, network, other settings and live logs with icons.
+            - Responsive dashboard, traffic totals in GB, accessible main switch and inline help.
+            - Colorful transparent eye logo, HTTP URL-test latency and exit-country flag.
+            - Pre-release discovery, documented core defaults, and independent rule-file downloads with Persian timestamps.
 
             Gozarbin finds a way out of a filtered network and hands it to the
             whole router: transparently, as a TUN interface, or as a plain
@@ -695,18 +688,15 @@ jobs:
 
             ### OpenWrt
 
-            Grab the `gozarbin-openwrt-<release>-<arch>.tar.gz` that matches your
-            router and install the packages inside it. Twelve architectures,
-            each in both formats: `24.10.x` is opkg, `25.12.x` is apk.
+            Download the single package matching the router and OpenWrt series.
+            LuCI is included. OpenWrt 25.12 uses APK; 24.10 uses IPK.
+            Each package has a checksum and a differential-download manifest.
 
             ```sh
-            # Replace this with the exact downloaded archive filename.
-            archive='gozarbin-openwrt-<release>-<arch>.tar.gz'
-            tar -xzf "$archive" && cd "${archive%.tar.gz}" || exit 1
             # OpenWrt 25.12.x
-            apk add --allow-untrusted ./gozarbin-[0-9]*.apk ./luci-app-gozarbin-*.apk
+            apk add --allow-untrusted ./gozarbin-openwrt-25.12.*.apk
             # OpenWrt 24.10.x
-            opkg install ./gozarbin_*.ipk ./luci-app-gozarbin_*.ipk
+            opkg install ./gozarbin-openwrt-24.10.*.ipk
             ```
 
             Psiphon is part of the `gozarbin` package: run it on its own,

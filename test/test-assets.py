@@ -31,6 +31,7 @@ with tempfile.TemporaryDirectory(prefix='gozarbin-assets-test-') as temporary:
                     tar.addfile(entry, io.BytesIO(data))
             package = gzip.compress(raw.getvalue())
             name = 'gozarbin_2.2.2-r1_x86_64.ipk'
+        (directory / f'gozarbin-openwrt-{release}-arm64.{extension}').write_bytes(package)
         with tarfile.open(directory / f'gozarbin-openwrt-{release}-x86_64.tar.gz', 'w:gz') as tar:
             for package_name in [name, 'luci-app-' + name]:
                 entry = tarfile.TarInfo(f'bundle/{package_name}'); entry.size = len(package)
@@ -44,7 +45,13 @@ with tempfile.TemporaryDirectory(prefix='gozarbin-assets-test-') as temporary:
         assert hashlib.sha256(data).hexdigest() == manifest['sha256']
         for offset, length, sha in manifest['chunks']:
             assert hashlib.sha256(data[offset:offset + length]).hexdigest() == sha
-        assert path.name.startswith('gozarbin-openwrt-') and path.name.endswith('.tar.gz')
+        assert path.name.startswith('gozarbin-openwrt-')
+        if path.suffix in ['.apk', '.ipk']:
+            if path.suffix == '.apk': assert zlib.decompress(data[4:], -15) == content
+            else:
+                with tarfile.open(fileobj=io.BytesIO(data)) as package:
+                    assert gzip.decompress(package.extractfile('data.tar.gz').read()) == content
+            continue
         with tarfile.open(path) as bundle:
             members = bundle.getmembers()
             assert len(members) == 2
@@ -57,6 +64,6 @@ with tempfile.TemporaryDirectory(prefix='gozarbin-assets-test-') as temporary:
                 else:
                     with tarfile.open(fileobj=io.BytesIO(data)) as package:
                         assert gzip.decompress(package.extractfile('data.tar.gz').read()) == content
-        assert not list(directory.glob('*.ipk')) and not list(directory.glob('*.apk'))
-    assert len(list(directory.glob('*.chunks.json'))) == 2
-print('PASS: each target publishes one bundle containing both packages, exact payloads and a verified manifest')
+
+    assert len(list(directory.glob('*.chunks.json'))) == 4
+print('PASS: unified APK/IPK assets and legacy bundles preserve exact payloads and verified differential manifests')

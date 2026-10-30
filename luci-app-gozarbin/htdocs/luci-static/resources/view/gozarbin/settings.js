@@ -34,23 +34,6 @@ var UNBLOCK = {
 	down: _('خروجی غیرایرانی: قطع است')
 };
 
-/* Written by singbox.sh into /var/run/gozarbin/install.json. */
-var INSTALL_STEPS = {
-	starting: _('در حال آماده‌سازی…'),
-	version: _('در حال یافتن آخرین نسخهٔ پایدار…'),
-	downloading: _('در حال دریافت هسته… (حدود ۷۰ مگابایت)'),
-	unpacking: _('در حال باز کردن بسته…'),
-	installing: _('در حال نصب…')
-};
-
-var INSTALL_FAILURES = {
-	version: _('نشد فهمید آخرین نسخهٔ پایدار کدام است؛ GitHub از این روتر در دسترس نبود.'),
-	download: _('هیچ نسخه‌ای از هسته برای این معماری دریافت نشد.'),
-	space: _('فضای کافی نیست؛ برای باز کردن هسته ۱۵۰ مگابایت لازم است.'),
-	workdir: _('پوشهٔ موقت ساخته نشد.'),
-	crashed: _('نصب نیمه‌کاره متوقف شد.')
-};
-
 /* The countries Psiphon usually offers as an exit. The log lists what is on
  * offer right now, and anything there that is missing here is added by code. */
 var COUNTRIES = {
@@ -152,15 +135,16 @@ function notify(message, kind) {
 	target.replaceChildren(E('div', {
 		'class': 'ae-inline-message ae-message-' + (kind || 'info'),
 		'role': kind === 'error' ? 'alert' : 'status', 'dir': i18n.dir()
-	}, message));
+	}, [E('span', {}, message), E('button', { 'type': 'button', 'class': 'ae-message-close', 'aria-label': _('بستن پیام'),
+		'click': function() { target.replaceChildren(); } }, '×')]));
 	return target;
 }
-function card(label, klass) {
+function card(label, klass, icon) {
 	var value = E('div', { 'class': 'ae-card-value' }, '—');
 	var note = E('div', { 'class': 'ae-card-note' }, '');
 	var bar = E('div', { 'class': 'ae-bar' }, E('span', {}));
 	var node = E('div', { 'class': 'ae-card ' + (klass || '') }, [
-		E('div', { 'class': 'ae-card-label' }, label), value, note
+		E('div', { 'class': 'ae-card-label' }, [appearance.icon(icon || 'device'), E('span', {}, label)]), value, note
 	]);
 	if (klass === 'ae-card-up' || klass === 'ae-card-down') node.appendChild(bar);
 	return { node: node, value: value, note: note, bar: bar.firstChild };
@@ -174,24 +158,30 @@ return view.extend({
 	load: function() {
 		var soft = function() { return { stdout: '{}' }; };
 		return Promise.all([
-			fs.exec('/usr/libexec/gozarbin/passwall2-detect.sh', [ '--json' ]).catch(soft),
-			fs.exec('/usr/libexec/gozarbin/system-info.sh').catch(soft),
-			fs.exec('/usr/libexec/gozarbin/deps.sh', [ '--json' ]).catch(soft),
-			fs.exec('/usr/libexec/gozarbin/traffic.sh').catch(soft),
-			fs.exec('/usr/libexec/gozarbin/singbox.sh', [ '--state' ]).catch(soft),
-			fs.exec('/usr/libexec/gozarbin/tunnel.sh').catch(soft),
-			uci.load('gozarbin')
-		]);
+			fs.exec('/usr/libexec/gozarbin/dashboard.sh').catch(soft),
+			uci.load('gozarbin'),
+			fs.read('/usr/share/gozarbin/core-options.json').catch(function() { return '{}'; })
+		]).then(function(results) {
+			var snapshot = parse(results[0]);
+			return ['proxy', 'system', 'deps', 'traffic', 'core', 'tunnel'].map(function(key) {
+				return { stdout: JSON.stringify(snapshot[key] || {}) };
+			}).concat([results[1], results[2], { stdout: JSON.stringify(snapshot.connectivity || {}) }]);
+		});
 	},
 
 	renderDashboard: function(system, passwall, deps, traffic, tunnel) {
 		var self = this;
-		var service = card(_('وضعیت سرویس'));
-		var server = card(_('سرور و اسکن'));
+		this.dependencyState = deps || {};
+		var service = card(_('وضعیت'), '', 'pulse');
+		this.proxyState = passwall;
+		this.conflictMessage = E('div', { 'class': 'ae-conflict-message' });
+		service.node.insertBefore(this.conflictMessage, service.value);
+		service.node.insertBefore(E('div', { 'class': 'ae-action-messages', 'aria-live': 'polite' }), service.value);
+		var server = card(_('سرور و اسکن'), '', 'server');
 		var usage = trafficui.create();
 		this.traffic = usage;
-		var build = card(_('نوع دستگاه'));
-		var health = card(_('پیش‌نیازها و Passwall2'));
+		var build = card(_('نوع دستگاه'), 'ae-card-device', 'device');
+		var health = card(_('پیش‌نیازها'), 'ae-card-health', 'shield');
 
 		build.value.textContent = '';
 		build.value.appendChild(E('span', {}, system.model || _('نامشخص')));
@@ -202,7 +192,7 @@ return view.extend({
 		var kernelOk = system.tproxy && system.socket && system.nftables;
 		health.value.textContent = '';
 		var origins = {
-			own: _('هستهٔ اختصاصی گذربین'),
+			own: _('هسته گذربین'),
 			system: _('هستهٔ sing-box سیستم')
 		};
 		health.value.appendChild(badge(
@@ -217,22 +207,20 @@ return view.extend({
 			system.tun ? _('TUN آماده') : _('TUN نصب نیست'), system.tun ? 'ok' : 'warn'));
 		health.value.appendChild(badge(
 			system.psiphon ? _('Psiphon نصب') : _('Psiphon نصب نیست'), system.psiphon ? 'ok' : 'warn'));
-		health.value.appendChild(badge(
-			passwall.active ? _('Passwall2 فعال') :
-				(passwall.installed ? _('Passwall2 نصب، غیرفعال') : _('Passwall2 نصب نیست')),
-			passwall.active ? 'warn' : 'ok'));
+
 		if (deps && deps.complete === false && deps.missing)
 			health.note.textContent = _('نصب نشده: ') + deps.missing;
 		else
 			health.note.textContent = _('همهٔ بسته‌های لازم نصب هستند.');
 
 		var dash = E('div', { 'class': 'ae-dash' }, [
-			service.node, server.node, build.node, health.node
+			service.node, server.node, build.node, usage.node, health.node
 		]);
 
 		this.state = { time: 0, upload: 0, download: 0, peak: 1 };
 		this.cards = { service: service, server: server };
 		this.applyTraffic(traffic);
+		this.showProxyConflict();
 		this.applyTunnel(tunnel);
 		poll.add(function() {
 			return Promise.all([
@@ -250,7 +238,12 @@ return view.extend({
 		};
 		refreshHistory();
 		poll.add(refreshHistory, 30);
-		return E('div', {}, [dash, usage.node]);
+		poll.add(function() {
+			return fs.exec('/usr/libexec/gozarbin/connectivity.sh', ['status']).then(function(result) {
+				if (result.code === 0) { self.connectivity = parse(result); self.updateConnectionNote(); }
+			}).catch(function() {});
+		}, 5);
+		return dash;
 	},
 
 	/* Which server the tunnel is on and how it got there. Without this the page
@@ -289,10 +282,6 @@ return view.extend({
 					: _('از اسکن تازه'));
 			if (psiphon) note.push(psiphon);
 			if (tunnel.transport) note.push(tunnel.transport);
-			if (tunnel.profile && tunnel.psiphon !== 'only') note.push(_('استتار: ') + tunnel.profile);
-			var ping = pingMilliseconds(tunnel.rtt);
-			if (ping) note.push(_('پینگ: ') + ping + _(' میلی‌ثانیه'));
-			if (tunnel.country) note.push(_('کشور خروجی: ') + countryName(tunnel.country));
 			/* Psiphon is asked, not told: a country it has no server in right
 			 * now is quietly replaced by one it has. With WARP dialled through
 			 * Psiphon the exit is Cloudflare's, which places it on its own. */
@@ -320,7 +309,26 @@ return view.extend({
 		card.note.textContent = note.join(' • ');
 	},
 
+	updateConnectionNote: function() {
+		if (!this.cards) return;
+		var note = this.cards.service.note, state = this.connectivity || {};
+		note.replaceChildren();
+		if (!this.serviceRunning) return;
+		var ping = state.ping != null && Number.isFinite(Number(state.ping)) ? Math.max(0, Math.round(Number(state.ping))) + ' ms' : '—';
+		note.appendChild(E('span', { 'class': 'ae-status-ping' }, [_('پینگ'), ': ', ltr(ping)]));
+		if (/^[A-Z]{2}$/.test(state.country || ''))
+			note.appendChild(E('span', { 'class': 'ae-status-country' }, countryName(state.country)));
+	},
+
 	applyTraffic: function(traffic) {
+		if (traffic && typeof traffic.enabled === 'boolean') this.serviceEnabled = traffic.enabled;
+		if (traffic && typeof traffic.running === 'boolean') {
+			this.serviceKnown = true;
+			this.serviceRunning = traffic.running;
+			this.updateServiceToggle();
+		}
+		this.showProxyConflict();
+		this.syncMainSwitch();
 		if (!this.cards || !traffic) return;
 		var cards = this.cards, previous = this.state;
 		var running = traffic.running === true;
@@ -330,18 +338,9 @@ return view.extend({
 		cards.service.value.appendChild(E('span', {
 			'class': 'ae-dot ' + (running ? 'ae-dot-on' : (traffic.enabled ? 'ae-dot-warn' : ''))
 		}));
-		cards.service.value.appendChild(document.createTextNode(
+		cards.service.value.appendChild(E('span', { 'class': running ? 'ae-service-running' : '' },
 			running ? _('در حال اجرا') : (traffic.enabled ? _('روشن، بالا نیامده') : _('خاموش'))));
-		var note = [ modes[traffic.mode] || traffic.mode ];
-		if (running) note.push(_('مدت اجرا: ') + duration(traffic.uptime));
-		/* The reason comes from the init script, the only side that knows it.
-		 * Guessing at it here produced a card that contradicted the dependency
-		 * card beside it. */
-		if (running && REASONS[traffic.transparent_off])
-			note.push(REASONS[traffic.transparent_off]);
-		if (running && UNBLOCK[traffic.unblock])
-			note.push(UNBLOCK[traffic.unblock]);
-		cards.service.note.textContent = note.join(' • ');
+		this.updateConnectionNote();
 
 		var upload = Number(traffic.upload) || 0, download = Number(traffic.download) || 0;
 		var now = Number(traffic.time) || Math.floor(Date.now() / 1000);
@@ -386,98 +385,11 @@ return view.extend({
 	 * behind a blocked GitHub, or simply has not passed enough traffic for the
 	 * check to have run, has nothing to be told about. */
 	renderCoreNotice: function(system, core) {
-		/* The core is a seventy-megabyte download. Waiting for it inside the one
-		 * request that starts it times that request out and reports a failure
-		 * over an install that is still running, which is what it used to do. So
-		 * the router detaches the work and this asks it how far along it is. */
-		var progress = E('div', { 'class': 'ae-notice-progress' });
-		progress.style.display = 'none';
-
-		var status = function(job) {
-			var text = INSTALL_STEPS[job.step] || INSTALL_STEPS.starting;
-			/* The script only fills in a detail here when the direct download
-			 * failed and it went out through the tunnel instead. */
-			if (job.step === 'downloading' && job.detail)
-				text = _('دریافت مستقیم جواب نداد؛ از تونل خود گذربین ادامه می‌دهد…');
-			progress.style.display = '';
-			progress.textContent = text;
-		};
-
-		var poll = function(left) {
-			return fs.exec('/usr/libexec/gozarbin/singbox.sh', [ '--install-status' ]).then(function(result) {
-				var job = {};
-				try { job = JSON.parse(result.stdout || '{}'); } catch (e) { job = {}; }
-
-				if (job.state === 'running' && left > 0) {
-					status(job);
-					return new Promise(function(resolve) {
-						window.setTimeout(resolve, 3000);
-					}).then(function() { return poll(left - 1); });
-				}
-
-				progress.style.display = 'none';
-				if (job.state === 'done') {
-					notify(_('هستهٔ sing-box نصب شد') + (job.detail ? ' — ' + job.detail : '') +
-						_('. صفحه تازه می‌شود.'));
-					window.setTimeout(function() { window.location.reload(); }, 2000);
-					return;
-				}
-				if (job.state === 'running') {
-					notify(_('نصب هنوز ادامه دارد. صفحه را بعداً تازه کنید.'));
-					return;
-				}
-				notify(_('نصب هسته ناموفق بود: ') +
-					(INSTALL_FAILURES[job.step] || job.detail || _('دلیل نامشخص')), 'error');
-			});
-		};
-
-		/* No version argument: the ACL matches on the whole command line, and the
-		 * script looks up the current stable itself anyway. */
-		var install = function() {
-			notify(_('دریافت هستهٔ sing-box آغاز شد؛ بسته به سرعت اینترنت روتر ممکن است چند دقیقه طول بکشد.'));
-			return fs.exec('/usr/bin/gozarbinctl', [ 'install-singbox', '--background' ])
-				.then(function(result) {
-					if (result.code !== 0) {
-						notify(_('نصب هسته شروع نشد: ') + (result.stderr || result.stdout || result.code), 'error');
-						return;
-					}
-					/* Twenty minutes of three-second polls: longer than any
-					 * install that is going to finish, short enough that a dead
-					 * page does not poll this router forever. */
-					return poll(400);
-				})
-				.catch(function(error) { notify(_('اجرا نشد: ') + error.message, 'error'); });
-		};
-
-		if (!system.singbox) {
-			var why = system.singbox_origin === 'passwall'
-				? _('روی این روتر فقط هستهٔ متعلق به Passwall2 نصب است. گذربین از آن استفاده نمی‌کند تا Passwall2 دست‌نخورده بماند و هستهٔ خودش را لازم دارد.')
-				: _('حالت شفاف و حالت TUN به هستهٔ sing-box نیاز دارند.');
-			return E('div', { 'class': 'ae-notice ae-notice-bad' }, [
-				E('div', { 'class': 'ae-notice-text' }, [
-					E('strong', {}, _('هستهٔ sing-box برای گذربین نصب نیست')),
-					E('div', {}, why),
-					progress
-				]),
-				this.action(_('نصب'), 'apply', install)
-			]);
-		}
-
-		if (core && core.update === true && core.latest) {
-			return E('div', { 'class': 'ae-notice ae-notice-warn' }, [
-				E('div', { 'class': 'ae-notice-text' }, [
-					E('strong', {}, _('نسخهٔ پایدار تازه‌ای از هستهٔ sing-box منتشر شده است')),
-					E('div', {}, [
-						_('نصب‌شده: '), ltr(core.installed || '—'),
-						' — ', _('جدید: '), ltr(core.latest)
-					]),
-					progress
-				]),
-				this.action(_('به‌روزرسانی'), 'apply', install)
-			]);
-		}
-
-		return E([]);
+		if (system.singbox && !(core && core.update)) return E([]);
+		return E('div', { 'class': 'ae-notice' }, [
+			E('span', {}, system.singbox ? _('نسخه جدید هسته سینگ باکس در دسترس است.') : _('حالت شفاف و TUN به هسته اختصاصی سینگ باکس نیاز دارند.')),
+			E('a', { 'class': 'cbi-button cbi-button-apply', 'href': L.url('admin/services/gozarbin/update') }, _('به روز رسانی هسته سینگ باکس'))
+		]);
 	},
 
 	action: function(label, style, handler) {
@@ -492,6 +404,121 @@ return view.extend({
 		return E('div', { 'class': 'ae-action-item' }, [button, feedback]);
 	},
 
+	showProxyConflict: function() {
+		if (!this.conflictMessage) return;
+		var self = this, state = this.proxyState || {};
+		var enabled = this.blockedActivation || (this.mainSwitchIntent == null ? this.serviceEnabled : this.mainSwitchIntent);
+		var services = [];
+		if (state.zirgozar_active) services.push(_('زیرگذر اکنون فعال می باشد. گذربین نمی تواند همزمان با زیرگذر فعالیت کند. زیرگذر را غیرفعال کنید.'));
+		if (state.active) services.push(_('Passwall2 اکنون فعال می باشد. گذربین نمی تواند همزمان با Passwall2 فعالیت کند. Passwall2 را غیرفعال کنید.'));
+		var message = enabled && services.length ? services.join('\n') : '';
+		this.conflictMessage.replaceChildren();
+		if (!message) { this.dismissedConflict = ''; return; }
+		if (this.dismissedConflict === message) return;
+		this.conflictMessage.appendChild(E('div', { 'class': 'ae-inline-message ae-message-warning', 'role': 'status' }, [
+			E('span', {}, message),
+			E('button', { 'type': 'button', 'class': 'ae-message-close', 'aria-label': _('بستن پیام'), 'click': function() {
+				self.dismissedConflict = message;
+				self.conflictMessage.replaceChildren();
+			} }, '×')
+		]));
+	},
+
+	checkProxyConflict: function() {
+		var self = this;
+		return fs.exec('/usr/libexec/gozarbin/passwall2-detect.sh', ['--json']).then(function(result) {
+			if (result.code !== 0) throw new Error(result.stderr || _('وضعیت سرویس دریافت نشد.'));
+			self.proxyState = parse(result);
+			self.showProxyConflict();
+		}).catch(function(error) { notify(_('اجرا نشد: ') + error.message, 'error'); });
+	},
+
+	updateServiceToggle: function() {
+		if (this.mainSwitchInput) this.mainSwitchInput.disabled = !!this.serviceBusy;
+		if (!this.serviceToggle) return;
+		this.serviceToggle.textContent = this.serviceBusy ? _('در حال انجام…') : this.serviceRunning ? _('توقف') : _('شروع');
+		this.serviceToggle.disabled = !!this.serviceBusy || !this.serviceKnown;
+		this.serviceToggle.className = 'cbi-button cbi-button-' + (this.serviceRunning ? 'reset' : 'apply');
+		this.serviceToggle.setAttribute('aria-busy', String(!!this.serviceBusy));
+	},
+
+	runCoreAction: function(action) {
+		var self = this;
+		notify(_('در حال انجام…'));
+		return fs.exec('/usr/libexec/gozarbin/aether-core.sh', [action]).then(function(result) {
+			if (result.code !== 0) throw new Error(result.stderr || _('عملیات هسته اتر ناموفق بود.'));
+			function refresh() {
+				return fs.exec('/usr/libexec/gozarbin/aether-core.sh', ['status']).then(function(report) {
+					var state = parse(report);
+					if (state.state === 'done' || state.state === 'error') {
+						poll.remove(refresh);
+						notify(state.state === 'done' ? _('عملیات انجام شد.') : _('عملیات هسته اتر ناموفق بود.'), state.state === 'done' ? 'info' : 'error');
+					}
+				});
+			}
+			poll.add(refresh, 2);
+			return refresh();
+		}).catch(function(error) { notify(_('اجرا نشد: ') + error.message, 'error'); });
+	},
+
+	syncMainSwitch: function() {
+		if (this.serviceBusy || this.serviceEnabled == null) return;
+		this.syncingSwitch = true;
+		try {
+			var field = this.enabledOption && this.enabledOption.getUIElement('main');
+			if (field && String(this.enabledOption.formvalue('main')) !== (this.serviceEnabled ? '1' : '0')) field.setValue(this.serviceEnabled ? '1' : '0');
+			if (this.mainSwitchInput) {
+				this.mainSwitchInput.checked = !!this.serviceEnabled;
+				this.mainSwitchInput.setAttribute('aria-checked', String(!!this.serviceEnabled));
+			}
+		} finally { this.syncingSwitch = false; }
+	},
+
+	readServiceState: function() {
+		var self = this;
+		return fs.exec('/usr/libexec/gozarbin/traffic.sh').then(function(result) {
+			var state = parse(result);
+			if (result.code !== 0 || typeof state.running !== 'boolean' || typeof state.enabled !== 'boolean')
+				throw new Error(result.stderr || _('وضعیت سرویس دریافت نشد.'));
+			self.applyTraffic(state); return state;
+		});
+	},
+
+	setServiceEnabled: function(requested) {
+		var self = this;
+		if (this.serviceBusy) return Promise.resolve();
+		this.serviceBusy = true; this.updateServiceToggle();
+		this.dismissedConflict = '';
+		return this.readServiceState().then(function(state) {
+			var enabled = requested == null ? !state.running : requested;
+			self.mainSwitchIntent = null;
+			self.blockedActivation = false;
+			var check = enabled ? fs.exec('/usr/libexec/gozarbin/passwall2-detect.sh', ['--json']).then(function(result) {
+				var proxies = parse(result);
+				if (result.code !== 0 || typeof proxies.active !== 'boolean') throw new Error(result.stderr || _('وضعیت سرویس دریافت نشد.'));
+				self.proxyState = proxies;
+				if (proxies.active || proxies.zirgozar_active) { self.blockedActivation = true; self.showProxyConflict(); return false; }
+				return true;
+			}) : Promise.resolve(true);
+			return check.then(function(allowed) {
+				if (!allowed) return;
+				return fs.exec('/usr/bin/gozarbinctl', [enabled ? 'on' : 'off']).then(function(result) {
+					if (result.code !== 0) throw new Error(result.stderr || result.stdout || String(result.code));
+					return self.readServiceState();
+				});
+			});
+		}).catch(function(error) {
+			if (/conflict:/.test(error.message)) {
+				self.blockedActivation = true;
+				return self.checkProxyConflict();
+			}
+			notify(_('اجرا نشد: ') + error.message, 'error');
+		}).finally(function() {
+			self.serviceBusy = false;
+			self.updateServiceToggle(); self.syncMainSwitch(); self.showProxyConflict();
+		});
+	},
+
 	renderActions: function() {
 		var self = this;
 		var run = function(command, args, success) {
@@ -502,24 +529,14 @@ return view.extend({
 				notify(_('اجرا نشد: ') + error.message, 'error');
 			});
 		};
-		return E('div', { 'class': 'ae-actions' }, [
-			/* restart, not start: it brings up a stopped service just the same,
-			 * and reloads a running one after a settings change. */
-			this.action(_('راه‌اندازی سرویس'), 'apply', function() {
-				return run('/etc/init.d/gozarbin', [ 'restart' ], _('سرویس راه‌اندازی شد.'));
-			}),
+		var actions = E('div', { 'class': 'ae-actions' }, [
+			this.action(_('پاک‌کردن داده‌های سایفون'), 'neutral', function() { return self.runCoreAction('clear-psiphon'); }),
 			/* The scan is not a thing a user starts; it is how Gozarbin connects.
 			 * What they can ask for is that it stop reusing the server it found
 			 * last time, which is what this does. */
 			this.action(_('اسکن دوباره و اتصال'), 'neutral', function() {
 				notify(_('سرور ذخیره‌شده پاک شد؛ اسکن تازه آغاز می‌شود و ممکن است چند دقیقه طول بکشد.'));
 				return run('/usr/bin/gozarbinctl', [ 'rescan' ], _('اسکن تازه آغاز شد.'));
-			}),
-			this.action(_('توقف سرویس'), 'reset', function() {
-				return run('/etc/init.d/gozarbin', [ 'stop' ], _('سرویس متوقف شد.'));
-			}),
-			this.action(_('به‌روزرسانی GeoIP و GeoSite'), 'neutral', function() {
-				return run('/usr/bin/gozarbinctl', [ 'update-geo' ], _('منابع GeoIP و GeoSite به‌روزرسانی شدند.'));
 			}),
 			/* Asked again at the moment of the click, not taken from the report
 			 * this page loaded with: a router that was missing something a few
@@ -529,6 +546,7 @@ return view.extend({
 			this.action(_('نصب پیش‌نیازهای جا افتاده'), 'neutral', function() {
 				return fs.exec('/usr/libexec/gozarbin/deps.sh', [ '--json' ]).then(function(result) {
 					var state = parse(result);
+					self.dependencyState = state;
 					if (state.complete !== false) {
 						notify(_('پیش‌نیازها از قبل دانلود و نصب شده‌اند؛ کاری لازم نیست.'));
 						return;
@@ -536,12 +554,19 @@ return view.extend({
 					notify(_('نصب این بسته‌ها آغاز شد: ') + (state.missing || '') +
 						_(' — بسته به سرعت اینترنت روتر ممکن است طول بکشد.'));
 					return run('/usr/bin/gozarbinctl', [ 'install-deps' ],
-						_('پیش‌نیازها نصب شدند. صفحه را تازه کنید.'));
+						_('پیش‌نیازها نصب شدند. صفحه را تازه کنید.')).then(function() {
+							return fs.exec('/usr/libexec/gozarbin/deps.sh', ['--json']).then(function(report) { self.dependencyState = parse(report); });
+						});
 				}).catch(function(error) {
 					notify(_('بررسی پیش‌نیازها ناموفق بود: ') + error.message, 'error');
+				}).finally(function() {
+					window.setTimeout(function() { self.dependenciesButton.disabled = self.dependencyState.complete === true; }, 0);
 				});
 			})
 		]);
+		this.dependenciesButton = actions.lastElementChild.querySelector('button');
+		this.dependenciesButton.disabled = this.dependencyState.complete === true;
+		return actions;
 	},
 
 	/* Two LuCI defaults quietly empty half of /etc/config/gozarbin on the first
@@ -550,7 +575,85 @@ return view.extend({
 	 * not the user asking to forget it, and "the default" is still an answer, so
 	 * both are turned off here. Text fields keep rmempty, because refusing to
 	 * save a page over one blank box would be worse than either. */
+	renderLogs: function() {
+		var root = E('div', { 'class': 'ae-logs' });
+		['runtime', 'core'].forEach(function(kind) {
+			var content = E('pre', { 'class': 'ae-log-content', 'dir': 'ltr', 'tabindex': '0' }, _('در حال دریافت گزارش…'));
+			var feedback = E('span', { 'class': 'ae-log-feedback', 'role': 'status' });
+			var busy = false;
+			function refresh(force) {
+				if (busy || (!force && (!root.isConnected || !root.getClientRects().length))) return Promise.resolve();
+				busy = true;
+				return fs.exec('/usr/libexec/gozarbin/logs.sh', [kind]).then(function(result) {
+					if (result.code !== 0) throw new Error(result.stderr || _('گزارش دریافت نشد.'));
+					var atEnd = content.scrollTop + content.clientHeight >= content.scrollHeight - 10;
+					content.textContent = result.stdout || _('هنوز گزارشی ثبت نشده است.');
+					if (atEnd || !content.dataset.drawn) content.scrollTop = content.scrollHeight;
+					content.dataset.drawn = '1'; feedback.textContent = '';
+				}).catch(function(error) { feedback.textContent = _('اجرا نشد: ') + error.message; })
+					.finally(function() { busy = false; });
+			}
+			function button(label, action) {
+				var node = E('button', { 'type': 'button', 'class': 'cbi-button cbi-button-neutral', 'click': function() {
+					node.disabled = true;
+					Promise.resolve().then(action).catch(function(error) { feedback.textContent = _('اجرا نشد: ') + error.message; })
+						.finally(function() { node.disabled = false; });
+				} }, label);
+				return node;
+			}
+			root.appendChild(E('section', { 'class': 'ae-log-panel' }, [
+				E('h3', {}, [appearance.icon(kind === 'runtime' ? 'book' : 'server'), kind === 'runtime' ? _('گزارش اجرا') : _('گزارش هسته')]),
+				E('p', { 'class': 'ae-help-text' }, _('گزارش گذربین هر ۵ ثانیه تازه می شود. پاک کردن فقط پیام های قبلی همین بخش را از نمایش کنار می گذارد و گزارش سیستم را حذف نمی کند.')),
+				E('div', { 'class': 'ae-log-toolbar' }, [
+					button(_('تازه سازی'), function() { return refresh(true); }),
+					button(_('کپی'), function() {
+						if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(content.textContent).then(function() { feedback.textContent = _('کپی شد.'); });
+						var area = E('textarea', { 'class': 'ae-copy-buffer', 'readonly': true }, content.textContent);
+						document.body.appendChild(area);
+						try { area.select(); if (!document.execCommand('copy')) throw new Error(_('کپی انجام نشد.')); feedback.textContent = _('کپی شد.'); }
+						finally { area.remove(); }
+					}),
+					button(_('پاک کردن'), function() {
+						return fs.exec('/usr/libexec/gozarbin/logs.sh', ['clear-' + kind]).then(function(result) {
+							if (result.code !== 0) throw new Error(result.stderr || _('پاک کردن گزارش ناموفق بود.'));
+							return refresh(true);
+						});
+					}), feedback
+				]), content
+			]));
+			poll.add(function() { return refresh(false); }, 5);
+			window.setTimeout(function() { refresh(true); }, 0);
+		});
+		return root;
+	},
+
 	option: function(section, tab, type, name, title, description) {
+		var help = {
+			protocol: _('WireGuard از UDP و MASQUE از HTTP/2 یا HTTP/3 استفاده می کند. حالت های دو لایه، تونل داخلی را از تونل بیرونی عبور می دهند.'),
+			masque_transport: _('h2 از TCP و h3 از QUIC روی UDP استفاده می کند. اگر UDP محدود است، h2 را انتخاب کنید.'),
+			outer_peer: _('سرور لایه بیرونی به شکل IP:port. این سرور مسیر رسیدن به تونل داخلی است؛ خالی بگذارید تا هسته انتخاب کند.'),
+			inner_peer: _('سرور لایه داخلی به شکل IP:port که از داخل تونل بیرونی به آن وصل می شوید. خالی یعنی انتخاب هسته.'),
+			peer: _('سرور اتصال مستقیم اتر به شکل IP:port. با خالی گذاشتن، انتخاب سرور به هسته و اسکن سپرده می شود.'),
+			tor: _('off: خاموش؛ only: فقط TOR؛ chain: TOR داخل WARP؛ reverse: WARP از راه TOR. حالت reverse به MASQUE نیاز دارد و TOR با سایفون همزمان قابل استفاده نیست.'),
+			socks_port: _('پورت پراکسی SOCKS5 محلی و خروجی نهایی اتصال. برای تنظیم پراکسی در برنامه ها از این پورت و آدرس شنود استفاده کنید.'),
+			geosite_url: _('نشانی فایل rule-set دامنه های ایرانی با قالب SRS سینگ باکس. این دامنه ها هنگام فعال بودن عبور مستقیم ایران از تونل عبور نمی کنند.'),
+			block_ads: _('با استفاده از فهرست تبلیغات، اتصال به دامنه های تبلیغاتی و ردیاب مسدود می شود. این گزینه در حالت شفاف و TUN کاربرد دارد.'),
+			geosite_ads_url: _('نشانی فایل rule-set تبلیغات و ردیاب ها با قالب SRS سینگ باکس. فهرست از برگه به روزرسانی دریافت می شود.'),
+			ip_mode: _('نوع آدرس سرورهای مورد استفاده در اسکن و اتصال: IPv4، IPv6 یا هر دو. IPv6 به ارتباط IPv6 فعال روی روتر نیاز دارد.'),
+			perf: _('low برای روترهای کم مصرف، medium برای منابع متوسط و high برای سرورها است. این انتخاب میزان استفاده هسته از منابع را تغییر می دهد.'),
+			quick_reconnect: _('ابتدا آخرین سرور موفق بررسی می شود؛ اگر پاسخ ندهد، اسکن تازه آغاز می شود.'),
+			log_level: _('error فقط خطاها، warn هشدارها، info مراحل اتصال، debug جزئیات عیب یابی و trace ریزترین پیام ها را ثبت می کند. برای استفاده عادی info مناسب است.'),
+			singbox_log_level: _('سطح جزئیات گزارش سینگ باکس در حالت شفاف و TUN. debug برای عیب یابی است و پیام های بیشتری تولید می کند.'),
+			tproxy_port: _('پورت داخلی سینگ باکس برای دریافت ترافیک هدایت شده توسط فایروال. نباید با پورت سایر سرویس ها یکسان باشد.'),
+			route_table: _('شماره جدول مسیریابی اختصاصی گذربین در حالت شفاف. با جدول برنامه های دیگر یکسان نباشد.'),
+			tun_name: _('نام رابط مجازی ساخته شده برای حالت TUN؛ با رابط موجود دیگری یکسان نباشد.'),
+			tun_address: _('آدرس IPv4 و پیشوند شبکه رابط TUN به شکل CIDR؛ با شبکه داخلی روتر تداخل نداشته باشد.'),
+			tun_address6: _('آدرس IPv6 و پیشوند شبکه رابط TUN به شکل CIDR؛ با شبکه های دیگر تداخل نداشته باشد.'),
+			tun_mtu: _('بیشترین اندازه بسته رابط TUN بر حسب بایت. کاهش آن ممکن است مشکل بارگذاری بعضی سایت ها را رفع کند.'),
+			tor_port: _('پورت داخلی پراکسی TOR روی روتر؛ با پورت SOCKS5 اصلی و سایر سرویس ها یکسان نباشد.'),
+			psiphon_port: _('پورت داخلی پراکسی سایفون روی روتر؛ با پورت SOCKS5 اصلی و سایر سرویس ها یکسان نباشد.')
+		};
+		description = description || help[name];
 		var option = section.taboption(tab, type, name, title, description);
 		option.retain = true;
 		if (type === form.Flag || type === form.ListValue)
@@ -559,19 +662,29 @@ return view.extend({
 	},
 
 	renderForm: function(system, tunnel) {
-		var map = new form.Map('gozarbin', _('تنظیمات گذربین'),
-			_('پس از هر تغییر، «ذخیره و اعمال» را بزنید.'));
+		var map = new form.Map('gozarbin', _('تنظیمات پایه'),
+			_('برای ثبت سایر تنظیمات، ذخیره و اعمال را بزنید.'));
 		var section = map.section(form.NamedSection, 'main', 'gozarbin');
 		section.addremove = false;
 
-		section.tab('general', _('عمومی'));
-		section.tab('routing', _('مسیریابی و تفکیک ترافیک'));
-		section.tab('advanced', _('پیشرفته'));
+		section.tab('general', _('تنظیمات پایه'));
+		section.tab('routing', _('مدیریت قوانین'));
+		section.tab('advanced', _('شبکه'));
+		section.tab('aether', _('تنظیمات دیگر'));
+		section.tab('reports', _('گزارش'));
 
 		var self = this;
-		var option, enabled, mode, force, protocol, psiphon, scan, socks, http;
+		var option, enabled, mode, protocol, psiphon, scan, socks, http;
 
-		enabled = self.option(section, 'general', form.Flag, 'enabled', _('فعال کردن برنامه'));
+		enabled = self.option(section, 'general', form.Flag, 'enabled', _('کلید اصلی'),
+			_('کلید اصلی برنامه را مستقیم روشن یا خاموش می کند؛ نیازی به ذخیره و اعمال نیست.') + ' ' +
+			_('اگر هویت WARP موجود نباشد، هنگام اتصال خودکار ثبت و ذخیره می شود.'));
+		this.enabledOption = enabled;
+		enabled.cfgvalue = function(sectionId) { return self.serviceEnabled == null ? uci.get('gozarbin', sectionId, 'enabled') : self.serviceEnabled ? '1' : '0'; };
+		enabled.onchange = function(event, sectionId, value) {
+			var wanted = value === '1' || value === true;
+			if (!self.syncingSwitch && wanted !== self.serviceEnabled) return self.setServiceEnabled(wanted);
+		};
 
 		mode = self.option(section, 'general', form.ListValue, 'mode', _('حالت کار'),
 			_('TProxy: کل ترافیک شبکه از طریق nftables و sing-box. TUN: یک کارت شبکه مجازی به‌جای TProxy. SOCKS5: فقط پراکسی محلی، بدون دست‌کاری ترافیک شبکه.'));
@@ -580,29 +693,39 @@ return view.extend({
 		mode.value('socks', _('فقط پراکسی SOCKS5'));
 		mode.default = 'tproxy';
 
-		/* No separate "route the network through the tunnel" switch: switching it
-		 * off did exactly what the SOCKS5-only mode does, so the mode decides. */
-		force = self.option(section, 'general', form.Flag, 'force_with_passwall2', _('اجرا هم‌زمان با Passwall2'),
-			_('به‌طور پیش‌فرض اگر Passwall2 روشن باشد، حالت شفاف گذربین اجرا نمی‌شود تا دو برنامه با هم تداخل نکنند.'));
-		force.depends({ mode: 'tproxy' });
-		force.depends({ mode: 'tun' });
-
-		protocol = self.option(section, 'general', form.ListValue, 'protocol', _('پروتکل تونل'));
-		protocol.value('masque', 'MASQUE (HTTP/3)');
+		protocol = self.option(section, 'general', form.ListValue, 'protocol', _('پروتکل اتر'));
 		protocol.value('wg', 'WireGuard');
-		protocol.value('gool', 'WARP-in-WARP (gool)');
-		protocol.value('gool_masque', _('WireGuard داخل MASQUE (gool، خروجی خارجی)'));
-		protocol.value('mim', 'MASQUE-in-MASQUE');
+		protocol.value('masque', 'MASQUE');
+		protocol.value('gool', 'WARP in WARP (classic Gool)');
+		protocol.value('mim', 'MASQUE in MASQUE');
+		protocol.value('gool_masque', 'WireGuard over MASQUE (new Gool)');
+		protocol.default = 'masque';
 
 		/* Psiphon or Tor may dial the tunnel, never both; with Psiphon doing it,
 		 * or standing in for WARP altogether, the Tor options have nothing to do. */
-		option = self.option(section, 'general', form.Flag, 'tor_reverse', _('اتصال تونل از راه Tor'),
-			_('فقط با انتخاب شما فعال می‌شود. MASQUE را از راه پل‌های Tor و HTTP/2 وصل می‌کند؛ اتصال اولیه کندتر است و به ابزار پل نیاز دارد.'));
-		option.default = '0';
-		[ 'masque', 'mim', 'gool_masque' ].forEach(function(value) {
-			option.depends({ protocol: value, psiphon: 'off' });
-			option.depends({ protocol: value, psiphon: 'chain' });
+		option = self.option(section, 'general', form.ListValue, 'masque_transport', _('انتقال MASQUE'));
+		option.value('h2', 'h2'); option.value('h3', 'h3'); option.default = 'h2';
+		['masque', 'mim', 'gool_masque'].forEach(function(value) { option.depends('protocol', value); });
+
+		['outer_peer', 'inner_peer', 'peer'].forEach(function(key) {
+			var field = self.option(section, 'general', form.Value, key,
+				key === 'outer_peer' ? _('آدرس لایه بیرونی') : key === 'inner_peer' ? _('آدرس لایه داخلی') : _('آدرس اتر'));
+			field.datatype = 'ipaddrport(1)';
+			field.placeholder = key === 'inner_peer' ? '162.159.193.10:2408' : '162.159.199.1:443';
+			(key === 'peer' ? ['masque', 'wg'] : ['gool', 'mim', 'gool_masque']).forEach(function(value) { field.depends('protocol', value); });
 		});
+
+		option = self.option(section, 'general', form.ListValue, 'tor', _('حالت تور'));
+		['off', 'only', 'chain', 'reverse'].forEach(function(value) { option.value(value, value); });
+		option.default = 'off';
+		option.cfgvalue = function(sectionId) {
+			return uci.get('gozarbin', sectionId, 'tor') || (uci.get('gozarbin', sectionId, 'tor_reverse') === '1' ? 'reverse' : 'off');
+		};
+		option.validate = function(sectionId, value) {
+			if (value !== 'off' && this.section.formvalue(sectionId, 'psiphon') !== 'off') return _('تور و سایفون را هم‌زمان انتخاب نکنید.');
+			var chosen = this.section.formvalue(sectionId, 'protocol');
+			return value === 'reverse' && (chosen === 'wg' || chosen === 'gool') ? _('اتصال معکوس تور به انتقال MASQUE نیاز دارد.') : true;
+		};
 
 		option = self.option(section, 'general', form.Flag, 'tor_scan_fallback', _('Tor خودکار پس از شکست اسکن'),
 			_('اگر اسکن مستقیم سرور پیدا نکند، یک بار با Tor اسکن می‌شود. سرور یافت‌شده دوباره مستقیم آزمایش می‌شود؛ فقط اگر مستقیم کار نکند، اتصال با Tor ادامه می‌یابد.'));
@@ -610,7 +733,7 @@ return view.extend({
 		option.depends({ protocol: 'masque', psiphon: 'off' });
 		option.depends({ protocol: 'masque', psiphon: 'chain' });
 
-		psiphon = self.option(section, 'general', form.ListValue, 'psiphon', _('Psiphon'),
+		psiphon = self.option(section, 'general', form.ListValue, 'psiphon', _('حالت سایفون'),
 			system.psiphon
 				? _('«داخل WARP»: خروجی Psiphon در کشور انتخابی، و شبکه فقط WARP را می‌بیند. «WARP از راه Psiphon»: خروجی WARP است و شبکه هرگز WARP را نمی‌بیند؛ فقط با MASQUE. «فقط Psiphon»: بدون WARP. پورت SOCKS5 در هر حالت خروجی نهایی است.')
 				: _('فایل Psiphon روی این روتر نیست؛ بستهٔ gozarbin را دوباره نصب کنید. تا آن موقع این گزینه نادیده گرفته می‌شود.'));
@@ -621,6 +744,7 @@ return view.extend({
 		psiphon.default = 'reverse';
 		/* Psiphon carries TCP alone; WireGuard and WARP-in-WARP answer on UDP. */
 		psiphon.validate = function(section_id, value) {
+			if (value !== 'off' && this.section.formvalue(section_id, 'tor') !== 'off') return _('تور و سایفون را هم‌زمان انتخاب نکنید.');
 			var chosen = this.section.formvalue(section_id, 'protocol');
 			if (value === 'reverse' && (chosen === 'wg' || chosen === 'gool'))
 				return _('WireGuard و WARP-in-WARP روی UDP کار می‌کنند و Psiphon فقط TCP می‌برد؛ برای این حالت پروتکل را MASQUE کنید.');
@@ -629,7 +753,7 @@ return view.extend({
 
 		option = self.option(section, 'general', form.ListValue, 'psiphon_region', _('کشور خروجی Psiphon'),
 			_('Psiphon تلاش می‌کند از این کشور خارج شود. اگر الان در آن کشور سروری نداشته باشد، ممکن است اصلاً وصل نشود؛ بهتر است روی «خودکار» بماند.'));
-		option.value('', _('خودکار — انتخاب Psiphon'));
+		option.value('', _('خودکار'));
 		/* The blank choice is "automatic", an answer rather than a gap. The
 		 * rmempty = false the helper sets makes LuCI refuse a blank list value
 		 * as "must not be empty"; optional lets it through, and saving it
@@ -662,13 +786,10 @@ return view.extend({
 		option.depends('psiphon', 'reverse');
 		option.depends('psiphon', 'only');
 
-		scan = self.option(section, 'general', form.ListValue, 'scan', _('حالت اسکن سرور'),
+		scan = self.option(section, 'general', form.ListValue, 'scan', _('روش اسکن'),
 			_('turbo سریع‌ترین و ironclad مطمئن‌ترین حالت است.'));
-		scan.value('turbo', _('turbo — اولین سرور پاسخ‌گو'));
-		scan.value('balanced', _('balanced — پیش‌فرض، سریع‌ترین از چند سرور'));
-		scan.value('thorough', _('thorough — جست‌وجوی کامل محدوده‌ها'));
-		scan.value('stealth', _('stealth — کم‌سروصدا برای شبکه‌های حساس'));
-		scan.value('ironclad', _('ironclad — آزمایش واقعی هر سرور'));
+		['balanced', 'turbo', 'thorough', 'verified', 'stealth', 'ironclad'].forEach(function(value) { scan.value(value, value); });
+		scan.default = 'balanced';
 
 		socks = self.option(section, 'general', form.Value, 'socks_port', _('پورت SOCKS5'));
 		socks.datatype = 'port';
@@ -687,6 +808,7 @@ return view.extend({
 		option = self.option(section, 'routing', form.Flag, 'geo_enabled', _('عبور مستقیم ترافیک ایران'),
 			_('سایت‌ها و سرویس‌های ایرانی — هم بر اساس IP و هم بر اساس نام دامنه — بدون تونل و مستقیم باز می‌شوند. فهرست‌ها در اولین اتصال خودکار دریافت می‌شوند.'));
 		option.default = '1';
+		option = self.option(section, 'routing', form.Flag, 'block_ads', _('مسدود کردن تبلیغات و ردیاب‌ها'));
 
 		option = self.option(section, 'routing', form.Flag, 'dns', _('عبور DNS از تونل'),
 			_('با این گزینه دامنه‌ها از داخل تونل پاسخ می‌گیرند و دامنه‌های ایرانی از DNS اینترنت خودتان. فقط در حالت شفاف.'));
@@ -710,7 +832,6 @@ return view.extend({
 		option = self.option(section, 'routing', form.Value, 'geosite_url', _('منبع GeoSite'));
 		option.default = GEO_DEFAULTS.geosite_url;
 
-		option = self.option(section, 'routing', form.Flag, 'block_ads', _('مسدود کردن تبلیغات و ردیاب‌ها'));
 		option = self.option(section, 'routing', form.Value, 'geosite_ads_url', _('منبع فهرست تبلیغات'));
 		option.default = GEO_DEFAULTS.geosite_ads_url;
 
@@ -745,9 +866,9 @@ return view.extend({
 			_('شمارنده‌های nftables روی مسیر پراکسی. خاموش کردن آن نمایش مصرف را غیرفعال می‌کند.'));
 		option.default = '1';
 
-		option = self.option(section, 'advanced', form.ListValue, 'log_level', _('سطح گزارش گذربین'));
+		option = self.option(section, 'reports', form.ListValue, 'log_level', _('سطح گزارش گذربین'));
 		[ 'error', 'warn', 'info', 'debug', 'trace' ].forEach(function(value) { option.value(value); });
-		option = self.option(section, 'advanced', form.ListValue, 'singbox_log_level', _('سطح گزارش sing-box'));
+		option = self.option(section, 'reports', form.ListValue, 'singbox_log_level', _('سطح گزارش sing-box'));
 		[ 'error', 'warn', 'info', 'debug' ].forEach(function(value) { option.value(value); });
 
 		option = self.option(section, 'advanced', form.DynamicList, 'lan_interface', _('رابط‌های شبکهٔ داخلی'),
@@ -788,6 +909,31 @@ return view.extend({
 			_('پیش‌فرض 127.0.0.1 است و برای کار عادی درست است: حالت شفاف از همین استفاده می‌کند. فقط اگر می‌خواهید دستگاه‌های شبکه مستقیماً به SOCKS5 وصل شوند 0.0.0.0 بگذارید — آن‌وقت پراکسی بدون رمز عبور برای کل شبکه باز می‌شود.'));
 		option.placeholder = '127.0.0.1';
 
+		(this.coreOptions && this.coreOptions.options || []).forEach(function(spec) {
+			var reportOption = /^(AETHER_TOR_LOG|AETHER_STATS(_SECS)?|AETHER_EXIT_LOC(_SECS)?)$/.test(spec.env);
+			var field = self.option(section, reportOption ? 'reports' : 'aether', spec.type === 'boolean' || spec.type === 'choice' ? form.ListValue : form.Value,
+				spec.key, i18n.clean(spec.label[i18n.get()] || spec.label.en));
+			var hint = spec.default_hint && (spec.default_hint[i18n.get()] || spec.default_hint.en) || _('خودکار');
+			field.description = i18n.clean(spec.help && (spec.help[i18n.get()] || spec.help.en) || '') + ' ' + _('پیش فرض: ') + i18n.clean(hint);
+			field.placeholder = spec.default_value || i18n.clean(hint);
+			field.rmempty = true; field.optional = true;
+			if (spec.type === 'boolean' || spec.type === 'choice') {
+				field.value('', _('پیش‌فرض هسته') + ' (' + i18n.clean(hint) + ')');
+				if (spec.type === 'boolean') { field.value('1', _('روشن')); field.value('0', _('خاموش')); }
+				else spec.choices.forEach(function(value) { field.value(value, value); });
+			}
+			if (spec.type === 'number') field.datatype = spec.env === 'AETHER_TLS_SERVER_PADDING' ? 'range(0,65535)' : 'uinteger';
+			if (spec.secret) field.password = true;
+		});
+		['tor_port', 'psiphon_port'].forEach(function(key) {
+			var field = self.option(section, 'aether', form.Value, key, key === 'tor_port' ? _('پورت داخلی تور') : _('پورت داخلی سایفون'));
+			field.datatype = 'port'; field.placeholder = key === 'tor_port' ? '1826' : '1825';
+		});
+		option = self.option(section, 'aether', form.Value, 'enroll_address', _('آدرس API ثبت WARP'),
+			_('آدرس IP یا دامنه با پورت اختیاری؛ خالی یعنی انتخاب خودکار آدرس سرویس ثبت WARP.'));
+		option.placeholder = '162.159.137.105:443';
+		option = section.taboption('reports', form.DummyValue, '_logs', _('نمایش گزارش'));
+		option.renderWidget = function() { return self.renderLogs(); };
 		return map.render();
 	},
 
@@ -797,8 +943,11 @@ return view.extend({
 		var system = parse(results[1]);
 		var deps = parse(results[2]);
 		var traffic = parse(results[3]);
+		this.connectivity = parse(results[8]);
+		this.serviceEnabled = traffic.enabled === true;
 		var core = parse(results[4]);
 		var tunnel = parse(results[5]);
+		try { this.coreOptions = JSON.parse(results[7] || '{}'); } catch (e) { this.coreOptions = {}; }
 
 		/* The class is enough to reach the notifications and set the type.
 		 * A dir on <body> would also flip LuCI's own navbar dropdowns, which
@@ -807,7 +956,7 @@ return view.extend({
 
 		var version = system.gozarbin_version ? ' — ' + system.gozarbin_version.replace(/-r/, 'r') : '';
 		return this.renderForm(system, tunnel).then(function(rendered) {
-			return E('div', { 'class': 'gozarbin-rtl', 'dir': i18n.dir(), 'lang': i18n.get() }, [
+			var root = E('div', { 'class': 'gozarbin-rtl', 'dir': i18n.dir(), 'lang': i18n.get() }, [
 				E('link', {
 					'rel': 'stylesheet',
 					/* The package build rewrites this path to the file name
@@ -818,7 +967,7 @@ return view.extend({
 					'href': L.resource('view/gozarbin/gozarbin.css')
 				}),
 				E('div', { 'class': 'ae-hero' }, [
-					E('div', { 'class': 'ae-brand' }, [E('h2', {}, [_('گذربین'),
+					E('div', { 'class': 'ae-brand' }, [E('h2', {}, [appearance.logo(), _('گذربین'),
 						E('bdi', { 'class': 'ae-version ae-num' }, version.replace(' — ', '') || 'Gozarbin')]),
 						E('p', {}, _('دوست روزهای سخت اینترنتی در روتر شما'))]),
 					appearance.controls()
@@ -828,9 +977,12 @@ return view.extend({
 				self.renderMarkNotice(passwall),
 				self.renderCoreNotice(system, core),
 				self.renderActions(),
-				E('div', { 'class': 'ae-action-messages', 'aria-live': 'polite' }),
 				rendered, appearance.footer()
 			]);
+			appearance.bindNavigation(root);
+			self.mainSwitchInput = appearance.mainSwitch(root);
+			appearance.help(root);
+			return root;
 		});
 	}
 });

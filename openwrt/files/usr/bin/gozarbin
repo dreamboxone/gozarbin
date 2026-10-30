@@ -1,0 +1,9 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 dreamboxone
+core=$(/usr/libexec/gozarbin/aether-core.sh path 2>/dev/null)
+if [ ! -x "$core" ] || [ "$core" = /usr/bin/gozarbin ]; then
+	echo 'Gozarbin Aether core is not installed' >&2
+	exit 1
+fi
+exec "$core" "$@"

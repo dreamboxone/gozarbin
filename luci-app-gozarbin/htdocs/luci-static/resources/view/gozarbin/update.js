@@ -8,6 +8,7 @@
 'require poll';
 'require view.gozarbin.appearance as appearance';
 'require view.gozarbin.i18n as i18n';
+'require view.gozarbin.core-update as coreupdate';
 
 var _ = i18n.tr;
 
@@ -18,7 +19,7 @@ function version(value) {
 function progress(label) {
 	var number = E('span', { 'class': 'ae-num' }, '0%');
 	var bar = E('progress', { 'max': '100', 'value': '0', 'aria-label': label });
-	return { node: E('div', { 'class': 'ae-update-progress' }, [E('div', {}, [label, ' ', number]), bar]),
+	return { node: E('div', { 'class': 'ae-update-progress', 'hidden': true }, [E('div', {}, [label, ' ', number]), bar]),
 		set: function(value) {
 			var percent = Math.max(0, Math.min(100, Number(value) || 0));
 			number.textContent = percent + '%'; bar.value = percent;
@@ -34,13 +35,14 @@ return view.extend({
 		var current = E('bdi', { 'class': 'ae-version-value' }, '—');
 		var headerVersion = E('bdi', { 'class': 'ae-version ae-num' }, '—');
 		var latest = E('bdi', { 'class': 'ae-version-value' }, '—');
-		var finalVersion = E('bdi', { 'class': 'ae-version-value' }, '—');
-		var status = E('div', { 'class': 'ae-update-state ae-inline-message', 'role': 'status', 'aria-live': 'polite' }, _('برای بررسی انتشار جدید GitHub، دکمهٔ بررسی را بزنید.'));
+		var published = E('span', { 'class': 'ae-published-version' }, latest);
+		var status = E('div', { 'class': 'ae-update-state ae-inline-message', 'role': 'status', 'aria-live': 'polite', 'hidden': true }, _('برای بررسی انتشار جدید GitHub، دکمهٔ بررسی را بزنید.'));
 		var transfer = E('div', { 'class': 'ae-transfer' });
 		var download = progress(_('درصد دانلود'));
 		var installProgress = progress(_('پیشرفت مراحل نصب'));
-		var busy = false;
+		var busy = false, completedUntil = 0;
 		var releaseState = E('span', { 'class': 'ae-release-state' });
+		var prerelease = E('span', { 'class': 'ae-prerelease', 'hidden': true }, _('پیش انتشار'));
 		var labels = {
 			idle: _('آمادهٔ بررسی'), starting: _('در حال آماده‌سازی…'), checking: _('در حال بررسی GitHub…'),
 			available: _('نسخهٔ جدید آمادهٔ دریافت است'), current: _('نسخهٔ نصب‌شده به‌روز است'),
@@ -49,6 +51,7 @@ return view.extend({
 		};
 		var check, install;
 		function failure(error) {
+			status.hidden = false;
 			var message = String(error && error.message || '');
 			if ((error && error.name === 'PermissionError') || /permission denied|access denied/i.test(message))
 				status.textContent = _('مجوز نشست فعلی به‌روز نیست. از LuCI خارج شوید و دوباره وارد شوید؛ اگر خطا باقی ماند، سرویس rpcd را بازخوانی کنید.');
@@ -57,20 +60,30 @@ return view.extend({
 			else status.textContent = message || labels.error;
 		}
 		function apply(state) {
+			var wasBusy = busy;
+			status.classList.toggle('ae-message-error', state.state === 'error');
 			busy = ['starting', 'checking', 'downloading', 'installing'].indexOf(state.state) >= 0;
 			current.textContent = version(state.current);
 			headerVersion.textContent = version(state.current);
+			prerelease.hidden = !state.prerelease || !state.latest;
 			latest.textContent = ['starting', 'checking'].indexOf(state.state) >= 0 || state.detail === 'network' ? '—' : version(state.latest);
-			finalVersion.textContent = version(state.final);
 			status.textContent = labels[state.state] || labels.idle;
-			releaseState.textContent = state.state === 'available' ? _('نسخهٔ جدید آماده است') : state.state === 'current' ? _('آخرین نسخه نصب است') : '';
+			var upToDate = !busy && (state.state === 'current' || (state.latest && version(state.current) === version(state.latest)));
+			if (state.state === 'done' && wasBusy) completedUntil = Date.now() + 15000;
+			published.hidden = !state.latest || upToDate || busy;
+			releaseState.textContent = upToDate ? _('به روز است') : state.state === 'available' ? _('نسخهٔ جدید آماده است') : '';
+			releaseState.classList.toggle('ae-release-current', !!upToDate);
 			if (state.detail === 'space') status.textContent = _('فضای موقت کافی برای دریافت و باز کردن بسته وجود ندارد.');
 			if (state.detail === 'network') status.textContent = _('ارتباط با GitHub پس از چند تلاش برقرار نشد؛ اتصال اینترنت و DNS روتر را بررسی کنید و دوباره دکمهٔ بررسی را بزنید. آخرین نسخه تأیید نشده است.');
 			if (state.detail === 'version') status.textContent = _('نصب تمام شد اما نسخهٔ نصب‌شده با نسخهٔ مقصد مطابقت ندارد.');
 			download.set(state.download_percent);
 			installProgress.set(state.install_percent);
+			download.node.hidden = state.state !== 'downloading';
+			installProgress.node.hidden = state.state !== 'installing';
+			status.hidden = !state.state || ['idle', 'available', 'current'].indexOf(state.state) >= 0 || (state.state === 'done' && Date.now() > completedUntil);
+			transfer.hidden = ['downloading', 'installing'].indexOf(state.state) < 0;
 			transfer.textContent = state.method === 'delta' ? _('دریافت تفاضلی؛ استفاده از بخش‌های مشترک نسخهٔ قبلی')
-				: state.method === 'full' ? _('دریافت کامل بستهٔ مشترک گذربین و LuCI') : '';
+				: state.method === 'full' ? _('دریافت کامل بسته یکپارچه گذربین') : '';
 			if (Number(state.total) > 0) transfer.appendChild(E('bdi', { 'class': 'ae-num' },
 				' — ' + (Math.min(Number(state.downloaded) || 0, Number(state.total)) / 1048576).toFixed(2) + ' / ' + (Number(state.total) / 1048576).toFixed(2) + ' MB'));
 			check.disabled = busy;
@@ -84,6 +97,7 @@ return view.extend({
 		}
 		function start(action) {
 			busy = true; check.disabled = true; install.disabled = true;
+			status.hidden = false;
 			status.textContent = labels.starting;
 			return fs.exec('/usr/bin/gozarbinctl', ['update', action]).then(function(result) {
 				if (result.code !== 0) throw new Error(result.stderr || labels.error);
@@ -91,29 +105,29 @@ return view.extend({
 			}).catch(function(error) { failure(error); busy = false; check.disabled = false; });
 		}
 		check = E('button', { 'type': 'button', 'class': 'cbi-button cbi-button-neutral',
-			'click': ui.createHandlerFn(this, function() { return start('check'); }) }, _('بررسی نسخهٔ جدید'));
+			'click': ui.createHandlerFn(this, function() { return start('check'); }) }, _('بررسی'));
 		install = E('button', { 'type': 'button', 'class': 'cbi-button cbi-button-apply', 'disabled': true,
 			'click': ui.createHandlerFn(this, function() { return start('install'); }) }, _('به‌روزرسانی'));
-		function row(label, value) { return E('div', { 'class': 'ae-version-row' }, [E('strong', {}, label), value]); }
-		poll.add(refresh, 1);
+		poll.add(refresh, 3);
 		refresh();
-		return E('div', { 'class': 'gozarbin-rtl', 'dir': i18n.dir(), 'lang': i18n.get() }, [
+		var root = E('div', { 'class': 'gozarbin-rtl', 'dir': i18n.dir(), 'lang': i18n.get() }, [
 			E('link', { 'rel': 'stylesheet', 'href': L.resource('view/gozarbin/gozarbin.css') }),
-			E('div', { 'class': 'ae-hero' }, [E('div', { 'class': 'ae-brand' }, [E('h2', {}, [_('گذربین'), headerVersion]),
+			E('div', { 'class': 'ae-hero' }, [E('div', { 'class': 'ae-brand' }, [E('h2', {}, [appearance.logo(), _('گذربین'), headerVersion]),
 				E('p', {}, _('دوست روزهای سخت اینترنتی در روتر شما'))]), appearance.controls()]),
 			appearance.nav('update'),
 			E('section', { 'class': 'ae-update' }, [
-				E('h3', {}, _('به‌روزرسانی برنامه')),
+				E('h3', {}, _('به‌روزرسانی')),
 				E('div', { 'class': 'ae-app-row' }, [
 					E('strong', {}, _('گذربین')),
 					E('div', { 'class': 'ae-app-versions' }, [
-						E('span', { 'class': 'ae-installed-version' }, [E('small', {}, _('نسخهٔ نصب‌شده')), current]),
-						E('span', { 'class': 'ae-published-version' }, [E('small', {}, _('آخرین بررسی GitHub')), latest]), releaseState]),
+						E('span', { 'class': 'ae-installed-version' }, [current]),
+						published, releaseState, prerelease]),
 					E('div', { 'class': 'ae-actions' }, [check, install])]),
 				status, transfer, download.node, installProgress.node,
-				row(_('نسخهٔ نهایی پس از نصب'), finalVersion),
-				E('p', {}, _('در اولین به‌روزرسانی یا نبود بخش مشترک کافی، بستهٔ کامل دریافت می‌شود. درصد نصب بر اساس پایان مراحل نصب بسته‌ها، بررسی نسخه و راه‌اندازی سرویس است. تنظیمات حفظ می‌شوند.'))
-			]), appearance.footer()
+				E('p', { 'class': 'ae-help-text' }, _('در اولین به‌روزرسانی یا نبود بخش مشترک کافی، بستهٔ کامل دریافت می‌شود. درصد نصب بر اساس پایان مراحل نصب بسته‌ها، بررسی نسخه و راه‌اندازی سرویس است. تنظیمات حفظ می‌شوند.'))
+			]), coreupdate.create('aether'), coreupdate.create('singbox'), coreupdate.geo(), coreupdate.paths(), appearance.footer()
 		]);
+		appearance.help(root);
+		return root;
 	}
 });

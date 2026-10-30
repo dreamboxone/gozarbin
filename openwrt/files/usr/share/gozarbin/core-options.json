@@ -1,0 +1,1661 @@
+{
+  "version": 1,
+  "upstream": "2.4.0",
+  "options": [
+    {
+      "env": "AETHER_UPSTREAM",
+      "key": "core_upstream",
+      "label": {
+        "fa": "پراکسی بالادستی",
+        "en": "Upstream proxy"
+      },
+      "type": "text",
+      "help": {
+        "fa": "آدرس پراکسی بالادستی مثل socks5://127.0.0.1:1080 یا http://host:8080. اتصال اتر و حامل های بیرونی از این پراکسی عبور می کنند. TOR به پراکسی SOCKS5 نیاز دارد.",
+        "en": "Dial through an existing SOCKS5 or HTTP proxy URL. External carriers use it too; TOR requires SOCKS5."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Disabled"
+      }
+    },
+    {
+      "env": "AETHER_STATS",
+      "key": "core_stats",
+      "label": {
+        "fa": "آمار دوره‌ای هسته",
+        "en": "Periodic core statistics"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "آمار ارسال، دریافت و مدت اتصال را به گزارش هسته اضافه می کند؛ این گزینه مستقل از کارت مصرف ترافیک است.",
+        "en": "Write traffic totals and tunnel uptime to the core log; independent of dashboard accounting."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_STATS_SECS",
+      "key": "core_stats_secs",
+      "label": {
+        "fa": "فاصلهٔ آمار (ثانیه)",
+        "en": "Statistics interval (seconds)"
+      },
+      "type": "number",
+      "help": {
+        "fa": "فاصله ثبت آمار دوره ای در گزارش، بر حسب ثانیه؛ فقط با فعال بودن آمار دوره ای اثر دارد.",
+        "en": "Interval in seconds between core statistics log entries, when periodic statistics are enabled."
+      },
+      "default_hint": {
+        "fa": "60 ثانیه",
+        "en": "60 seconds"
+      },
+      "default_value": "60"
+    },
+    {
+      "env": "AETHER_EXIT_LOC",
+      "key": "core_exit_loc",
+      "label": {
+        "fa": "فیلتر کشور خروجی",
+        "en": "Exit country filter"
+      },
+      "type": "text",
+      "help": {
+        "fa": "کشور مجاز مانند DE,SE یا کشورهای غیرمجاز با !IR,AZ,RU. خروجی از داخل تونل بررسی می شود و اتصال با کشور نامطلوب پذیرفته نمی شود.",
+        "en": "Allowed country codes such as DE,SE or denied codes such as !IR,AZ,RU. The finished tunnel is checked and unwanted exits rejected."
+      },
+      "default_hint": {
+        "fa": "بدون فیلتر",
+        "en": "No filter"
+      }
+    },
+    {
+      "env": "AETHER_EXIT_LOC_SECS",
+      "key": "core_exit_loc_secs",
+      "label": {
+        "fa": "فاصلهٔ بررسی کشور خروجی",
+        "en": "Exit country check interval"
+      },
+      "type": "number",
+      "help": {
+        "fa": "فاصله بررسی دوباره کشور خروجی بر حسب ثانیه؛ فقط وقتی فیلتر کشور تعیین شده باشد استفاده می شود.",
+        "en": "Seconds between repeat exit-country checks when an exit-country filter is configured."
+      },
+      "default_hint": {
+        "fa": "60 ثانیه",
+        "en": "60 seconds"
+      },
+      "default_value": "60"
+    },
+    {
+      "env": "AETHER_TOR_BRIDGES",
+      "key": "core_tor_bridges",
+      "label": {
+        "fa": "پل‌های TOR",
+        "en": "Tor bridges"
+      },
+      "type": "text",
+      "help": {
+        "fa": "auto: ابتدا اتصال مستقیم و سپس دریافت پل؛ off: بدون پل؛ یا خطوط پل دلخواه با جداکننده ; مانند قالب torrc.",
+        "en": "auto tries plain TOR before bridges; off disables bridges; custom torrc bridge lines can be separated by semicolons."
+      },
+      "default_hint": {
+        "fa": "خودکار",
+        "en": "Automatic"
+      }
+    },
+    {
+      "env": "AETHER_TOR_PT",
+      "key": "core_tor_pt",
+      "label": {
+        "fa": "ابزارهای پل TOR",
+        "en": "Tor transport binaries"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مسیر ابزار پل، مانند obfs4=/path/lyrebird یا snowflake=/path/client. چند ابزار را با ; جدا کنید.",
+        "en": "Bridge transport executables as name=path; separate multiple entries with semicolons."
+      },
+      "default_hint": {
+        "fa": "کشف خودکار ابزارها",
+        "en": "Automatic discovery"
+      }
+    },
+    {
+      "env": "AETHER_TOR_PT_DIR",
+      "key": "core_tor_pt_dir",
+      "label": {
+        "fa": "پوشهٔ ابزارهای TOR",
+        "en": "Tor transport directory"
+      },
+      "type": "text",
+      "help": {
+        "fa": "پوشه جستجوی فایل های ابزار پل TOR. چند پوشه را با ; جدا کنید؛ خالی از ابزارهای همراه هسته استفاده می کند.",
+        "en": "Search folders for TOR transport executables, separated by semicolons; empty uses bundled transports."
+      },
+      "default_hint": {
+        "fa": "ابزارهای همراه هسته گذربین",
+        "en": "Gozarbin bundled transports"
+      }
+    },
+    {
+      "env": "AETHER_TOR_HTTP",
+      "key": "core_tor_http",
+      "label": {
+        "fa": "نشانی پراکسی HTTP TOR",
+        "en": "Tor HTTP proxy address"
+      },
+      "type": "text",
+      "help": {
+        "fa": "نشانی IP:port برای پراکسی HTTP/CONNECT خروجی TOR، مثلا 127.0.0.1:1822؛ فقط در حالت های مربوط به TOR.",
+        "en": "Optional IP:port for TOR HTTP/CONNECT proxy, for example 127.0.0.1:1822."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      }
+    },
+    {
+      "env": "AETHER_TOR_BRIDGE_FILE",
+      "key": "core_tor_bridge_file",
+      "label": {
+        "fa": "فایل پل‌های TOR",
+        "en": "Tor bridge file"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مسیر فایل پل TOR با یک پل در هر خط، مانند torrc. خطوط خالی و خطوط با # نادیده گرفته می شوند.",
+        "en": "Bridge file path with one torrc bridge per line; blank lines and comments are ignored."
+      },
+      "default_hint": {
+        "fa": "بدون فایل سفارشی",
+        "en": "No custom file"
+      }
+    },
+    {
+      "env": "AETHER_TOR_RELAYS",
+      "key": "core_tor_relays",
+      "label": {
+        "fa": "منبع رله‌های TOR",
+        "en": "Tor relay source"
+      },
+      "type": "choice",
+      "choices": [
+        "auto",
+        "only",
+        "off"
+      ],
+      "help": {
+        "fa": "auto: رله های عمومی Onionoo همراه پل ها؛ only: فقط همین رله ها؛ off: بدون آن ها.",
+        "en": "Public Onionoo relays as plain bridges: auto alongside BridgeDB, only without BridgeDB, or off."
+      },
+      "default_hint": {
+        "fa": "auto",
+        "en": "auto"
+      },
+      "default_value": "auto"
+    },
+    {
+      "env": "AETHER_TOR_RELAY_PORTS",
+      "key": "core_tor_relay_ports",
+      "label": {
+        "fa": "پورت‌های رلهٔ TOR",
+        "en": "Tor relay ports"
+      },
+      "type": "choice",
+      "choices": [
+        "web",
+        "any"
+      ],
+      "help": {
+        "fa": "web فقط پورت های 80 و 443 را بررسی می کند؛ any پورت های بیشتر را مجاز می کند. پورت های شناخته شده TOR کنار گذاشته می شوند.",
+        "en": "web considers ports 80 and 443; any permits more ports. Well-known TOR ports are excluded."
+      },
+      "default_hint": {
+        "fa": "web",
+        "en": "web"
+      },
+      "default_value": "web"
+    },
+    {
+      "env": "AETHER_PSIPHON_CONFIG",
+      "key": "core_psiphon_config",
+      "label": {
+        "fa": "فایل تنظیمات سایفون",
+        "en": "Psiphon configuration file"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مسیر فایل JSON سفارشی سایفون که روی تنظیمات داخلی اعمال می شود؛ برای تغییر اعتبارنامه یا تنظیمات فهرست سرورها.",
+        "en": "Custom Psiphon JSON configuration overlaid on built-in defaults, for credentials or server list settings."
+      },
+      "default_hint": {
+        "fa": "تنظیمات داخلی",
+        "en": "Built-in configuration"
+      }
+    },
+    {
+      "env": "AETHER_PSIPHON_CDN_IPS",
+      "key": "core_psiphon_cdn_ips",
+      "label": {
+        "fa": "آدرس‌های CDN سایفون",
+        "en": "Psiphon CDN addresses"
+      },
+      "type": "text",
+      "help": {
+        "fa": "آدرس های لبه CDN برای اسکن سایفون؛ با ویرگول یا فاصله جدا کنید. خالی از فهرست داخلی استفاده می کند.",
+        "en": "CDN fronting edge addresses, comma or space separated; empty uses built-in lists."
+      },
+      "default_hint": {
+        "fa": "فهرست داخلی سایفون",
+        "en": "Built-in Psiphon lists"
+      }
+    },
+    {
+      "env": "AETHER_PSIPHON_CDN_SNI",
+      "key": "core_psiphon_cdn_sni",
+      "label": {
+        "fa": "نام‌های سرور CDN سایفون",
+        "en": "Psiphon CDN server names"
+      },
+      "type": "text",
+      "help": {
+        "fa": "نام های دامنه ارائه شده به لبه های CDN در TLS. نام باید با لبه انتخاب شده سازگار باشد.",
+        "en": "TLS server names presented to the chosen CDN fronting edges."
+      },
+      "default_hint": {
+        "fa": "نام های داخلی سایفون",
+        "en": "Built-in Psiphon names"
+      }
+    },
+    {
+      "env": "AETHER_PSIPHON_CDN_SETS",
+      "key": "core_psiphon_cdn_sets",
+      "label": {
+        "fa": "مجموعه‌های CDN سایفون",
+        "en": "Psiphon CDN sets"
+      },
+      "type": "text",
+      "help": {
+        "fa": "نام مجموعه های اسکن مانند cloudflare، fastly، cloudfront، vercel یا github با جداکننده ویرگول. خالی همه مجموعه های داخلی را امتحان می کند.",
+        "en": "Named fronting sets such as cloudflare, fastly, cloudfront, vercel or github; empty tries all built-in sets."
+      },
+      "default_hint": {
+        "fa": "همه مجموعه ها",
+        "en": "All sets"
+      }
+    },
+    {
+      "env": "AETHER_PSIPHON_HTTP",
+      "key": "core_psiphon_http",
+      "label": {
+        "fa": "نشانی پراکسی HTTP سایفون",
+        "en": "Psiphon HTTP proxy address"
+      },
+      "type": "text",
+      "help": {
+        "fa": "نشانی IP:port برای پراکسی HTTP/CONNECT سایفون، مثلا 127.0.0.1:1823.",
+        "en": "Optional IP:port for the Psiphon HTTP/CONNECT proxy, such as 127.0.0.1:1823."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      }
+    },
+    {
+      "env": "AETHER_PSIPHON_DIR",
+      "key": "core_psiphon_dir",
+      "label": {
+        "fa": "پوشهٔ داده‌های سایفون",
+        "en": "Psiphon data directory"
+      },
+      "type": "text",
+      "help": {
+        "fa": "محل داده های قابل تغییر سایفون. پیش فرض گذربین در RAM است و با راه اندازی دوباره روتر پاک می شود.",
+        "en": "Psiphon mutable data folder. Gozarbin defaults to RAM storage cleared on router reboot."
+      },
+      "default_hint": {
+        "fa": "/var/run/gozarbin/psiphon",
+        "en": "/var/run/gozarbin/psiphon"
+      },
+      "default_value": "/var/run/gozarbin/psiphon"
+    },
+    {
+      "env": "AETHER_PSIPHON_BIN",
+      "key": "core_psiphon_bin",
+      "label": {
+        "fa": "مسیر فایل اجرایی سایفون",
+        "en": "Psiphon executable"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مسیر کامل فایل اجرایی psiphon-tunnel-core؛ خالی فایل همراه هسته فعال گذربین را انتخاب می کند.",
+        "en": "Full path to psiphon-tunnel-core; empty selects the executable bundled with Gozarbin’s active core."
+      },
+      "default_hint": {
+        "fa": "فایل اختصاصی همراه هسته",
+        "en": "Private bundled executable"
+      }
+    },
+    {
+      "env": "AETHER_PSIPHON_SERVER_ENTRIES",
+      "key": "core_psiphon_server_entries",
+      "label": {
+        "fa": "فایل سرورهای سایفون",
+        "en": "Psiphon server entries file"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مسیر فایل ورودی سرورهای سایفون برای شروع بدون انتظار دانلود فهرست؛ اطلاعات جدید روی آن ادغام می شود.",
+        "en": "Seed server-entry file to start without first fetching the remote list; downloaded entries are merged over it."
+      },
+      "default_hint": {
+        "fa": "فهرست داخلی و دریافتی",
+        "en": "Built-in and downloaded entries"
+      }
+    },
+    {
+      "env": "AETHER_PSIPHON_READY_SECS",
+      "key": "core_psiphon_ready_secs",
+      "label": {
+        "fa": "مهلت اتصال سایفون (ثانیه)",
+        "en": "Psiphon startup timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "حداکثر انتظار برای آماده شدن تونل سایفون، بر حسب ثانیه.",
+        "en": "Maximum seconds to wait for the Psiphon tunnel to become ready."
+      },
+      "default_hint": {
+        "fa": "180 ثانیه",
+        "en": "180 seconds"
+      },
+      "default_value": "180"
+    },
+    {
+      "env": "AETHER_TOR_DIR",
+      "key": "core_tor_dir",
+      "label": {
+        "fa": "پوشهٔ داده‌های TOR",
+        "en": "Tor data directory"
+      },
+      "type": "text",
+      "help": {
+        "fa": "پوشه نگهداری وضعیت و کش فهرست TOR. مسیر دلخواه می تواند روی حافظه خارجی باشد.",
+        "en": "TOR state and directory cache folder; may point to external storage."
+      },
+      "default_hint": {
+        "fa": "کنار فایل هویت، با پسوند -tor",
+        "en": "Beside the identity, with -tor suffix"
+      }
+    },
+    {
+      "env": "AETHER_TOR_DIRECT_SECS",
+      "key": "core_tor_direct_secs",
+      "label": {
+        "fa": "مهلت اتصال مستقیم TOR",
+        "en": "Direct Tor timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "مدت تلاش مستقیم TOR قبل از رفتن به سراغ پل ها، بر حسب ثانیه.",
+        "en": "Seconds to try plain TOR before switching to bridges."
+      },
+      "default_hint": {
+        "fa": "75 ثانیه",
+        "en": "75 seconds"
+      },
+      "default_value": "75"
+    },
+    {
+      "env": "AETHER_TOR_STALL_SECS",
+      "key": "core_tor_stall_secs",
+      "label": {
+        "fa": "مهلت پیشرفت اتصال پل TOR",
+        "en": "Tor bridge stall timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "اگر اتصال پل در این مدت پیشرفت نکند، پل دیگری امتحان می شود؛ بر حسب ثانیه.",
+        "en": "Seconds without bridge bootstrap progress before trying another bridge."
+      },
+      "default_hint": {
+        "fa": "75 ثانیه",
+        "en": "75 seconds"
+      },
+      "default_value": "75"
+    },
+    {
+      "env": "AETHER_TOR_BRIDGE_SECS",
+      "key": "core_tor_bridge_secs",
+      "label": {
+        "fa": "مهلت اتصال پل TOR",
+        "en": "Tor bridge timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "بیشترین زمان مجاز برای راه اندازی هر پل TOR، بر حسب ثانیه.",
+        "en": "Maximum seconds allowed for one TOR bridge to bootstrap."
+      },
+      "default_hint": {
+        "fa": "360 ثانیه",
+        "en": "360 seconds"
+      },
+      "default_value": "360"
+    },
+    {
+      "env": "AETHER_TOR_COUNTRY",
+      "key": "core_tor_country",
+      "label": {
+        "fa": "کشور درخواست پل TOR",
+        "en": "Tor bridge request country"
+      },
+      "type": "text",
+      "help": {
+        "fa": "کد دوحرفی کشور برای درخواست پل از BridgeDB، مانند ir؛ این کشور خروجی TOR را تعیین نمی کند.",
+        "en": "Two-letter country code sent to BridgeDB, such as ir; does not select the TOR exit country."
+      },
+      "default_hint": {
+        "fa": "خودکار",
+        "en": "Automatic"
+      }
+    },
+    {
+      "env": "AETHER_TOR_CHECK",
+      "key": "core_tor_check",
+      "label": {
+        "fa": "مقصد آزمایش TOR",
+        "en": "Tor connectivity check endpoint"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مقصد host:port که TOR باید به آن برسد تا اتصال آماده شناخته شود.",
+        "en": "Host:port TOR must reach before the connection counts as working."
+      },
+      "default_hint": {
+        "fa": "check.torproject.org:443",
+        "en": "check.torproject.org:443"
+      },
+      "default_value": "check.torproject.org:443"
+    },
+    {
+      "env": "AETHER_TOR_LOG",
+      "key": "core_tor_log",
+      "label": {
+        "fa": "سطح گزارش TOR",
+        "en": "Tor log level"
+      },
+      "type": "choice",
+      "choices": [
+        "info",
+        "debug",
+        "trace"
+      ],
+      "help": {
+        "fa": "info پیام های عادی، debug جزئیات عیب یابی و trace بیشترین جزئیات داخلی TOR را ثبت می کند.",
+        "en": "TOR log verbosity: info for normal operation, debug for troubleshooting, trace for full detail."
+      },
+      "default_hint": {
+        "fa": "info",
+        "en": "info"
+      },
+      "default_value": "info"
+    },
+    {
+      "env": "AETHER_WG_PEER",
+      "key": "core_wg_peer",
+      "label": {
+        "fa": "آدرس WireGuard",
+        "en": "WireGuard endpoint"
+      },
+      "type": "text",
+      "help": {
+        "fa": "سرور WireGuard به شکل IP:port. این مقدار سرور WireGuard را مشخص می کند؛ آدرس صریح تنظیمات پایه بر متغیر محیطی اولویت دارد.",
+        "en": "WireGuard endpoint as IP:port. Explicit base-setting command arguments take precedence over environment overrides."
+      },
+      "default_hint": {
+        "fa": "انتخاب هسته و اسکن",
+        "en": "Core selection and scan"
+      }
+    },
+    {
+      "env": "AETHER_WIW_PEERS",
+      "key": "core_wiw_peers",
+      "label": {
+        "fa": "دو لایهٔ WARP در یک مقدار",
+        "en": "WARP-in-WARP endpoint pair"
+      },
+      "type": "text",
+      "help": {
+        "fa": "دو سرور WARP کلاسیک به شکل outerIP:port,innerIP:port یا فقط سرور بیرونی. آدرس دو لایه باید متفاوت باشد.",
+        "en": "Classic WARP-in-WARP hops as outerIP:port,innerIP:port, or outer only. Hops must use different addresses."
+      },
+      "default_hint": {
+        "fa": "اسکن دو لایه",
+        "en": "Scan both hops"
+      }
+    },
+    {
+      "env": "AETHER_MIM_PEERS",
+      "key": "core_mim_peers",
+      "label": {
+        "fa": "دو لایهٔ MASQUE در یک مقدار",
+        "en": "MASQUE-in-MASQUE endpoint pair"
+      },
+      "type": "text",
+      "help": {
+        "fa": "دو سرور MASQUE به شکل outerIP:port,innerIP:port یا فقط بیرونی. آدرس دو لایه باید متفاوت باشد.",
+        "en": "MASQUE-in-MASQUE hops as outerIP:port,innerIP:port, or outer only; addresses must differ."
+      },
+      "default_hint": {
+        "fa": "اسکن بیرونی و انتخاب داخلی",
+        "en": "Scan outer, choose inner"
+      }
+    },
+    {
+      "env": "AETHER_QUIC_V2",
+      "key": "core_quic_v2",
+      "label": {
+        "fa": "آغاز اتصال با QUIC v2",
+        "en": "QUIC v2 opener"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "آغازگر مذاکره QUIC v2 برای اتصال HTTP/3 ارسال می شود؛ در شبکه هایی که QUIC v1 محدود است می تواند مفید باشد.",
+        "en": "Send the QUIC v2 negotiation opener for HTTP/3; useful where QUIC v1 is restricted."
+      },
+      "default_hint": {
+        "fa": "روشن",
+        "en": "On"
+      },
+      "default_value": "1"
+    },
+    {
+      "env": "AETHER_MASQUE_H2_PEER",
+      "key": "core_masque_h2_peer",
+      "label": {
+        "fa": "آدرس انتقال HTTP/2",
+        "en": "HTTP/2 endpoint"
+      },
+      "type": "text",
+      "help": {
+        "fa": "سرور مخصوص انتقال HTTP/2 به شکل IP:port؛ فقط مسیر h2 را تغییر می دهد.",
+        "en": "IP:port override for the HTTP/2 transport peer."
+      },
+      "default_hint": {
+        "fa": "سرور انتخاب شده اتر",
+        "en": "Selected Aether peer"
+      }
+    },
+    {
+      "env": "AETHER_MASQUE_NO_DATA_CHECK",
+      "key": "core_masque_no_data_check",
+      "label": {
+        "fa": "حذف آزمون عبور دادهٔ MASQUE",
+        "en": "Skip MASQUE data validation"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "روشن کردن این گزینه آزمون واقعی عبور داده بعد از برقراری MASQUE را حذف می کند؛ موفقیت handshake به تنهایی کافی فرض می شود.",
+        "en": "Skip real end-to-end MASQUE data validation and trust a successful handshake alone."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_WG_NO_DATA_CHECK",
+      "key": "core_wg_no_data_check",
+      "label": {
+        "fa": "حذف آزمون عبور دادهٔ WireGuard",
+        "en": "Skip WireGuard data validation"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "روشن کردن این گزینه آزمون واقعی عبور داده بعد از برقراری WireGuard را حذف می کند.",
+        "en": "Skip real end-to-end WireGuard data validation after the handshake."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_MASQUE_VALIDATE_SECS",
+      "key": "core_masque_validate_secs",
+      "label": {
+        "fa": "مهلت اعتبارسنجی MASQUE",
+        "en": "MASQUE validation timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "مهلت آزمون عبور داده MASQUE بر حسب ثانیه.",
+        "en": "MASQUE data-plane validation timeout in seconds."
+      },
+      "default_hint": {
+        "fa": "10 ثانیه",
+        "en": "10 seconds"
+      },
+      "default_value": "10"
+    },
+    {
+      "env": "AETHER_WG_VALIDATE_SECS",
+      "key": "core_wg_validate_secs",
+      "label": {
+        "fa": "مهلت اعتبارسنجی WireGuard",
+        "en": "WireGuard validation timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "مهلت آزمون عبور داده WireGuard بر حسب ثانیه.",
+        "en": "WireGuard data-plane validation timeout in seconds."
+      },
+      "default_hint": {
+        "fa": "10 ثانیه",
+        "en": "10 seconds"
+      },
+      "default_value": "10"
+    },
+    {
+      "env": "AETHER_MASQUE_STARTUP_SECS",
+      "key": "core_masque_startup_secs",
+      "label": {
+        "fa": "مهلت راه‌اندازی MASQUE",
+        "en": "MASQUE startup timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "مهلت کلی آغاز تونل MASQUE، بر حسب ثانیه.",
+        "en": "Total MASQUE startup deadline in seconds."
+      },
+      "default_hint": {
+        "fa": "30 ثانیه",
+        "en": "30 seconds"
+      },
+      "default_value": "30"
+    },
+    {
+      "env": "AETHER_MASQUE_RECONNECT_SECS",
+      "key": "core_masque_reconnect_secs",
+      "label": {
+        "fa": "فاصلهٔ اتصال دوبارهٔ MASQUE",
+        "en": "MASQUE reconnect delay"
+      },
+      "type": "number",
+      "help": {
+        "fa": "زمان مکث قبل از اتصال دوباره MASQUE پس از قطع تونل.",
+        "en": "Seconds to pause before reconnecting MASQUE after a tunnel drop."
+      },
+      "default_hint": {
+        "fa": "2 ثانیه",
+        "en": "2 seconds"
+      },
+      "default_value": "2"
+    },
+    {
+      "env": "AETHER_WG_RECONNECT_SECS",
+      "key": "core_wg_reconnect_secs",
+      "label": {
+        "fa": "فاصلهٔ اتصال دوبارهٔ WireGuard",
+        "en": "WireGuard reconnect delay"
+      },
+      "type": "number",
+      "help": {
+        "fa": "زمان مکث قبل از اتصال دوباره WireGuard پس از قطع تونل.",
+        "en": "Seconds to pause before reconnecting WireGuard after a tunnel drop."
+      },
+      "default_hint": {
+        "fa": "2 ثانیه",
+        "en": "2 seconds"
+      },
+      "default_value": "2"
+    },
+    {
+      "env": "AETHER_DNS",
+      "key": "core_dns",
+      "label": {
+        "fa": "DNS داخلی اتر",
+        "en": "Aether tunnel DNS"
+      },
+      "type": "text",
+      "help": {
+        "fa": "آدرس ریزالورهای DNS داخل تونل، با جداکننده ویرگول؛ مستقل از تنظیم عبور DNS در مسیریابی است.",
+        "en": "Comma-separated DNS resolvers inside the tunnel, independent of front-end DNS routing."
+      },
+      "default_hint": {
+        "fa": "1.1.1.1,1.0.0.1",
+        "en": "1.1.1.1,1.0.0.1"
+      },
+      "default_value": "1.1.1.1,1.0.0.1"
+    },
+    {
+      "env": "AETHER_MASQUE_H2_FRAGMENT",
+      "key": "core_masque_h2_fragment",
+      "label": {
+        "fa": "فرگمنت TLS",
+        "en": "TLS fragmentation"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "ClientHello اتصال TLS در HTTP/2 و درخواست های API ثبت WARP به فرگمنت های کوچک تقسیم می شود.",
+        "en": "Split TLS ClientHello into fragments for HTTP/2 and WARP API requests."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_MASQUE_H2_FRAGMENT_SIZE",
+      "key": "core_masque_h2_fragment_size",
+      "label": {
+        "fa": "اندازه فرگمنت TLS",
+        "en": "TLS fragment size"
+      },
+      "type": "text",
+      "help": {
+        "fa": "اندازه هر فرگمنت TLS به صورت عدد ثابت یا بازه a-b، بر حسب بایت.",
+        "en": "TLS fragment size as a fixed number or a-b byte range."
+      },
+      "default_hint": {
+        "fa": "8-16 بایت",
+        "en": "8-16 bytes"
+      },
+      "default_value": "8-16"
+    },
+    {
+      "env": "AETHER_MASQUE_H2_FRAGMENT_DELAY",
+      "key": "core_masque_h2_fragment_delay",
+      "label": {
+        "fa": "فاصله فرگمنت‌های TLS",
+        "en": "TLS fragment delay"
+      },
+      "type": "text",
+      "help": {
+        "fa": "فاصله زمانی بین فرگمنت های TLS به صورت عدد ثابت یا بازه a-b، بر حسب میلی ثانیه.",
+        "en": "Delay between TLS fragments as a fixed value or a-b range in milliseconds."
+      },
+      "default_hint": {
+        "fa": "2-10 میلی ثانیه",
+        "en": "2-10 milliseconds"
+      },
+      "default_value": "2-10"
+    },
+    {
+      "env": "AETHER_MASQUE_SNI",
+      "key": "core_masque_sni",
+      "label": {
+        "fa": "نام سرور MASQUE",
+        "en": "MASQUE server name"
+      },
+      "type": "text",
+      "help": {
+        "fa": "نام سرور در ClientHello اتصال MASQUE. این گزینه نام HTTP مقصد را تغییر نمی دهد؛ با ECH درون ClientHello رمزگذاری شده قرار می گیرد.",
+        "en": "MASQUE TLS server name. Does not change the HTTP authority; with ECH it is inside the encrypted ClientHello."
+      },
+      "default_hint": {
+        "fa": "www.cloudflare.com",
+        "en": "www.cloudflare.com"
+      },
+      "default_value": "www.cloudflare.com"
+    },
+    {
+      "env": "AETHER_ECH",
+      "key": "core_ech",
+      "label": {
+        "fa": "کلید ECH یا auto",
+        "en": "ECH key or auto"
+      },
+      "type": "text",
+      "help": {
+        "fa": "auto کلید ECH را از DNS می خواند؛ یا کلید را با قالب base64 وارد کنید. اگر ECH فعال باشد ولی کلید قابل استفاده نباشد، اتصال بدون آن ادامه پیدا نمی کند.",
+        "en": "auto fetches an ECH key through DNS, or supply base64. When enabled, connections do not proceed without an usable key."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      }
+    },
+    {
+      "env": "AETHER_ECH_DNS",
+      "key": "core_ech_dns",
+      "label": {
+        "fa": "ریزالورٔ ECH",
+        "en": "ECH resolver"
+      },
+      "type": "text",
+      "help": {
+        "fa": "ریزالور دریافت کلید ECH: udp://IP، tcp://IP یا نشانی HTTPS برای DoH. پسوندهای @address= و @sni= مقصد و نام TLS را تغییر می دهند.",
+        "en": "ECH key resolver using udp://, tcp:// or HTTPS DoH; @address= and @sni= override dial address and TLS name."
+      },
+      "default_hint": {
+        "fa": "udp://1.1.1.1",
+        "en": "udp://1.1.1.1"
+      },
+      "default_value": "udp://1.1.1.1"
+    },
+    {
+      "env": "AETHER_ECH_DOMAIN",
+      "key": "core_ech_domain",
+      "label": {
+        "fa": "دامنهٔ ECH",
+        "en": "ECH lookup domain"
+      },
+      "type": "text",
+      "help": {
+        "fa": "دامنه ای که کلید ECH آن در حالت auto دریافت می شود.",
+        "en": "Domain whose ECH key is fetched in auto mode."
+      },
+      "default_hint": {
+        "fa": "cloudflare-ech.com",
+        "en": "cloudflare-ech.com"
+      },
+      "default_value": "cloudflare-ech.com"
+    },
+    {
+      "env": "AETHER_TLS_CIPHERS",
+      "key": "core_tls_ciphers",
+      "label": {
+        "fa": "رمزهای TLS 1.2",
+        "en": "TLS 1.2 cipher suites"
+      },
+      "type": "text",
+      "help": {
+        "fa": "رمزهای TLS 1.2 با نام های BoringSSL و جداکننده :، مثلا ECDHE-RSA-AES128-GCM-SHA256. HTTP/3 فقط TLS 1.3 دارد.",
+        "en": "Colon-separated BoringSSL TLS 1.2 cipher names. HTTP/3 only supports TLS 1.3."
+      },
+      "default_hint": {
+        "fa": "اثر انگشت Chrome",
+        "en": "Chrome fingerprint"
+      }
+    },
+    {
+      "env": "AETHER_TLS13_CIPHERS",
+      "key": "core_tls13_ciphers",
+      "label": {
+        "fa": "رمزهای TLS 1.3",
+        "en": "TLS 1.3 cipher suites"
+      },
+      "type": "text",
+      "help": {
+        "fa": "رمزهای TLS 1.3 با نام استاندارد و جداکننده :؛ ترتیب آن ها همان ترتیب ارائه به سرور است.",
+        "en": "Colon-separated standard TLS 1.3 cipher names in offered order."
+      },
+      "default_hint": {
+        "fa": "ترتیب Chrome متناسب با پردازنده",
+        "en": "Chrome order based on CPU"
+      }
+    },
+    {
+      "env": "AETHER_TLS_GROUPS",
+      "key": "core_tls_groups",
+      "label": {
+        "fa": "گروه‌های TLS",
+        "en": "TLS groups"
+      },
+      "type": "text",
+      "help": {
+        "fa": "گروه های رمزنگاری TLS با جداکننده : و به ترتیب ارائه به سرور.",
+        "en": "Colon-separated TLS groups in offered order."
+      },
+      "default_hint": {
+        "fa": "P-256:X25519:P-384",
+        "en": "P-256:X25519:P-384"
+      },
+      "default_value": "P-256:X25519:P-384"
+    },
+    {
+      "env": "AETHER_TLS_KEY_SHARES",
+      "key": "core_tls_key_shares",
+      "label": {
+        "fa": "گروه‌های تبادل کلید TLS",
+        "en": "TLS key shares"
+      },
+      "type": "text",
+      "help": {
+        "fa": "گروه هایی که سهم کلید برای آن ها ارسال می شود؛ با : جدا شوند و عضو فهرست گروه های TLS باشند.",
+        "en": "Colon-separated groups receiving key shares; each must appear in the TLS group list."
+      },
+      "default_hint": {
+        "fa": "انتخاب Chrome از گروه های TLS",
+        "en": "Chrome selection from TLS groups"
+      }
+    },
+    {
+      "env": "AETHER_DISABLE_GREASE",
+      "key": "core_disable_grease",
+      "label": {
+        "fa": "غیرفعال‌کردن TLS GREASE",
+        "en": "Disable TLS GREASE"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "روشن کردن این گزینه مقادیر GREASE را از فهرست های TLS حذف می کند و اثر انگشت ClientHello را تغییر می دهد.",
+        "en": "Remove TLS GREASE values, changing the ClientHello fingerprint."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_ENABLE_GREASE_SIGALGS",
+      "key": "core_enable_grease_sigalgs",
+      "label": {
+        "fa": "GREASE در الگوریتم‌های امضا",
+        "en": "GREASE signature algorithms"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "یک مقدار GREASE به ابتدای الگوریتم های امضای TLS اضافه می کند.",
+        "en": "Prepend a GREASE value to TLS signature algorithms."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_TLS_SIGALGS",
+      "key": "core_tls_sigalgs",
+      "label": {
+        "fa": "الگوریتم‌های امضای TLS",
+        "en": "TLS signature algorithms"
+      },
+      "type": "text",
+      "help": {
+        "fa": "نام الگوریتم های امضای TLS با جداکننده : مانند ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256.",
+        "en": "Colon-separated BoringSSL signature algorithm names, such as ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256."
+      },
+      "default_hint": {
+        "fa": "فهرست پیش فرض BoringSSL",
+        "en": "BoringSSL defaults"
+      }
+    },
+    {
+      "env": "AETHER_TLS_CERT_COMPRESSION",
+      "key": "core_tls_cert_compression",
+      "label": {
+        "fa": "فشرده‌سازی گواهی TLS",
+        "en": "TLS certificate compression"
+      },
+      "type": "choice",
+      "choices": [
+        "zlib",
+        "brotli",
+        "zstd",
+        "zlib:brotli:zstd"
+      ],
+      "help": {
+        "fa": "روش های فشرده سازی گواهی ارائه شده به سرور. چند روش با : جدا می شوند و ترتیب آن ها حفظ می شود.",
+        "en": "Offered certificate compression methods, separated by colons in priority order."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      }
+    },
+    {
+      "env": "AETHER_TLS_ALPS",
+      "key": "core_tls_alps",
+      "label": {
+        "fa": "نسخهٔ TLS ALPS",
+        "en": "TLS ALPS codepoint"
+      },
+      "type": "choice",
+      "choices": [
+        "new",
+        "old"
+      ],
+      "help": {
+        "fa": "افزونه ALPS برای انتقال تنظیمات برنامه در TLS؛ new کد جدید Chrome و old کد قدیمی آن را ارائه می کند.",
+        "en": "Offer ALPS application settings in TLS using the new or old Chrome codepoint."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      }
+    },
+    {
+      "env": "AETHER_TLS_TRUST_ANCHORS",
+      "key": "core_tls_trust_anchors",
+      "label": {
+        "fa": "شناسه‌های ریشهٔ اعتماد TLS",
+        "en": "TLS trust anchors"
+      },
+      "type": "text",
+      "help": {
+        "fa": "شناسه های ریشه اعتماد با قالب عدد نقطه دار و جداکننده : مثل 11129.9.1:11129.9.4.",
+        "en": "Dotted trust-anchor IDs separated by colons, such as 11129.9.1:11129.9.4."
+      },
+      "default_hint": {
+        "fa": "بدون افزونه",
+        "en": "No extension"
+      }
+    },
+    {
+      "env": "AETHER_TLS_SERVER_PADDING",
+      "key": "core_tls_server_padding",
+      "label": {
+        "fa": "اندازهٔ padding سرور TLS",
+        "en": "TLS server padding"
+      },
+      "type": "number",
+      "help": {
+        "fa": "تعداد بایت padding درخواستی از سرور TLS، از 0 تا 65535؛ Chrome مقدار 6000 را درخواست می کند.",
+        "en": "Requested TLS server padding in bytes, from 0 to 65535; Chrome requests 6000."
+      },
+      "default_hint": {
+        "fa": "بدون درخواست padding",
+        "en": "No padding request"
+      }
+    },
+    {
+      "env": "AETHER_ENABLE_ECH_GREASE",
+      "key": "core_enable_ech_grease",
+      "label": {
+        "fa": "فعال‌کردن ECH GREASE",
+        "en": "Enable ECH GREASE"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "وقتی کلید واقعی ECH وجود ندارد، یک افزونه GREASE ECH برای شبیه سازی اثر انگشت مرورگر ارسال می کند؛ نام سرور را رمزگذاری نمی کند.",
+        "en": "Send a GREASE ECH extension when no real key is offered; this does not encrypt the server name."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_DISABLE_OCSP_STAPLING",
+      "key": "core_disable_ocsp_stapling",
+      "label": {
+        "fa": "غیرفعال‌کردن OCSP stapling",
+        "en": "Disable OCSP stapling"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "درخواست status_request مربوط به OCSP را از ClientHello حذف می کند.",
+        "en": "Omit the OCSP status_request extension from ClientHello."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_DISABLE_SCT",
+      "key": "core_disable_sct",
+      "label": {
+        "fa": "غیرفعال‌کردن مهر زمان گواهی",
+        "en": "Disable certificate timestamps"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "افزونه signed_certificate_timestamp را از ClientHello حذف می کند.",
+        "en": "Omit the signed_certificate_timestamp extension."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_DISABLE_SESSION_TICKET",
+      "key": "core_disable_session_ticket",
+      "label": {
+        "fa": "غیرفعال‌کردن بلیت نشست TLS",
+        "en": "Disable TLS session tickets"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "افزونه session_ticket را از ClientHello حذف می کند.",
+        "en": "Omit the session_ticket extension."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_DISABLE_EXTENSION_PERMUTATION",
+      "key": "core_disable_extension_permutation",
+      "label": {
+        "fa": "ثابت‌ماندن ترتیب افزونه‌های TLS",
+        "en": "Keep TLS extension order"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "ترتیب افزونه های TLS ثابت می ماند و مانند Chrome در هر handshake جابجا نمی شود.",
+        "en": "Keep TLS extensions in a fixed order instead of permuting them for each handshake."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_WG_KEEPALIVE",
+      "key": "core_wg_keepalive",
+      "label": {
+        "fa": "فاصلهٔ keepalive در WireGuard",
+        "en": "WireGuard keepalive interval"
+      },
+      "type": "number",
+      "help": {
+        "fa": "فاصله ارسال بسته نگهدارنده اتصال WireGuard، بر حسب ثانیه و بزرگ تر از صفر.",
+        "en": "Positive persistent WireGuard keepalive interval in seconds."
+      },
+      "default_hint": {
+        "fa": "5 ثانیه",
+        "en": "5 seconds"
+      },
+      "default_value": "5"
+    },
+    {
+      "env": "AETHER_WG_NO_PROFILE_RETRY",
+      "key": "core_wg_no_profile_retry",
+      "label": {
+        "fa": "غیرفعال‌کردن تکرار با پروفایل دیگر",
+        "en": "Disable WireGuard profile retry"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "پس از ناموفق بودن پروفایل استتار انتخاب شده، هسته پروفایل های دیگر را در اسکن امتحان نمی کند.",
+        "en": "Do not try other obfuscation profiles when the selected one fails during scanning."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_TEAM",
+      "key": "core_team",
+      "label": {
+        "fa": "نام تیم Zero Trust",
+        "en": "Zero Trust team"
+      },
+      "type": "text",
+      "help": {
+        "fa": "نام تیم سازمان Cloudflare Zero Trust، نه نشانی کامل؛ مثلا myteam برای myteam.cloudflareaccess.com.",
+        "en": "Cloudflare Zero Trust team name, such as myteam, rather than the full domain."
+      },
+      "default_hint": {
+        "fa": "بدون سازمان",
+        "en": "No organization"
+      }
+    },
+    {
+      "env": "AETHER_ACCESS_CLIENT_ID",
+      "key": "core_access_client_id",
+      "label": {
+        "fa": "شناسهٔ سرویس Zero Trust",
+        "en": "Zero Trust service client ID"
+      },
+      "type": "text",
+      "help": {
+        "fa": "شناسه Client ID توکن سرویس سازمان برای ثبت بدون مرورگر؛ همراه کلید Client Secret تنظیم می شود.",
+        "en": "Organization service-token Client ID for headless enrollment; pair it with Client Secret."
+      },
+      "default_hint": {
+        "fa": "بدون توکن سرویس",
+        "en": "No service token"
+      }
+    },
+    {
+      "env": "AETHER_ACCESS_CLIENT_SECRET",
+      "key": "core_access_client_secret",
+      "label": {
+        "fa": "کلید سرویس Zero Trust",
+        "en": "Zero Trust service client secret"
+      },
+      "type": "text",
+      "secret": true,
+      "help": {
+        "fa": "کلید Client Secret توکن سرویس Zero Trust؛ با شناسه همان توکن استفاده می شود.",
+        "en": "Zero Trust service-token Client Secret, paired with its Client ID."
+      },
+      "default_hint": {
+        "fa": "بدون توکن سرویس",
+        "en": "No service token"
+      }
+    },
+    {
+      "env": "AETHER_ACCESS_TOKEN",
+      "key": "core_access_token",
+      "label": {
+        "fa": "توکن Zero Trust",
+        "en": "Zero Trust access token"
+      },
+      "type": "text",
+      "secret": true,
+      "help": {
+        "fa": "توکن JWT ثبت سازمان که از ورود به https://TEAM.cloudflareaccess.com/warp دریافت کرده اید.",
+        "en": "Enrollment JWT obtained by signing in at https://TEAM.cloudflareaccess.com/warp."
+      },
+      "default_hint": {
+        "fa": "بدون توکن ثبت",
+        "en": "No enrollment token"
+      }
+    },
+    {
+      "env": "AETHER_ACCESS_EMAIL",
+      "key": "core_access_email",
+      "label": {
+        "fa": "ایمیل Zero Trust",
+        "en": "Zero Trust email"
+      },
+      "type": "text",
+      "help": {
+        "fa": "ایمیل ورود Zero Trust با کد یک بار مصرف. این روش به ورود تعاملی کد نیاز دارد؛ برای سرویس بدون رابط از توکن سرویس استفاده کنید.",
+        "en": "Zero Trust email sign-in requires interactive one-time-code entry; use a service token for unattended operation."
+      },
+      "default_hint": {
+        "fa": "بدون ورود ایمیلی",
+        "en": "No email sign-in"
+      }
+    },
+    {
+      "env": "AETHER_GATEWAY",
+      "key": "core_gateway",
+      "label": {
+        "fa": "درگاه سازمانی Zero Trust",
+        "en": "Use organization gateway"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "HTTP و HTTPS را از پراکسی Gateway سازمان عبور می دهد تا فیلتر و ثبت گزارش سازمان اعمال شود. یک مرحله به مسیر تونل اضافه می کند.",
+        "en": "Route HTTP and HTTPS through the organization’s Gateway proxy so its filtering and logging apply; adds a tunnel hop."
+      },
+      "default_hint": {
+        "fa": "خاموش",
+        "en": "Off"
+      },
+      "default_value": "0"
+    },
+    {
+      "env": "AETHER_ROUTE_BLOCK",
+      "key": "core_route_block",
+      "label": {
+        "fa": "مقصدهای مسدود در هسته",
+        "en": "Core blocked destinations"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مقصدهای مسدود با جداکننده ویرگول: دامنه، full:domain، keyword:text، regexp:pattern، CIDR، port:25 یا private. قبل از قواعد مستقیم بررسی می شود.",
+        "en": "Blocked destinations: domains, full:, keyword:, regexp:, CIDRs, port: or private, comma separated. Evaluated before direct rules."
+      },
+      "default_hint": {
+        "fa": "بدون قاعده اضافی",
+        "en": "No extra rules"
+      }
+    },
+    {
+      "env": "AETHER_ROUTE_DIRECT",
+      "key": "core_route_direct",
+      "label": {
+        "fa": "مقصدهای مستقیم در هسته",
+        "en": "Core direct destinations"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مقصدهایی که مستقیم و خارج تونل وصل می شوند؛ دامنه، CIDR، port: یا private با جداکننده ویرگول. قواعد مسدود اولویت دارند.",
+        "en": "Direct destinations bypassing the tunnel, comma separated; domains, CIDRs, port: and private are supported. Block rules win."
+      },
+      "default_hint": {
+        "fa": "بدون قاعده اضافی",
+        "en": "No extra rules"
+      }
+    },
+    {
+      "env": "AETHER_ROUTES_FILE",
+      "key": "core_routes_file",
+      "label": {
+        "fa": "فایل قواعد مسیریابی اتر",
+        "en": "Aether routing rules file"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مسیر فایل قواعد مسیریابی اتر با بخش های [block] و [direct]. مستقل از rule-set های سینگ باکس است.",
+        "en": "Aether routing file with [block] and [direct] sections; independent of sing-box rule sets."
+      },
+      "default_hint": {
+        "fa": "بدون فایل اضافی",
+        "en": "No extra file"
+      }
+    },
+    {
+      "env": "AETHER_WG_CONFIG",
+      "key": "core_wg_config",
+      "label": {
+        "fa": "فایل هویت WireGuard",
+        "en": "WireGuard identity file"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مسیر اختصاصی فایل هویت WireGuard. فایل حاوی کلید است و در نبود آن هسته هویت لازم را ثبت می کند.",
+        "en": "Dedicated WireGuard identity file path; contains keys and is provisioned when missing."
+      },
+      "default_hint": {
+        "fa": "مشتق از فایل هویت اصلی",
+        "en": "Derived from base identity path"
+      }
+    },
+    {
+      "env": "AETHER_MASQUE_CONFIG",
+      "key": "core_masque_config",
+      "label": {
+        "fa": "فایل هویت MASQUE",
+        "en": "MASQUE identity file"
+      },
+      "type": "text",
+      "help": {
+        "fa": "مسیر اختصاصی فایل هویت MASQUE و گواهی آن. خالی از مسیر مشتق شده از فایل هویت اصلی استفاده می کند.",
+        "en": "Dedicated MASQUE identity and certificate file; empty derives the path from the base identity."
+      },
+      "default_hint": {
+        "fa": "مشتق از فایل هویت اصلی",
+        "en": "Derived from base identity path"
+      }
+    },
+    {
+      "env": "AETHER_API_SNI",
+      "key": "core_api_sni",
+      "label": {
+        "fa": "نام TLS سرویس ثبت WARP",
+        "en": "WARP registration TLS server name"
+      },
+      "type": "text",
+      "help": {
+        "fa": "نام TLS درخواست های ثبت WARP. با ECH داخل ClientHello رمزگذاری شده است؛ باید با نام HTTP سرویس سازگار باشد.",
+        "en": "WARP API TLS server name; inside encrypted ClientHello with ECH, and must match the API HTTP host."
+      },
+      "default_hint": {
+        "fa": "نام HTTP سرویس ثبت WARP",
+        "en": "WARP API HTTP host"
+      }
+    },
+    {
+      "env": "AETHER_API_HOST",
+      "key": "core_api_host",
+      "label": {
+        "fa": "نام HTTP سرویس ثبت WARP",
+        "en": "WARP registration HTTP host"
+      },
+      "type": "text",
+      "help": {
+        "fa": "نام HTTP درخواست های ثبت WARP. در حالت خودکار هسته نام جایگزین و لبه های Cloudflare را هم بررسی می کند؛ مقدار صریح مسیر انتخاب را محدود می کند.",
+        "en": "WARP API HTTP host. Automatic mode can use fallback names and Cloudflare edges; an explicit value constrains selection."
+      },
+      "default_hint": {
+        "fa": "api.devices.cloudflare.com",
+        "en": "api.devices.cloudflare.com"
+      },
+      "default_value": "api.devices.cloudflare.com"
+    },
+    {
+      "env": "AETHER_ROUTE_SNIFF",
+      "key": "core_route_sniff",
+      "label": {
+        "fa": "تشخیص نام سرور برای مسیریابی",
+        "en": "Routing server-name sniffing"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "نام مقصد را از اولین داده های اتصال تشخیص می دهد تا قواعد دامنه پشت رابط TUN هم قابل استفاده باشند.",
+        "en": "Read the server name from initial connection bytes so domain rules work behind a TUN front end."
+      },
+      "default_hint": {
+        "fa": "روشن",
+        "en": "On"
+      },
+      "default_value": "1"
+    },
+    {
+      "env": "AETHER_ROUTE_SNIFF_MS",
+      "key": "core_route_sniff_ms",
+      "label": {
+        "fa": "مهلت تشخیص نام سرور (میلی‌ثانیه)",
+        "en": "Routing sniff timeout (milliseconds)"
+      },
+      "type": "number",
+      "help": {
+        "fa": "بیشترین انتظار برای داده های اولیه تشخیص نام مقصد، بر حسب میلی ثانیه.",
+        "en": "Maximum wait for initial server-name sniffing bytes in milliseconds."
+      },
+      "default_hint": {
+        "fa": "400 میلی ثانیه",
+        "en": "400 milliseconds"
+      },
+      "default_value": "400"
+    },
+    {
+      "env": "AETHER_WG_ENDPOINT_COOLDOWN_SECS",
+      "key": "core_wg_endpoint_cooldown_secs",
+      "label": {
+        "fa": "مدت کنارگذاشتن سرور WireGuard ناموفق",
+        "en": "Failed WireGuard endpoint cooldown"
+      },
+      "type": "number",
+      "help": {
+        "fa": "سروری که دو اتصال آن پیاپی در کمتر از پنج دقیقه قطع شده، این مدت از اسکن کنار گذاشته می شود.",
+        "en": "Seconds to rest an endpoint after two successive tunnels each end within five minutes."
+      },
+      "default_hint": {
+        "fa": "300 ثانیه",
+        "en": "300 seconds"
+      },
+      "default_value": "300"
+    },
+    {
+      "env": "AETHER_WG_STALE_SECS",
+      "key": "core_wg_stale_secs",
+      "label": {
+        "fa": "مهلت سکوت WireGuard",
+        "en": "WireGuard idle timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "مدت سکوت WireGuard قبل از مرده در نظر گرفتن تونل، بر حسب ثانیه.",
+        "en": "WireGuard silence timeout in seconds before treating the tunnel as dead."
+      },
+      "default_hint": {
+        "fa": "10 ثانیه",
+        "en": "10 seconds"
+      },
+      "default_value": "10"
+    },
+    {
+      "env": "AETHER_MASQUE_H2_KEEPALIVE_SECS",
+      "key": "core_masque_h2_keepalive_secs",
+      "label": {
+        "fa": "فاصلهٔ keepalive در HTTP/2",
+        "en": "HTTP/2 keepalive interval"
+      },
+      "type": "number",
+      "help": {
+        "fa": "فاصله بررسی زنده بودن اتصال HTTP/2 با keepalive، بر حسب ثانیه.",
+        "en": "HTTP/2 keepalive interval in seconds."
+      },
+      "default_hint": {
+        "fa": "15 ثانیه",
+        "en": "15 seconds"
+      },
+      "default_value": "15"
+    },
+    {
+      "env": "AETHER_MASQUE_H2_KEEPALIVE_TIMEOUT_SECS",
+      "key": "core_masque_h2_keepalive_timeout_secs",
+      "label": {
+        "fa": "مهلت پاسخ keepalive در HTTP/2",
+        "en": "HTTP/2 keepalive timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "حداکثر انتظار برای پاسخ keepalive اتصال HTTP/2، بر حسب ثانیه.",
+        "en": "Maximum unanswered HTTP/2 keepalive time in seconds."
+      },
+      "default_hint": {
+        "fa": "20 ثانیه",
+        "en": "20 seconds"
+      },
+      "default_value": "20"
+    },
+    {
+      "env": "AETHER_IRONCLAD_PORT",
+      "key": "core_ironclad_port",
+      "label": {
+        "fa": "پورت آزمایش ironclad",
+        "en": "Ironclad test port"
+      },
+      "type": "number",
+      "help": {
+        "fa": "پورت مقصد درخواست واقعی HTTP در آزمون اسکن ironclad؛ برای تایید عبور واقعی داده استفاده می شود.",
+        "en": "Destination port for the real HTTP request used by ironclad scanning to validate traffic flow."
+      },
+      "default_hint": {
+        "fa": "80",
+        "en": "80"
+      },
+      "default_value": "80"
+    },
+    {
+      "env": "AETHER_MAX_CLIENTS",
+      "key": "core_max_clients",
+      "label": {
+        "fa": "حداکثر اتصال‌های پراکسی",
+        "en": "Maximum proxy clients"
+      },
+      "type": "number",
+      "help": {
+        "fa": "حداکثر اتصال همزمان پراکسی؛ اتصال های بیشتر منتظر جای خالی می مانند. مقدار خودکار بر اساس منابع سیستم انتخاب می شود.",
+        "en": "Maximum simultaneous proxy clients; additional clients wait. Automatic capacity depends on system resources."
+      },
+      "default_hint": {
+        "fa": "خودکار، بین 512 و 8192",
+        "en": "Automatic, 512 to 8192"
+      }
+    },
+    {
+      "env": "AETHER_HALF_CLOSE_SECS",
+      "key": "core_half_close_secs",
+      "label": {
+        "fa": "مهلت اتصال نیمه‌بسته",
+        "en": "Half-closed connection timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "مدت سکوت مجاز پس از پایان ارسال یک سمت اتصال، قبل از بستن اتصال نیمه بسته.",
+        "en": "Idle seconds allowed after one side stops sending before closing the half-closed connection."
+      },
+      "default_hint": {
+        "fa": "30 ثانیه",
+        "en": "30 seconds"
+      },
+      "default_value": "30"
+    },
+    {
+      "env": "AETHER_TCP_KEEPALIVE_SECS",
+      "key": "core_tcp_keepalive_secs",
+      "label": {
+        "fa": "فاصلهٔ keepalive در TCP",
+        "en": "TCP keepalive interval"
+      },
+      "type": "number",
+      "help": {
+        "fa": "مدت بیکاری TCP قبل از بررسی زنده بودن سمت مقابل؛ سه بررسی بی پاسخ اتصال را می بندد.",
+        "en": "TCP idle seconds before keepalive checks; three unanswered checks close the connection."
+      },
+      "default_hint": {
+        "fa": "60 ثانیه",
+        "en": "60 seconds"
+      },
+      "default_value": "60"
+    },
+    {
+      "env": "AETHER_TCP_CONNECT_SECS",
+      "key": "core_tcp_connect_secs",
+      "label": {
+        "fa": "مهلت اتصال TCP",
+        "en": "TCP connection timeout"
+      },
+      "type": "number",
+      "help": {
+        "fa": "بیشترین زمان مجاز برای باز شدن اتصال TCP از داخل تونل، بر حسب ثانیه.",
+        "en": "Maximum seconds to establish a TCP connection through the tunnel."
+      },
+      "default_hint": {
+        "fa": "30 ثانیه",
+        "en": "30 seconds"
+      },
+      "default_value": "30"
+    },
+    {
+      "env": "AETHER_REPROVISION",
+      "key": "core_reprovision",
+      "label": {
+        "fa": "تعویض هویت WARP ردشده",
+        "en": "Replace rejected WARP identity"
+      },
+      "type": "boolean",
+      "help": {
+        "fa": "اگر Cloudflare هویت ذخیره شده را رد کند، هسته هویت تازه ثبت می کند. خاموش کردن، تعویض خودکار هویت ردشده را متوقف می کند.",
+        "en": "Register a fresh identity when Cloudflare rejects a saved identity; disable to prevent automatic replacement."
+      },
+      "default_hint": {
+        "fa": "روشن",
+        "en": "On"
+      },
+      "default_value": "1"
+    }
+  ],
+  "integrated": {
+    "AETHER_SOCKS": "socks_address + socks_port",
+    "AETHER_HTTP_PROXY": "http_port",
+    "AETHER_MARK": "mark",
+    "AETHER_TOR": "tor",
+    "AETHER_TOR_BIND": "tor_port",
+    "AETHER_PSIPHON": "psiphon",
+    "AETHER_PSIPHON_MODE": "psiphon_mode",
+    "AETHER_PSIPHON_BIND": "psiphon_port",
+    "AETHER_PSIPHON_REGION": "psiphon_region",
+    "AETHER_QUICK_RECONNECT": "quick_reconnect",
+    "AETHER_IP": "ip_mode",
+    "AETHER_PEER": "peer",
+    "AETHER_PROTOCOL": "protocol",
+    "AETHER_GOOL_INNER": "inner_peer",
+    "AETHER_GOOL_MODE": "protocol=gool",
+    "AETHER_WIW_OUTER_PEER": "outer_peer",
+    "AETHER_WIW_INNER_PEER": "inner_peer",
+    "AETHER_MIM_OUTER_PEER": "outer_peer",
+    "AETHER_MIM_INNER_PEER": "inner_peer",
+    "AETHER_SCAN": "scan",
+    "AETHER_NOIZE": "noize",
+    "AETHER_MASQUE_HTTP2": "masque_transport",
+    "AETHER_TLS_VERIFY": "tls_verify",
+    "AETHER_CONFIG": "config_file",
+    "AETHER_API_ADDRESS": "enroll_address",
+    "AETHER_PERF_PROFILE": "perf",
+    "AETHER_LOG_LEVEL": "log_level"
+  },
+  "lifecycle": {
+    "AETHER_REGISTER": "On-demand identity registration; never a persistent service setting"
+  }
+}
