@@ -176,7 +176,13 @@ state installing
 # The package manager keeps conffiles and owns all installed paths.
 case "$manager" in
 	opkg) opkg install "$@" ;;
-	apk) apk add --allow-untrusted "$@" ;;
+	apk)
+		# Updating the explicit constraint lets APK replace a checksum-pinned
+		# standalone interface with the provider in the unified package.
+		if [ "$#" -eq 1 ] && pkg_installed luci-app-gozarbin; then
+			set -- "$@" luci-app-gozarbin
+		fi
+		apk add --allow-untrusted "$@" ;;
 esac
 install_percent=80
 state installing package

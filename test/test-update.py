@@ -41,7 +41,7 @@ case "$1" in */latest|*/releases?per_page=20) cp "$TEST_RELEASE/latest" "$2" ;;
 *) cp "$TEST_RELEASE/${1##*/}" "$2" ;; esac
 }
 ''')
-    (lib / 'packages.sh').write_text('pkg_manager() { echo "${TEST_MANAGER:-opkg}"; }\npkg_installed() { return 1; }\n')
+    (lib / 'packages.sh').write_text('pkg_manager() { echo "${TEST_MANAGER:-opkg}"; }\npkg_installed() { [ "$1" = luci-app-gozarbin ] && [ "${TEST_LEGACY_UI:-0}" = 1 ]; }\n')
     (lib / 'releases.sh').write_text((ROOT / 'openwrt/files/usr/libexec/gozarbin/releases.sh').read_text())
     (lib / 'delta.sh').write_text('#!/bin/sh\necho "$1" >> "$TEST_DELTA_LOG"\nexit 2\n')
     (lib / 'delta.sh').chmod(0o755)
@@ -194,5 +194,24 @@ printf '<meta property="og:url" content="https://github.com/dreamboxone/gozarbin
         installed = (base / 'installed').read_text()
         assert installed.count('.' + extension) == 1 and 'luci-app-gozarbin' not in installed
         print('PASS: unified ' + extension.upper() + ' installs as one package and supports delta fetch/seed')
+
+    # Model the constraint conflict observed on a router with a standalone
+    # checksum-pinned interface. The same install must relax that constraint.
+    env['TEST_LEGACY_UI'] = '1'
+    (binaries / 'apk').write_text('''#!/bin/sh
+case "$1" in
+version) echo '>' ;;
+add)
+ case " $* " in *" luci-app-gozarbin ") ;; *) echo 'checksum-pinned interface blocks upgrade' >&2; exit 1 ;; esac
+ echo "$TEST_TARGET" > "$TEST_VERSION"
+ shift; printf '%s\\n' "$@" > "$TEST_INSTALL_LOG" ;;
+esac
+''')
+    version.write_text('5.7.29-r1\n')
+    result = run('install')
+    assert result.returncode == 0 and state() == 'done', (result.stdout, result.stderr)
+    arguments = (base / 'installed').read_text().splitlines()
+    assert arguments[-1] == 'luci-app-gozarbin' and sum(x.endswith('.apk') for x in arguments) == 1
+    print('PASS: unified APK upgrade relaxes the pinned standalone LuCI constraint in the same transaction')
 
 print('All update worker tests passed')

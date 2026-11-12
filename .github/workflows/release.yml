@@ -671,7 +671,10 @@ jobs:
           body: |
             ## Gozarbin for OpenWrt
 
-            ### 5.8.21
+            ### 5.8.21r2
+
+            - Fix APK upgrades from checksum-pinned standalone LuCI packages to the unified package.
+            - Existing older updaters need the one-time migration command documented in README.md: add `luci-app-gozarbin` alongside the downloaded APK when running `apk add --allow-untrusted`.
 
             - Use the native TUN stack with sing-box 1.15 and newer, retaining compatibility with older cores.
             - Correct the LuCI Services menu name to Gozarbin.
