@@ -1,6 +1,6 @@
 {
   "admin/services/gozarbin": {
-    "title": "Gozaebin",
+    "title": "Gozarbin",
     "order": 45,
     "action": {
       "type": "firstchild"

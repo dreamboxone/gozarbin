@@ -250,13 +250,24 @@ outbounds() {
 	return 0
 }
 
+legacy_tun_stack() {
+	local stack
+	stack=$("$singbox" version 2>/dev/null | awk '/^sing-box version / && $3 ~ /^[0-9]+[.][0-9]+[.][0-9]+/ {
+		split($3, v, ".")
+		if (v[1] > 1 || (v[1] == 1 && v[2] >= 15)) print "new"
+		exit
+	}')
+	[ "$stack" = new ] || printf ',"stack":"system"'
+	return 0
+}
+
 inbound() {
 	local addresses
 	if [ "$mode" = tun ]; then
 		addresses="\"$tun_address\""
 		[ -n "$tun_address6" ] && addresses="$addresses,\"$tun_address6\""
-		printf '{"type":"tun","tag":"gozarbin-tun","interface_name":"%s","address":[%s],"mtu":%s,"auto_route":true,"strict_route":true,"stack":"system"}' \
-			"$tun_name" "$addresses" "$tun_mtu"
+		printf '{"type":"tun","tag":"gozarbin-tun","interface_name":"%s","address":[%s],"mtu":%s,"auto_route":true,"strict_route":true%s}' \
+			"$tun_name" "$addresses" "$tun_mtu" "$(legacy_tun_stack)"
 	else
 		printf '{"type":"tproxy","tag":"gozarbin-tproxy","listen":"::","listen_port":%s},' "$tproxy_port"
 		printf '{"type":"direct","tag":"gozarbin-dns","listen":"127.0.0.1","listen_port":%s}' "$dns_port"

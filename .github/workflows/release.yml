@@ -671,7 +671,10 @@ jobs:
           body: |
             ## Gozarbin for OpenWrt
 
-            ### 5.8.8r2
+            ### 5.8.21
+
+            - Use the native TUN stack with sing-box 1.15 and newer, retaining compatibility with older cores.
+            - Correct the LuCI Services menu name to Gozarbin.
 
             - Aether 2.4.0 with the complete public settings exposed in the interface.
             - One architecture package containing Gozarbin and LuCI, with differential updates.
